@@ -25,6 +25,23 @@ ExperienceBridge uses a decoupled frontend and backend architecture.
 - Neon PostgreSQL stores structured application data.
 - Staging and production use isolated backend and database environments.
 
+## Local development
+
+Start the FastAPI backend from the repository root:
+
+```powershell
+.\apps\api\.venv\Scripts\python.exe -m uvicorn main:app --app-dir apps/api --reload
+```
+
+Start the Next.js frontend in a second terminal:
+
+```powershell
+cd apps/web
+npm run dev
+```
+
+The four portal dashboard routes are structural placeholders. Authentication, authorization, database access, and business workflows are not implemented.
+
 ## Project Documentation
 
 All specifications are in the `docs/` directory:
