@@ -11,6 +11,7 @@ node_modules/
 out/
 .turbo/
 *.tsbuildinfo
+.npm-cache/
 
 # Python / FastAPI
 __pycache__/
