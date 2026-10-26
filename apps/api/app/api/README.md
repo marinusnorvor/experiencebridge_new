@@ -1,3 +1,3 @@
-# API routing
+# API routing (`app/api`)
 
-Reserved for API routers. The bootstrap health endpoint remains in the compatibility entry point `main.py`; product routes await approved API contracts.
+Contains the public service liveness endpoint (`health.py`) and the `/api/v1` domain router registry (`router.py`). Product endpoints remain gated on approved contracts in `docs/03-database-api.md`. No unauthenticated database diagnostic route is exposed.

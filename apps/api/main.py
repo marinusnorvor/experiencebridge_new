@@ -1,17 +1,7 @@
+"""Compatibility entry point for local Uvicorn startup and Vercel serverless deployment."""
 
-from fastapi import FastAPI
+from __future__ import annotations
 
-app = FastAPI(
-    title="ExperienceBridge API",
-    version="0.1.0",
-    description="Backend API for the ExperienceBridge platform",
-)
+from app.main import app, create_app, health_check
 
-
-@app.get("/health")
-def health_check():
-    return {
-        "status": "ok",
-        "service": "experiencebridge-api",
-        "version": "0.1.0",
-    }
+__all__ = ["app", "create_app", "health_check"]

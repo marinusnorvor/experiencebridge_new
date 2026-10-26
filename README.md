@@ -30,7 +30,7 @@ ExperienceBridge uses a decoupled frontend and backend architecture.
 Start the FastAPI backend from the repository root:
 
 ```powershell
-.\apps\api\.venv\Scripts\python.exe -m uvicorn main:app --app-dir apps/api --reload
+.\apps\api\.venv\Scripts\python.exe apps/api/run_dev.py
 ```
 
 Start the Next.js frontend in a second terminal:
@@ -68,7 +68,33 @@ AI coding agents must follow [AGENTS.md](AGENTS.md).
 
 Planning and infrastructure setup are in progress.
 
-The specifications remain subject to team review. Production deployment, CI/CD automation, and external service integrations are not yet configured.
+The specifications remain subject to team review. GitHub Actions CI runs validation for pull requests targeting `staging` and `main`. Production deployment and external service integrations are not yet configured.
+
+## CI checks
+
+GitHub Actions runs frontend linting, TypeScript checks, a production build, backend tests, and Python syntax validation for pull requests targeting `staging` or `main`. The CI workflows do not deploy applications or require database credentials.
+
+Run the frontend checks from the repository root. Install the locked dependencies once with `npm ci`, then run:
+
+```powershell
+npm run lint --workspace=web
+npm run typecheck --workspace=web
+npm run build --workspace=web
+```
+
+For backend checks, create the API virtual environment with Python 3.11 and install the declared dependencies once:
+
+```powershell
+py -3.11 -m venv apps/api/.venv
+.\apps\api\.venv\Scripts\python.exe -m pip install -r apps/api/requirements.txt
+```
+
+Then run the tests and syntax validation from the repository root:
+
+```powershell
+.\apps\api\.venv\Scripts\python.exe -m pytest apps/api/app/tests
+.\apps\api\.venv\Scripts\python.exe -m compileall -q apps/api/app apps/api/main.py apps/api/run_dev.py
+```
 
 ## Team
 
