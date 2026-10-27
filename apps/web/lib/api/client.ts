@@ -2,7 +2,7 @@ import { createApiClient } from "@experiencebridge/api-client";
 
 let apiClient: ReturnType<typeof createApiClient> | undefined;
 
-function getPublicApiBaseUrl(): string {
+export function getPublicApiBaseUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!configuredUrl) {
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not configured for this web build.");
@@ -32,4 +32,8 @@ function getPublicApiBaseUrl(): string {
 export function getApiClient() {
   apiClient ??= createApiClient(getPublicApiBaseUrl());
   return apiClient;
+}
+
+export function getAuthenticatedApiClient(accessToken: string | null | undefined) {
+  return createApiClient(getPublicApiBaseUrl(), { accessToken });
 }

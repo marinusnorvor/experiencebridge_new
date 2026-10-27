@@ -79,13 +79,17 @@ def build_error_response(
     if field_errors:
         error_body["field_errors"] = field_errors
 
+    headers: dict[str, str] = {"X-Request-ID": request_id}
+    if status_code == status.HTTP_401_UNAUTHORIZED:
+        headers["WWW-Authenticate"] = "Bearer"
+
     return JSONResponse(
         status_code=status_code,
         content={
             "error": error_body,
             "request_id": request_id,
         },
-        headers={"X-Request-ID": request_id},
+        headers=headers,
     )
 
 
