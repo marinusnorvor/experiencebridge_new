@@ -10,18 +10,20 @@ _POSTGRES_URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _BEARER_PATTERN = re.compile(r"(Bearer\s+)[A-Za-z0-9._\-~+/]+=*", re.IGNORECASE)
+_CLERK_SECRET_KEY_PATTERN = re.compile(r"\bsk_(?:test|live)_[A-Za-z0-9_\-]+\b")
 _PASSWORD_KV_PATTERN = re.compile(
-    r"((?:password|passwd|secret|token|database_url|database_url_unpooled)\s*[=:]\s*)([^\s,;'\"]+)",
+    r"((?:password|passwd|secret|clerk_secret_key|token|database_url|database_url_unpooled)\s*[=:]\s*)([^\s,;'\"]+)",
     re.IGNORECASE,
 )
 
 
 def scrub_sensitive_text(text: str) -> str:
-    """Redact database credentials, URLs, and bearer tokens from text."""
+    """Redact database credentials, URLs, Clerk secret keys, and bearer tokens from text."""
     if not text:
         return text
     scrubbed = _POSTGRES_URL_PATTERN.sub(r"\1***:***@\4", text)
     scrubbed = _BEARER_PATTERN.sub(r"\1[REDACTED]", scrubbed)
+    scrubbed = _CLERK_SECRET_KEY_PATTERN.sub("[REDACTED_CLERK_SECRET]", scrubbed)
     scrubbed = _PASSWORD_KV_PATTERN.sub(r"\1[REDACTED]", scrubbed)
     return scrubbed
 

@@ -7,10 +7,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.identity.models  # noqa: F401
 from app.database.base import Base
 from app.database.migrations import get_migration_settings
 
-# Canonical SQLAlchemy metadata. Domain tables remain empty until ADR-003/ADR-004 schema sign-off.
+# Canonical SQLAlchemy metadata including approved ADR-002 identity tables (users, user_role_grants).
 target_metadata = Base.metadata
 
 
