@@ -54,6 +54,7 @@ def test_swagger_and_openapi_documentation_preserved() -> None:
         assert schema["info"]["title"] == "ExperienceBridge API"
         assert schema["info"]["version"] == "0.1.0"
         assert "/health" in schema["paths"]
+        assert "/api/v1/me" in schema["paths"]
 
 
 def test_no_public_database_diagnostic_endpoint_exposed() -> None:
@@ -139,7 +140,7 @@ def test_cors_preflight_allows_configured_origin_and_blocks_unknown() -> None:
         assert disallowed.headers.get("access-control-allow-origin") is None
 
 
-def test_domain_modules_prepared_and_no_unapproved_tables_registered() -> None:
+def test_domain_modules_prepared_and_only_approved_adr002_tables_registered() -> None:
     keys = [spec.key for spec in DOMAIN_MODULES]
     assert keys == [
         "identity",
@@ -156,5 +157,5 @@ def test_domain_modules_prepared_and_no_unapproved_tables_registered() -> None:
         assert len(spec.blocking_decisions) > 0
         assert len(spec.invariants) > 0
 
-    # Strict rule: do not invent unapproved ORM tables on Base.metadata before schema sign-off.
-    assert len(Base.metadata.tables) == 0
+    # Strict rule: only approved ADR-002 / Contract C-01 identity tables exist on Base.metadata.
+    assert set(Base.metadata.tables.keys()) == {"users", "user_role_grants"}

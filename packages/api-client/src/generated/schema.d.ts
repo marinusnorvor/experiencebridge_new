@@ -24,10 +24,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get authenticated user profile and effective contexts
+         * @description Verify the caller's Clerk session token, resolve or provision the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).
+         */
+        get: operations["get_current_user_profile_api_v1_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * HealthResponse
          * @description Response model for the public service liveness endpoint.
@@ -48,6 +73,84 @@ export interface components {
              * @default 0.1.0
              */
             version: string;
+        };
+        /**
+         * UserSelf
+         * @description Response model for GET /api/v1/me (API-ID-01 / Contract C-01).
+         */
+        UserSelf: {
+            /**
+             * Id
+             * Format: uuid
+             * @description Internal ExperienceBridge user UUID.
+             */
+            id: string;
+            /**
+             * Identity Issuer
+             * @description Verified identity provider issuer URL.
+             */
+            identity_issuer: string;
+            /**
+             * Identity Subject
+             * @description Verified identity provider subject identifier.
+             */
+            identity_subject: string;
+            /**
+             * Display Name
+             * @description User display name.
+             */
+            display_name: string;
+            /**
+             * Email
+             * @description Contact email address (if available).
+             */
+            email?: string | null;
+            /**
+             * Email Verified At
+             * @description UTC timestamp when the user's email was verified.
+             */
+            email_verified_at?: string | null;
+            /**
+             * Account Status
+             * @description Internal account lifecycle status.
+             * @enum {string}
+             */
+            account_status: "active" | "suspended" | "disabled";
+            /**
+             * Role Grants
+             * @description Active global role grants persisted in PostgreSQL.
+             */
+            role_grants?: ("student" | "mentor_candidate" | "platform_admin")[];
+            /**
+             * Effective Contexts
+             * @description Server-verified portal contexts available to this user.
+             */
+            effective_contexts?: ("student" | "organization" | "mentor" | "admin")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Row Version */
+            row_version: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -74,6 +177,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    get_current_user_profile_api_v1_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSelf"];
+                };
+            };
+            /** @description Missing, invalid, or expired Clerk authentication credentials. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authenticated user account is suspended or disabled. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
