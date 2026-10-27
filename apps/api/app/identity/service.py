@@ -164,8 +164,9 @@ def resolve_or_provision_user(
         updated = False
         if claims.email and claims.email != user.email:
             user.email = claims.email
+            user.email_verified_at = now if claims.email_verified else None
             updated = True
-        if claims.email_verified and user.email and user.email_verified_at is None:
+        elif claims.email_verified and user.email and user.email_verified_at is None:
             user.email_verified_at = now
             updated = True
         if (

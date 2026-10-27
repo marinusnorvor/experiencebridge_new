@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Request, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -18,6 +19,8 @@ from app.identity.clerk_verifier import (
 from app.identity.models import GlobalUserRole, User
 from app.identity.schemas import VerifiedIdentityClaims
 from app.identity.service import get_active_role_grants, resolve_or_provision_user
+
+clerk_bearer_security = HTTPBearer(auto_error=False, scheme_name="ClerkBearer")
 
 
 def get_active_settings(request: Request) -> Settings:
@@ -35,12 +38,15 @@ def get_signing_key_resolver(request: Request) -> SigningKeyResolver | None:
 
 def verify_clerk_token(
     request: Request,
-    authorization: str | None = Header(default=None, alias="Authorization"),
+    authorization: HTTPAuthorizationCredentials | None = Security(clerk_bearer_security),
     settings: Settings = Depends(get_active_settings),
     signing_key_resolver: SigningKeyResolver | None = Depends(get_signing_key_resolver),
 ) -> VerifiedIdentityClaims:
     """Verify the Bearer JWT in the Authorization header using Clerk JWKS."""
-    token = extract_bearer_token(authorization)
+    authorization_header = (
+        f"{authorization.scheme} {authorization.credentials}" if authorization is not None else None
+    )
+    token = extract_bearer_token(authorization_header)
     claims = verify_clerk_jwt(
         token,
         settings=settings,

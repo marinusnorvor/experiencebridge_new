@@ -66,7 +66,7 @@ This document defines **how** JAMS builds and maintains ExperienceBridge. It com
 ### 0.3 Known conflicts that must not be silently resolved
 
 - **ADR-001 — APPROVED:** Next.js + TypeScript frontend and separately deployed FastAPI/Python backend; do not duplicate backend domain behavior in Next.js.
-- **ADR-002 — identity:** Specific identity provider and browser/session-to-API authentication approach are pending.
+- **ADR-002 — APPROVED:** Clerk managed identity, Next.js session handling, and FastAPI JWKS verification; see [ADR-002](decisions/ADR-002-clerk-authentication.md).
 - **ADR-003 — lifecycle:** PRD §6 has conceptual compound submission states; DB/API §5.5 separately models submission, mentor review and organization review. The team must reconcile these before contract freeze. DB/API §14.1 additionally notes an application reapplication/uniqueness mismatch.
 - **ADR-004 — participation:** Solo-first vs teams and individual attribution is pending.
 - **ADR-005/006 — evidence and sharing:** File storage and public passport sharing details remain gated.
@@ -703,7 +703,6 @@ Reviewers and approval: <names/date>
 | ID | Blocking question | Suggested deciders | Latest responsible point |
 |---|---|---|---|
 | ADR-001 | Backend/framework selection and package tooling | D1 + D2–D4 | Before scaffolding |
-| ADR-002 | Managed auth provider and session transport | D1 + security reviewer | Before auth code |
 | ADR-003 | Independent review states; uniqueness/reapply policy | Product lead + D1/D2/D3/D4 | Before schema/API freeze |
 | ADR-004 | Solo-first participation vs teams | Product lead + domain owners | Before participation model |
 | ADR-005 | Evidence storage/link validation rules | D1/D2/D4 | Before file upload |
@@ -848,7 +847,7 @@ Release scope: ___   Human author: ___   Reviewer: ___
 ### 15.1 Required before **parallel implementation at scale**
 
 - [ ] Four developers have reviewed this document and selected actual owners/reviewers.
-- [ ] ADR-001 and ADR-002 are decided for scaffold/auth implementation.
+- [x] ADR-001 and ADR-002 are decided for scaffold/auth implementation.
 - [ ] ADR-003 reconciles compound submission statuses and reapplication policy.
 - [ ] ADR-004 clarifies participation/team attribution; related schema approved.
 - [ ] Compensated/unpaid policies and real-onboarding legal/privacy gates are acknowledged.
