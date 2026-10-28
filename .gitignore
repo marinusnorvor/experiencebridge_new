@@ -5,6 +5,10 @@
 !.env.example
 !.env.*.example
 
+# Legacy production examples contain non-placeholder credential values
+/apps/api/.env.production.example
+/apps/web/.env.production.example
+
 # Node.js / Next.js
 node_modules/
 .next/
@@ -12,6 +16,7 @@ out/
 .turbo/
 *.tsbuildinfo
 .npm-cache/
+.cache/
 
 # Python / FastAPI
 __pycache__/
@@ -19,8 +24,12 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.pytest-tmp*/
 .mypy_cache/
 .ruff_cache/
+.tox/
+.nox/
+.hypothesis/
 
 # Build and coverage outputs
 dist/
@@ -28,18 +37,27 @@ build/
 coverage/
 htmlcov/
 .coverage
+.coverage.*
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+/tmp/
+/temp/
 
 # Vercel
 .vercel/
+
+# Local AI-agent configuration and generated skill metadata
+.agents/
+.codex/
+skills-lock.json
 
 # Editor and OS files
 .DS_Store
 Thumbs.db
 *.swp
 .neon
-
-.agent/
-.codex/
-.skills-lock.json
-
-/apps/api/.env.production.example
+*~
