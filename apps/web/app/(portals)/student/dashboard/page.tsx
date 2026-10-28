@@ -1,10 +1,15 @@
-import { PortalPlaceholder } from "@/components/layouts/portal-placeholder";
+import { Suspense } from "react";
+import { StudentDashboardView } from "@/features/student/components/student-dashboard-view";
+
+export const metadata = {
+  title: "Student Dashboard | ExperienceBridge",
+  description: "Track active projects, pending offers, and verified experience claims.",
+};
 
 export default function StudentDashboardPage() {
   return (
-    <PortalPlaceholder
-      title="Student"
-      description="A reserved route for a future student experience. No student data or project actions are available here."
-    />
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading student dashboard...</div>}>
+      <StudentDashboardView />
+    </Suspense>
   );
 }
