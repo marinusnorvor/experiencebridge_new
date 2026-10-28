@@ -1,15 +1,9 @@
-import { notFound } from "next/navigation";
-import { StudentDashboardView } from "@/features/student/components/student-dashboard-view";
-
-export const metadata = {
-  title: "Student Portal (Dev Preview) | ExperienceBridge",
-  description: "Local development preview of the student dashboard.",
-};
+import { notFound, redirect } from "next/navigation";
 
 export default function StudentDevPreviewPage() {
   if (process.env.NODE_ENV !== "development") {
     notFound();
   }
 
-  return <StudentDashboardView />;
+  redirect("/dev/student/projects");
 }

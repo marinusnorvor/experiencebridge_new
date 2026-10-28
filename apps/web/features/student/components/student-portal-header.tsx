@@ -15,10 +15,7 @@ export function StudentPortalHeader({
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
   const studentNavItems = [
-    { label: "Dashboard", href: `${basePath}/dashboard` },
-    { label: "Applications", href: `${basePath}/applications` },
     { label: "Projects", href: `${basePath}/projects` },
-    { label: "Passport", href: `${basePath}/passport` },
     { label: "Profile", href: `${basePath}/profile` },
   ] as const;
 
