@@ -20,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import Settings
 from app.database.base import Base
 from app.database.session import get_db
+from app.identity.clerk_verifier import get_jwk_client, verify_clerk_jwt
 from app.identity.dependencies import require_global_role
 from app.identity.models import User, UserRoleGrant
 from app.main import create_app
@@ -29,11 +30,11 @@ TEST_JWKS_URL = f"{TEST_ISSUER}/.well-known/jwks.json"
 TEST_KID = "ins_test_key_001"
 
 
-def _generate_rsa_keypair() -> tuple[rsa.RSAPrivateKey, PyJWK]:
+def _generate_rsa_keypair(kid: str = TEST_KID) -> tuple[rsa.RSAPrivateKey, PyJWK]:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     public_jwk_json = jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key())
     public_jwk_dict = json.loads(public_jwk_json)
-    public_jwk_dict["kid"] = TEST_KID
+    public_jwk_dict["kid"] = kid
     public_jwk_dict["use"] = "sig"
     public_jwk_dict["alg"] = "RS256"
     return private_key, PyJWK.from_dict(public_jwk_dict)
@@ -73,6 +74,8 @@ def _mint_jwt(
     azp: str | None = "http://localhost:3000",
     aud: str | None = None,
     extra_claims: dict[str, Any] | None = None,
+    include_nbf: bool = True,
+    kid: str = TEST_KID,
 ) -> str:
     now = int(time.time())
     payload: dict[str, Any] = {
@@ -81,6 +84,8 @@ def _mint_jwt(
         "nbf": now + nbf_offset,
         "iat": now + iat_offset,
     }
+    if not include_nbf:
+        payload.pop("nbf")
     if sub is not None:
         payload["sub"] = sub
     if azp is not None:
@@ -94,7 +99,7 @@ def _mint_jwt(
         payload,
         private_key,
         algorithm="RS256",
-        headers={"kid": TEST_KID, "typ": "JWT"},
+        headers={"kid": kid, "typ": "JWT"},
     )
 
 
@@ -395,3 +400,82 @@ def test_live_neon_development_identity_tables_migrated() -> None:
     finally:
         engine.dispose()
 
+
+
+def test_missing_nbf_is_rejected() -> None:
+    app, _ = _build_test_app_and_session_factory()
+    token = _mint_jwt(include_nbf=False)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "AUTH_REQUIRED"
+
+
+def test_openapi_marks_me_endpoint_with_bearer_security() -> None:
+    app, _ = _build_test_app_and_session_factory()
+    operation = app.openapi()["paths"]["/api/v1/me"]["get"]
+    assert operation["security"] == [{"ClerkBearer": []}]
+    assert app.openapi()["components"]["securitySchemes"]["ClerkBearer"]["scheme"] == "bearer"
+    assert all(param["name"] != "Authorization" for param in operation.get("parameters", []))
+
+
+def test_jwks_refresh_accepts_signing_key_after_rotation(monkeypatch: Any) -> None:
+    rotated_private, _ = _generate_rsa_keypair("ins_rotated_key_002")
+    old_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(RSA_PRIVATE_KEY.public_key()))
+    old_jwk.update({"kid": TEST_KID, "use": "sig", "alg": "RS256"})
+    rotated_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rotated_private.public_key()))
+    rotated_jwk.update({"kid": "ins_rotated_key_002", "use": "sig", "alg": "RS256"})
+    responses = [
+        {"keys": [old_jwk]},
+        {"keys": [old_jwk, rotated_jwk]},
+    ]
+    calls = 0
+
+    def fetch_data(_client: Any) -> dict[str, Any]:
+        nonlocal calls
+        value = responses[min(calls, len(responses) - 1)]
+        calls += 1
+        return value
+
+    get_jwk_client.cache_clear()
+    monkeypatch.setattr("jwt.PyJWKClient.fetch_data", fetch_data)
+    settings = _make_clerk_settings()
+    try:
+        first = verify_clerk_jwt(_mint_jwt(), settings=settings)
+        rotated_token = _mint_jwt(private_key=rotated_private, kid="ins_rotated_key_002")
+        second = verify_clerk_jwt(rotated_token, settings=settings)
+        assert first.subject == second.subject
+        assert calls == 2
+    finally:
+        get_jwk_client.cache_clear()
+
+
+def test_changed_unverified_email_clears_stale_verification_timestamp() -> None:
+    app, _ = _build_test_app_and_session_factory()
+    verified = _mint_jwt(
+        sub="user_email_change_test",
+        extra_claims={"email": "old@example.edu", "email_verified": True},
+    )
+    changed_unverified = _mint_jwt(
+        sub="user_email_change_test",
+        extra_claims={"email": "new@example.edu", "email_verified": False},
+    )
+    with TestClient(app) as client:
+        initial = client.get("/api/v1/me", headers={"Authorization": f"Bearer {verified}"})
+        changed = client.get("/api/v1/me", headers={"Authorization": f"Bearer {changed_unverified}"})
+    assert initial.status_code == changed.status_code == 200
+    assert initial.json()["email_verified_at"] is not None
+    assert changed.json()["email"] == "new@example.edu"
+    assert changed.json()["email_verified_at"] is None
+
+
+def test_non_boolean_email_verified_claim_is_not_trusted() -> None:
+    app, _ = _build_test_app_and_session_factory()
+    token = _mint_jwt(
+        sub="user_email_verified_type_test",
+        extra_claims={"email": "typed@example.edu", "email_verified": "false"},
+    )
+    with TestClient(app) as client:
+        response = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["email_verified_at"] is None

@@ -157,7 +157,7 @@ def verify_clerk_jwt(
         ) from exc
 
     verify_aud = bool(settings.clerk_audience)
-    required_claims = ["exp", "iat", "sub", "iss"]
+    required_claims = ["exp", "iat", "nbf", "sub", "iss"]
     if verify_aud:
         required_claims.append("aud")
 
@@ -227,7 +227,7 @@ def verify_clerk_jwt(
 
     session_id = payload.get("sid")
     email = _extract_email(payload)
-    email_verified = bool(payload.get("email_verified", False))
+    email_verified = payload.get("email_verified") is True
     display_name = _extract_display_name(payload)
 
     return VerifiedIdentityClaims(
