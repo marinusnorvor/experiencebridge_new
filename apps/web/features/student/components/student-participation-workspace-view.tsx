@@ -20,13 +20,13 @@ interface WorkspaceProps {
 
 const PROJECTS_LIST_STORAGE_KEY = "experiencebridge_student_projects_list";
 
-function getInitialWorkspace(participationId: string): ParticipationWorkspaceDetails {
+function getInitialWorkspace(participationId: string): ParticipationWorkspaceDetails | null {
   if (typeof window !== "undefined") {
     try {
       const stored = localStorage.getItem(`experiencebridge_workspace_${participationId}`);
       if (stored) {
         const parsed = JSON.parse(stored) as ParticipationWorkspaceDetails;
-        if (parsed && parsed.participationId) {
+        if (parsed && parsed.participationId === participationId) {
           return parsed;
         }
       }
@@ -39,57 +39,38 @@ function getInitialWorkspace(participationId: string): ParticipationWorkspaceDet
     return syntheticParticipationDetails[participationId];
   }
 
-  const sample = syntheticParticipationDetails?.["part-healthnet-01"];
-  if (sample) {
-    return {
-      ...sample,
-      participationId,
-      projectTitle: `Project Workspace (${participationId})`,
-    };
-  }
-
-  return {
-    participationId,
-    projectId: "proj-fallback",
-    projectTitle: "Community Health Tracker",
-    organizationName: "HealthNet Africa",
-    organizationContact: "Dr. A. Osei (Technical Director)",
-    organizationVerificationStatus: "Verified Non-Profit Healthcare NGO",
-    mentor: {
-      name: "Dr. K. Mensah",
-      title: "Senior Lecturer, Ashesi University",
-      status: "accepted",
-      email: "k.mensah@ashesi.edu.gh",
-    },
-    status: "active",
-    startedAt: "Oct 18, 2026",
-    targetCompletionDate: "Dec 15, 2026",
-    progressPercent: 45,
-    currentMilestoneId: "m-02",
-    milestones: [],
-    submissions: [],
-    agreedTerms: {
-      termsVersionId: "terms-healthnet-v1.2",
-      termsHash: "sha256:4f8a9e120bc71d43a88c2e71d87e0254c2978d338f07a16b32c66d2134599a01",
-      compensationSummary: "",
-      weeklyHours: 15,
-      durationWeeks: 8,
-      ipConditions: "Permissive Open Source (MIT License)",
-      confidentialitySummary: "De-identified records only",
-      acceptedAt: "Oct 18, 2026",
-    },
-    isSyntheticDemo: true,
-  };
+  return null;
 }
 
 export function StudentParticipationWorkspaceView({ participationId }: WorkspaceProps) {
+  const [initialWorkspace] = useState(() => getInitialWorkspace(participationId));
+
+  if (!initialWorkspace) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <StudentPortalHeader isSynthetic />
+        <main className="mx-auto max-w-4xl space-y-4 px-6 py-12">
+          <h1 className="text-2xl font-semibold">Workspace not available</h1>
+          <p>No workspace details are available for this participation in the current interface.</p>
+          <Link className="inline-block text-teal-800 underline" href="/student/projects">
+            Back to My Projects
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  return <StudentParticipationWorkspaceContent participationId={participationId} initialWorkspace={initialWorkspace} />;
+}
+
+function StudentParticipationWorkspaceContent({ participationId, initialWorkspace }: WorkspaceProps & {
+  initialWorkspace: ParticipationWorkspaceDetails;
+}) {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
-  const [workspace, setWorkspace] = useState<ParticipationWorkspaceDetails>(() =>
-    getInitialWorkspace(participationId)
-  );
+  const [workspace, setWorkspace] = useState(initialWorkspace);
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "milestones" | "submissions" | "terms" | "support"
@@ -123,7 +104,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
         // Ignore
       }
     }
-    const fresh = syntheticParticipationDetails[participationId] ?? getInitialWorkspace(participationId);
+    const fresh = syntheticParticipationDetails[participationId] ?? initialWorkspace;
     setWorkspace(fresh);
     setSubmissionSuccessFeedback("Workspace reset to default synthetic preview fixtures.");
     setTimeout(() => setSubmissionSuccessFeedback(null), 3000);

@@ -8,12 +8,8 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 
-const portalLinks = [
-  { label: "Student demo", href: "/demo/student" },
-  { label: "Organization demo", href: "/demo/organization" },
-  { label: "Mentor demo", href: "/demo/mentor" },
-  { label: "Admin demo", href: "/demo/admin" },
-] as const;
+import { portalLinks } from "@/lib/portal-routes";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 
 function AuthControlsFallback() {
   return (
@@ -28,7 +24,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
           <Link
             href="/"
             className="text-base font-semibold tracking-tight text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
@@ -37,7 +33,7 @@ export function SiteHeader() {
           </Link>
           <nav
             aria-label="Primary portal navigation"
-            className="hidden items-center gap-4 text-sm font-medium text-slate-600 md:flex"
+            className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600 sm:gap-4"
           >
             {portalLinks.map((portal) => (
               <Link
@@ -51,7 +47,7 @@ export function SiteHeader() {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3">
+        {!isPortalPresentationMode() && <div className="flex items-center gap-3">
           <Suspense fallback={<AuthControlsFallback />}>
             <Show when="signed-out">
               <SignInButton mode="redirect">
@@ -86,7 +82,7 @@ export function SiteHeader() {
               </div>
             </Show>
           </Suspense>
-        </div>
+        </div>}
       </div>
     </header>
   );
