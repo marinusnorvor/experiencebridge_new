@@ -9,10 +9,10 @@ import {
 } from "@clerk/nextjs";
 
 const portalLinks = [
-  { label: "Student", href: "/student/dashboard" },
-  { label: "Organization", href: "/organization/dashboard" },
-  { label: "Mentor", href: "/mentor/dashboard" },
-  { label: "Admin", href: "/admin/dashboard" },
+  { label: "Student demo", href: "/demo/student" },
+  { label: "Organization demo", href: "/demo/organization" },
+  { label: "Mentor demo", href: "/demo/mentor" },
+  { label: "Admin demo", href: "/demo/admin" },
 ] as const;
 
 function AuthControlsFallback() {
