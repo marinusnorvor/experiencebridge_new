@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 
 import { SiteHeader } from "@/components/layouts/site-header";
-import {
-  experienceBridgeClerkAppearance,
-  getClerkPublishableKey,
-} from "@/lib/auth/clerk-config";
+import { AuthProvider } from "@/components/layouts/auth-provider";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,21 +11,12 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  const publishableKey = getClerkPublishableKey();
+  const content = <><SiteHeader />{children}</>;
 
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
-        <ClerkProvider
-          publishableKey={publishableKey}
-          signInUrl="/sign-in"
-          signUpUrl="/sign-up"
-          afterSignOutUrl="/"
-          appearance={experienceBridgeClerkAppearance}
-        >
-          <SiteHeader />
-          {children}
-        </ClerkProvider>
+        {isPortalPresentationMode() ? content : <AuthProvider>{content}</AuthProvider>}
       </body>
     </html>
   );
