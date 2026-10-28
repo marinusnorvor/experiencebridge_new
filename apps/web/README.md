@@ -15,6 +15,14 @@ EB-012 connects the homepage to `/student/dashboard`, `/mentor/dashboard`,
 interfaces still use their existing labeled fixtures and browser-local state.
 Organization and Admin currently retain their existing reserved-route pages.
 
+Ownership boundary: D1 maintains the shared homepage, navigation, and integration
+shell. Portal owners maintain their own pages and features. Do not fix, redesign,
+or change portal internals as part of routing work. `lib/portal-routes.ts` defines
+the homepage destinations; the pages under `app/(portals)/<portal>/` render their
+owners' implementations from `features/<portal>/`. Approved updates to those
+files appear at the same destination after staging is merged, without copying
+their components into the homepage.
+
 Local `next dev` allows viewing these interfaces without Clerk or private API
 requests. This applies only with `NEXT_PUBLIC_APP_ENV` unset or `development`,
 and without `VERCEL`. Production builds, staging, and Vercel retain Clerk route

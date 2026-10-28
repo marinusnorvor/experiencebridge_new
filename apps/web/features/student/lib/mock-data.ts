@@ -3,6 +3,7 @@ import type {
   StudentApplicationDetails,
   StudentDashboardData,
   StudentParticipationSummaryItem,
+  StudentPassportDetails,
   StudentProfileDetails,
 } from "./types";
 
@@ -630,5 +631,160 @@ export const syntheticApplicationsList: StudentApplicationDetails[] = [
     isSyntheticDemo: true,
   },
 ];
+
+/**
+ * Synthetic Experience Passport fixture (STU-10).
+ * Implements strict visual rules pursuant to docs/04-ui-ux.md §6.8:
+ * - Clear separation of Identity Checked, Work Submitted, Mentor Reviewed, Deliverable Accepted.
+ * - Missing reviews plainly read "No mentor review recorded".
+ * - Visible synthetic demo flag.
+ * - Authenticated preview only.
+ */
+export const syntheticStudentPassport: StudentPassportDetails = {
+  isSyntheticDemo: true,
+  overallAssertionHash: "sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+  issuedAt: "Oct 27, 2026 at 12:00 GMT",
+  lastUpdated: "Oct 28, 2026 at 16:30 GMT",
+  student: {
+    id: "demo-student-001",
+    displayName: "Stella Appiok",
+    email: "stella@demo.experiencebridge.internal",
+    isSyntheticDemo: true,
+  },
+  assessedSkills: [
+    {
+      id: "skill-react",
+      name: "React 19 & Next.js App Router",
+      level: "proficient",
+      assessedByMentor: "Dr. K. Mensah (Faculty Mentor)",
+      projectOrigin: "Community Health Tracker (Milestone 1)",
+      assessedAt: "Oct 27, 2026",
+    },
+    {
+      id: "skill-ts",
+      name: "TypeScript Strict Typing",
+      level: "proficient",
+      assessedByMentor: "Dr. K. Mensah (Faculty Mentor)",
+      projectOrigin: "Community Health Tracker (Milestone 1)",
+      assessedAt: "Oct 27, 2026",
+    },
+    {
+      id: "skill-rest",
+      name: "REST API Integration & Offline SQLite",
+      level: "demonstrated",
+      assessedByMentor: "Dr. K. Mensah (Faculty Mentor)",
+      projectOrigin: "Community Health Tracker (Milestone 1)",
+      assessedAt: "Oct 26, 2026",
+    },
+  ],
+  selfReportedSkills: [
+    {
+      id: "self-tailwind",
+      name: "Tailwind CSS v4",
+      proficiencyLevel: "advanced",
+      yearsOfExperience: "2 years",
+      contextOrProject: "Responsive layouts and component systems",
+    },
+    {
+      id: "self-python",
+      name: "Python (FastAPI)",
+      proficiencyLevel: "intermediate",
+      yearsOfExperience: "1.5 years",
+      contextOrProject: "Coursework microservices and data pipelines",
+    },
+    {
+      id: "self-sql",
+      name: "Relational Modeling (PostgreSQL)",
+      proficiencyLevel: "intermediate",
+      yearsOfExperience: "1 year",
+      contextOrProject: "Database schema migrations and queries",
+    },
+  ],
+  projectAssertions: [
+    {
+      id: "assert-101",
+      projectId: "proj-healthnet",
+      participationId: "part-101",
+      projectTitle: "Community Health Tracker",
+      organizationName: "HealthNet Africa",
+      organizationVerified: true,
+      timeframe: "Oct 2026 – Present",
+      contributionStatement:
+        "Designed and authored client-side SQLite relational schema, patient encounter migrations, and wrote 14 Jest integration tests validating transaction rollbacks.",
+      deliverables: [
+        "Milestone 1: Local SQLite DB & Data Schema (Accepted)",
+        "Database migration scripts conforming to DHIS2 standards",
+        "Unit test suite with 87% statement coverage",
+      ],
+      evidenceLinks: [
+        {
+          label: "Pull Request #14: Offline SQLite Engine",
+          url: "https://github.com/experiencebridge-demo/community-health-tracker/pull/14",
+        },
+        {
+          label: "Test Coverage Report (87%)",
+          url: "https://coverage.experiencebridge.internal/healthnet/m1-report",
+        },
+      ],
+      evidenceTiers: {
+        identityChecked: true,
+        workSubmitted: true,
+        mentorReviewed: true,
+        deliverableAccepted: true,
+      },
+      mentorReview: {
+        reviewerName: "Dr. K. Mensah",
+        reviewerTitle: "Assigned Faculty Mentor",
+        reviewedAt: "Oct 27, 2026 at 11:20 GMT",
+        feedbackExcerpt:
+          "Exemplary structural design. Schema constraints are properly indexed and error recovery handles SQLite edge cases cleanly.",
+        rubricCriteriaObserved: [
+          "Architecture & Modular Decomposition (Score: Advanced)",
+          "Data Modeling & Schema Integrity (Score: Proficient)",
+          "Unit Testing Rigor (Score: Proficient)",
+        ],
+      },
+      organizationDecision: {
+        reviewerName: "HealthNet Africa Technical Review Committee",
+        decision: "accepted",
+        decidedAt: "Oct 27, 2026 at 14:00 GMT",
+        formalStatement:
+          "Milestone 1 deliverables meet technical acceptance criteria without severity-1 issues. Approved to proceed to Milestone 2 offline sync.",
+      },
+      disputeState: "none",
+      assertionHash: "sha256:d84f828a1c92bc4901ee22f87236594d2146908e2f89f28bb3e9",
+    },
+    {
+      id: "assert-102",
+      projectId: "proj-sunpower",
+      participationId: "part-sunpower-pending",
+      projectTitle: "Solar Microgrid Telemetry",
+      organizationName: "SunPower Labs",
+      organizationVerified: true,
+      timeframe: "Application Accepted (Oct 2026)",
+      contributionStatement:
+        "Telemetry ingestion pipeline and time-series monitoring. Active onboarding stage.",
+      deliverables: [
+        "Kickoff Scope & Hardware Interface Specification",
+      ],
+      evidenceLinks: [
+        {
+          label: "Observed Terms Snapshot v1.2",
+          url: "https://terms.experiencebridge.internal/sunpower-v1.2",
+        },
+      ],
+      evidenceTiers: {
+        identityChecked: true,
+        workSubmitted: false,
+        mentorReviewed: false,
+        deliverableAccepted: false,
+      },
+      mentorReview: null,
+      organizationDecision: null,
+      disputeState: "none",
+      assertionHash: "sha256:39a1c841bf094627d2c6081492ba265a1215b248a30113",
+    },
+  ],
+};
 
 

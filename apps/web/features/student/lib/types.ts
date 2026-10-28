@@ -279,3 +279,55 @@ export interface StudentParticipationSummaryItem {
   weeklyHours: number;
 }
 
+export type EvidenceTier =
+  | "identity_checked"
+  | "work_submitted"
+  | "mentor_reviewed"
+  | "deliverable_accepted";
+
+export interface PassportProjectAssertion {
+  id: string;
+  projectId: string;
+  participationId: string;
+  projectTitle: string;
+  organizationName: string;
+  organizationVerified: boolean;
+  timeframe: string;
+  contributionStatement: string;
+  deliverables: string[];
+  evidenceLinks: { label: string; url: string }[];
+  evidenceTiers: {
+    identityChecked: boolean;
+    workSubmitted: boolean;
+    mentorReviewed: boolean;
+    deliverableAccepted: boolean;
+  };
+  mentorReview: {
+    reviewerName: string;
+    reviewerTitle: string;
+    reviewedAt: string;
+    feedbackExcerpt: string;
+    rubricCriteriaObserved: string[];
+  } | null;
+  organizationDecision: {
+    reviewerName: string;
+    decision: "accepted" | "provisional" | "revision_requested";
+    decidedAt: string;
+    formalStatement: string;
+  } | null;
+  disputeState?: "none" | "under_review" | "resolved";
+  assertionHash: string;
+}
+
+export interface StudentPassportDetails {
+  student: StudentProfileSummary;
+  overallAssertionHash: string;
+  issuedAt: string;
+  lastUpdated: string;
+  assessedSkills: AssessedSkill[];
+  selfReportedSkills: SelfReportedSkill[];
+  projectAssertions: PassportProjectAssertion[];
+  isSyntheticDemo: boolean;
+}
+
+

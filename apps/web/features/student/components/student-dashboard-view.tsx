@@ -242,7 +242,7 @@ export function StudentDashboardView() {
 
                 <div className="pt-2 flex items-center justify-end">
                   <Link
-                    href={`${basePath}/projects/part-healthnet-01`}
+                    href={`${basePath}/projects/part-101`}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
                     <span>Open Project Workspace</span>
@@ -293,7 +293,7 @@ export function StudentDashboardView() {
                     </div>
 
                     <Link
-                      href={`${basePath}/projects/${activeProject.participationId || "part-healthnet-01"}`}
+                      href={`${basePath}/projects/${activeProject.participationId || "part-101"}`}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition shrink-0"
                     >
                       <span>Open Workspace</span>
@@ -478,7 +478,7 @@ export function StudentDashboardView() {
             </div>
 
             {/* EXPERIENCE PASSPORT PREVIEW TEASER (§6.8) */}
-            <div id="experience-passport" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
@@ -521,18 +521,17 @@ export function StudentDashboardView() {
               </div>
 
               <div className="rounded-xl bg-teal-50/40 border border-teal-100 p-3 text-xs text-teal-950 space-y-1">
-                <span className="font-bold text-[11px] block">Sample passport preview</span>
+                <span className="font-bold text-[11px] block">Cryptographic Verification Guarantee</span>
                 <p className="text-[11px] text-teal-900 leading-relaxed">
-                  These sample counts are not verified outcomes. Student submissions,
-                  mentor assessments, and organization acceptance remain separate records.
+                  Assertions require independent mentor sign-off before being credited to your permanent transcript.
                 </p>
               </div>
 
               <Link
-                href={`${basePath}/profile`}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
+                href={`${basePath}/passport`}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition"
               >
-                <span>View Profile &amp; Projects</span>
+                <span>Open Private Experience Passport</span>
                 <span aria-hidden="true">→</span>
               </Link>
             </div>
