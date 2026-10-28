@@ -408,6 +408,7 @@ export function StudentApplicationsView() {
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         onApplicationCreated={handleApplicationCreated}
+        existingApplications={applicationsList}
       />
     </div>
   );
