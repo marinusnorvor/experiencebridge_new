@@ -1,0 +1,281 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ExperienceBridge API",
+    "description": "Backend API for the ExperienceBridge platform",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Service liveness check",
+        "description": "Return service liveness metadata without exposing database diagnostics.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Identity & Authorization"
+        ],
+        "summary": "Get authenticated user profile and effective contexts",
+        "description": "Verify the caller's Clerk session token, resolve or provision the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).",
+        "operationId": "get_current_user_profile_api_v1_me_get",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSelf"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, or expired Clerk authentication credentials."
+          },
+          "403": {
+            "description": "Authenticated user account is suspended or disabled."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "ok"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service",
+            "default": "experiencebridge-api"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": "0.1.0"
+          }
+        },
+        "type": "object",
+        "title": "HealthResponse",
+        "description": "Response model for the public service liveness endpoint."
+      },
+      "UserSelf": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Internal ExperienceBridge user UUID."
+          },
+          "identity_issuer": {
+            "type": "string",
+            "title": "Identity Issuer",
+            "description": "Verified identity provider issuer URL."
+          },
+          "identity_subject": {
+            "type": "string",
+            "title": "Identity Subject",
+            "description": "Verified identity provider subject identifier."
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "description": "User display name."
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email",
+            "description": "Contact email address (if available)."
+          },
+          "email_verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Verified At",
+            "description": "UTC timestamp when the user's email was verified."
+          },
+          "account_status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "disabled"
+            ],
+            "title": "Account Status",
+            "description": "Internal account lifecycle status."
+          },
+          "role_grants": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "student",
+                "mentor_candidate",
+                "platform_admin"
+              ]
+            },
+            "type": "array",
+            "title": "Role Grants",
+            "description": "Active global role grants persisted in PostgreSQL."
+          },
+          "effective_contexts": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "student",
+                "organization",
+                "mentor",
+                "admin"
+              ]
+            },
+            "type": "array",
+            "title": "Effective Contexts",
+            "description": "Server-verified portal contexts available to this user."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "identity_issuer",
+          "identity_subject",
+          "display_name",
+          "account_status",
+          "created_at",
+          "updated_at",
+          "row_version"
+        ],
+        "title": "UserSelf",
+        "description": "Response model for GET /api/v1/me (API-ID-01 / Contract C-01)."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

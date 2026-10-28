@@ -1,3 +1,3 @@
-# Core configuration
+# Core configuration and runtime safeguards
 
-Reserved for configuration and shared runtime foundations. Environment-specific settings are not loaded yet; do not add credentials or assume production configuration here.
+Contains environment-separated `Settings` (`config.py`), standardized error envelopes and request correlation IDs (`errors.py`), and credential-redacting structured logging (`logging.py`).
