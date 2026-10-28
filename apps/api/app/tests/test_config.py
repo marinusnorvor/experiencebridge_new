@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 import run_dev
 from app.core.config import (
     Settings,
+    derive_clerk_issuer_from_publishable_key,
     normalize_sqlalchemy_postgres_url,
     redact_database_url,
 )
@@ -52,20 +54,73 @@ def test_credential_redaction_never_exposes_secrets() -> None:
         app_env="development",
         neon_branch="development",
         database_url=VALID_DEV_POOLER_URL,
+        clerk_secret_key="sk_test_superSecretClerkKey999",
     )
     assert "superSecretPass123" not in repr(settings)
     assert "superSecretPass123" not in str(settings)
+    assert "sk_test_superSecretClerkKey999" not in repr(settings)
+    assert "sk_test_superSecretClerkKey999" not in str(settings)
     assert "superSecretPass123" not in settings.redacted_database_url
     assert settings.redacted_database_url == (
         "postgresql+psycopg://***:***@ep-demo-pooler.us-east-2.aws.neon.tech/experiencebridge"
     )
     assert redact_database_url(None) == "<unconfigured>"
 
-    log_line = f"Connection failed for {VALID_DEV_POOLER_URL} with Bearer secretTokenXYZ"
+    log_line = (
+        f"Connection failed for {VALID_DEV_POOLER_URL} "
+        "with Bearer secretTokenXYZ and sk_test_secretClerkKey123456"
+    )
     scrubbed = scrub_sensitive_text(log_line)
     assert "superSecretPass123" not in scrubbed
     assert "secretTokenXYZ" not in scrubbed
+    assert "sk_test_secretClerkKey123456" not in scrubbed
     assert "***:***@ep-demo-pooler.us-east-2.aws.neon.tech" in scrubbed
+
+
+def test_clerk_publishable_key_derives_issuer_and_jwks_urls() -> None:
+    encoded = base64.b64encode(b"clerk.experiencebridge.dev.lcl.dev$").decode("ascii").rstrip("=")
+    pk = f"pk_test_{encoded}"
+    assert derive_clerk_issuer_from_publishable_key(pk) == "https://clerk.experiencebridge.dev.lcl.dev"
+
+    settings = Settings(
+        _env_file=None,
+        app_env="development",
+        neon_branch="development",
+        clerk_publishable_key=pk,
+    )
+    assert settings.clerk_issuer_url == "https://clerk.experiencebridge.dev.lcl.dev"
+    assert settings.clerk_jwks_url == "https://clerk.experiencebridge.dev.lcl.dev/.well-known/jwks.json"
+
+
+def test_clerk_settings_isolate_test_and_live_keys_by_environment() -> None:
+    encoded = base64.b64encode(b"clerk.experiencebridge.dev.lcl.dev$").decode("ascii").rstrip("=")
+    pk_test = f"pk_test_{encoded}"
+    pk_live = f"pk_live_{encoded}"
+
+    with pytest.raises(ValidationError, match="development Clerk publishable key"):
+        Settings(
+            _env_file=None,
+            app_env="production",
+            neon_branch="production",
+            cors_allowed_origins=["https://experiencebridge.example.com"],
+            clerk_publishable_key=pk_test,
+        )
+
+    with pytest.raises(ValidationError, match="live Clerk publishable key"):
+        Settings(
+            _env_file=None,
+            app_env="development",
+            neon_branch="development",
+            clerk_publishable_key=pk_live,
+        )
+
+    with pytest.raises(ValidationError, match="live Clerk secret key"):
+        Settings(
+            _env_file=None,
+            app_env="development",
+            neon_branch="development",
+            clerk_secret_key="sk_live_prodSecretKey12345",
+        )
 
 
 def test_settings_reject_production_branch_in_local_or_test() -> None:

@@ -32,7 +32,7 @@
 | Staging resources | Staging FastAPI deployment + isolated Neon staging branch; never connect shared staging app or preview code to production Neon. |
 | Production resources | Production FastAPI deployment + separate protected Neon production branch. |
 | Typed frontend client | Generate TypeScript types/client from the **reviewed** FastAPI OpenAPI schema; reject unapproved DTO duplication. |
-| Authentication/authorization | Server-side identity verification and context-sensitive permissions on each endpoint; final identity provider and auth transport TBD. |
+| Authentication/authorization | Server-side identity verification and context-sensitive permissions on each endpoint; Clerk identity and browser/API token transport are specified by approved ADR-002. |
 | Contract changes | Require schema review, regenerated client, compatible deployment order and targeted integration tests before merge. |
 | Database schema | Reviewed Alembic migrations; Neon database branches do not track Git merges or receive migrations automatically. |
 
@@ -48,7 +48,7 @@
 
 Four AI-assisted contributors must produce one interoperable system. This document defines **data meaning**, **resource boundaries**, **state transitions**, **API behavior**, **authorization conditions**, **errors**, **concurrency rules** and **test cases** so agents do not invent incompatible semantics. It translates PRD requirements into contracts, but actual machine-readable OpenAPI and database migrations become authoritative for implementation **only after contract approval**.
 
-The selected deployment architecture is Next.js/TypeScript frontend plus separate FastAPI/Python modular backend, with Neon PostgreSQL. **ADR-001 is approved for the technical stack only; business models, DTOs, state transitions, authentication vendor and production data permissions are not approved.** The backend will publish OpenAPI; frontend integrations consume an approved generated TypeScript client, not independently invented DTOs.
+The selected deployment architecture is Next.js/TypeScript frontend plus separate FastAPI/Python modular backend, with Neon PostgreSQL. **ADR-001 approves the technical stack and ADR-002 approves Clerk identity/session verification; business models, DTOs, state transitions and production data permissions remain subject to their separate approval gates.** The backend will publish OpenAPI; frontend integrations consume an approved generated TypeScript client, not independently invented DTOs.
 
 ### 0.2 Non-negotiable product semantics [from agreed direction / PRD]
 
@@ -67,7 +67,7 @@ The selected deployment architecture is Next.js/TypeScript frontend plus separat
 | Gate | Decision | Blocks | Status |
 |---|---|---|---|
 | ADR-001 / PRD DEC-011 | FastAPI backend selected (ADR-001) | No longer blocks runtime foundation; domain schema still gated | **APPROVED (stack only)** |
-| ADR-002 | Identity provider and browser/API session model | Real authentication | **OPEN** |
+| ADR-002 | Identity provider and browser/API session model | Real authentication | **APPROVED — see ADR-002** |
 | ADR-003 / PRD DEC-012 | Approval of lifecycle transitions below | State-changing API implementation | **OPEN** |
 | ADR-004 / PRD DEC-009 | Solo-first vs team-based execution | Final participation/milestone assignment schema | **OPEN**; **recommend solo-first release** |
 | PRD DEC-004 | Pilot bounds for duration and hours | Posting policy | **OPEN** |
@@ -861,7 +861,7 @@ Return `ETag: "7"` for editable records when `row_version=7`; require `If-Match:
 **Security expectations**
 
 - HTTPS only; reject cleartext externally. Secure headers, CORS and CSRF strategy depend on final auth architecture.
-- Scoped JWT/session verification: signature, issuer, audience, expiry and intended recipient; no trusting frontend role switches.
+- Clerk JWT verification: signature, issuer, subject, expiry and not-before are required; validate authorized party (`azp`) against configured frontend origins when present, and validate audience (`aud`) only when `CLERK_AUDIENCE` is configured, per approved ADR-002. Never trust frontend role switches.
 - Parameterized queries and ORM protections; no dynamic SQL from filter input.
 - `Idempotency-Key` required on critical commands; replay of key with different body → `409 IDEMPOTENCY_CONFLICT`. Expiry policy TBD.
 - Request body limits, throttling and upload limits require an ADR; do not invent rate limits with false security claims.
@@ -1083,7 +1083,7 @@ For multi-step breaking changes, prefer expand-and-contract migration: add compa
 
 ### 15.1 Before turning this specification into code
 
-- [ ] Approve ADR-001 technology stack and ADR-002 identity/session transport.
+- [x] ADR-001 technology stack and ADR-002 identity/session transport are decided. (This does not approve the remaining draft database/API contracts.)
 - [ ] Approve ADR-003 independent state dimensions and all P0 state transitions.
 - [ ] Approve ADR-004 solo-first or revise schema for teams and individual attribution.
 - [ ] Approve project paid/unpaid publishing rules and limitations with suitable legal review before **real** projects.
