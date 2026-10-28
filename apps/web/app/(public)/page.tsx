@@ -3,10 +3,10 @@ import { Suspense } from "react";
 import { Show } from "@clerk/nextjs";
 
 const portals = [
-  { label: "Student", href: "/student/dashboard" },
-  { label: "Organization", href: "/organization/dashboard" },
-  { label: "Mentor", href: "/mentor/dashboard" },
-  { label: "Admin", href: "/admin/dashboard" },
+  { label: "Student", href: "/demo/student" },
+  { label: "Organization", href: "/demo/organization" },
+  { label: "Mentor", href: "/demo/mentor" },
+  { label: "Admin", href: "/demo/admin" },
 ];
 
 export default function HomePage() {
@@ -19,9 +19,8 @@ export default function HomePage() {
         Real work. Demonstrated ability. Trusted experience.
       </h1>
       <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-        Sign in with your ExperienceBridge account to access protected portal routes.
-        Authentication verifies your identity; portal authorization is verified
-        server-side by FastAPI against your PostgreSQL role grants and memberships.
+        Explore the four portal experiences in a public demo. Every example is
+        synthetic and stays in your browser; no account or project data is needed.
       </p>
 
       <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -35,7 +34,7 @@ export default function HomePage() {
               href="/sign-in"
               className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
             >
-              Sign in to ExperienceBridge
+              Sign in
             </Link>
             <Link
               href="/sign-up"
@@ -46,7 +45,7 @@ export default function HomePage() {
           </Show>
           <Show when="signed-in">
             <p className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-900">
-              You are signed in. Select a portal below to verify server-side context access.
+              You are signed in. The public demos below are available to everyone.
             </p>
           </Show>
         </Suspense>
@@ -59,12 +58,12 @@ export default function HomePage() {
             href={portal.href}
             className="rounded-xl border border-slate-200 bg-white p-5 font-medium shadow-sm transition hover:border-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
           >
-            {portal.label} portal <span aria-hidden="true">→</span>
+            Explore {portal.label} demo <span aria-hidden="true">→</span>
           </Link>
         ))}
       </nav>
       <p className="mt-10 text-sm text-slate-500">
-        Build foundation · Clerk authentication + FastAPI server-side verification
+        Demo environment · Synthetic sample content · No real data or actions
       </p>
     </main>
   );
