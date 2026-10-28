@@ -1,13 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Show } from "@clerk/nextjs";
-
-const portals = [
-  { label: "Student", href: "/demo/student" },
-  { label: "Organization", href: "/demo/organization" },
-  { label: "Mentor", href: "/demo/mentor" },
-  { label: "Admin", href: "/demo/admin" },
-];
+import { portalLinks } from "@/lib/portal-routes";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 
 export default function HomePage() {
   return (
@@ -19,11 +14,11 @@ export default function HomePage() {
         Real work. Demonstrated ability. Trusted experience.
       </h1>
       <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-        Explore the four portal experiences in a public demo. Every example is
-        synthetic and stays in your browser; no account or project data is needed.
+        Open the team’s Student, Mentor, Organization, and Admin workspaces.
+        Interfaces under development use clearly labeled sample content.
       </p>
 
-      <div className="mt-8 flex flex-wrap items-center gap-4">
+      {!isPortalPresentationMode() && <div className="mt-8 flex flex-wrap items-center gap-4">
         <Suspense
           fallback={
             <div className="h-10 w-56 animate-pulse rounded-lg bg-slate-200" />
@@ -45,25 +40,27 @@ export default function HomePage() {
           </Show>
           <Show when="signed-in">
             <p className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-900">
-              You are signed in. The public demos below are available to everyone.
+              You are signed in. Choose a workspace below.
             </p>
           </Show>
         </Suspense>
-      </div>
+      </div>}
 
       <nav aria-label="Portal routes" className="mt-10 grid gap-4 sm:grid-cols-2">
-        {portals.map((portal) => (
+        {portalLinks.map((portal) => (
           <Link
             key={portal.href}
             href={portal.href}
             className="rounded-xl border border-slate-200 bg-white p-5 font-medium shadow-sm transition hover:border-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
           >
-            Explore {portal.label} demo <span aria-hidden="true">→</span>
+            Open {portal.label} Portal <span aria-hidden="true">→</span>
           </Link>
         ))}
       </nav>
       <p className="mt-10 text-sm text-slate-500">
-        Demo environment · Synthetic sample content · No real data or actions
+        {isPortalPresentationMode()
+          ? "Local development · No sign-in needed to view portal interfaces · Sample data only"
+          : "Portal data and actions require server-authorized access."}
       </p>
     </main>
   );
