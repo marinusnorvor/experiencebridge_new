@@ -7,12 +7,34 @@ interface ApplyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApplicationCreated: (application: StudentApplicationDetails) => void;
+  existingApplications?: StudentApplicationDetails[];
+}
+
+function getApplicantInfo() {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("experiencebridge_student_profile_data");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.displayName || parsed.email) {
+          return {
+            name: parsed.displayName || "Stella Appiok",
+            email: parsed.email || "stella@demo.experiencebridge.internal",
+          };
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+  return { name: "Stella Appiok", email: "stella@demo.experiencebridge.internal" };
 }
 
 export function ApplyModal({
   isOpen,
   onClose,
   onApplicationCreated,
+  existingApplications = [],
 }: ApplyModalProps) {
   const [projectChoice, setProjectChoice] = useState("proj-smartgrid");
   const [motivation, setMotivation] = useState("");
@@ -21,6 +43,8 @@ export function ApplyModal({
   const [portfolioUrl, setPortfolioUrl] = useState("https://stellaappiok.dev");
   const [hasAcknowledgedTerms, setHasAcknowledgedTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const applicant = getApplicantInfo();
 
   if (!isOpen) return null;
 
@@ -67,8 +91,18 @@ export function ApplyModal({
 
   const selectedProject = projectOptions[projectChoice] ?? projectOptions["proj-smartgrid"];
 
+  // Duplicate Application Guard (§5.4 ALREADY_APPLIED error contract)
+  const isAlreadyApplied = existingApplications.some(
+    (a) => a.projectId === projectChoice && a.status !== "withdrawn"
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAlreadyApplied) {
+      alert("You have already submitted an active application for this project opportunity.");
+      return;
+    }
+
     if (!hasAcknowledgedTerms) {
       alert("Please review the pre-submit project terms disclosure and confirm the acknowledgment checkbox.");
       return;
@@ -157,6 +191,33 @@ export function ApplyModal({
           </button>
         </div>
 
+        {/* Dynamic Applicant Contact Banner (From Student Profile) */}
+        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5 border border-slate-200 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 font-medium">Applying as:</span>
+            <span className="font-bold text-slate-900">{applicant.name}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
+            <span>{applicant.email}</span>
+            <span className="rounded bg-teal-50 text-teal-800 px-1.5 py-0.2 text-[10px] font-semibold border border-teal-200">
+              Verified
+            </span>
+          </div>
+        </div>
+
+        {/* Duplicate Application Guard Banner (§5.4) */}
+        {isAlreadyApplied && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
+            <span className="text-base shrink-0">⚠️</span>
+            <div className="space-y-0.5">
+              <span className="font-bold">Duplicate Application Guard (§5.4)</span>
+              <p className="text-amber-900 leading-relaxed">
+                You already have an active application submitted for &quot;{selectedProject.title}&quot;. ExperienceBridge policy blocks duplicate submissions for the same opportunity.
+              </p>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Project Choice */}
           <div>
@@ -229,7 +290,7 @@ export function ApplyModal({
               <label className="block text-xs font-semibold text-slate-700">
                 Motivation &amp; Statement of Fit *
               </label>
-              <span className="text-[10px] text-slate-400">
+              <span className={`text-[10px] ${motivation.length > 550 ? "text-amber-600 font-semibold" : "text-slate-400"}`}>
                 {motivation.length}/600 characters
               </span>
             </div>
@@ -299,7 +360,7 @@ export function ApplyModal({
 
             <button
               type="submit"
-              disabled={isSubmitting || !hasAcknowledgedTerms}
+              disabled={isSubmitting || !hasAcknowledgedTerms || isAlreadyApplied || !motivation.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
@@ -310,6 +371,8 @@ export function ApplyModal({
                   </svg>
                   <span>Submitting application...</span>
                 </>
+              ) : isAlreadyApplied ? (
+                <span>Already Applied (§5.4)</span>
               ) : (
                 <span>Submit Application (API-APP-01)</span>
               )}

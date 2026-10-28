@@ -5,5 +5,5 @@ export default function StudentDevPreviewPage() {
     notFound();
   }
 
-  redirect("/dev/student/projects");
+  redirect("/dev/student/dashboard");
 }
