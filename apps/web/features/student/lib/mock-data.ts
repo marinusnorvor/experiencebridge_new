@@ -1,5 +1,6 @@
 import type {
   ParticipationWorkspaceDetails,
+  StudentApplicationDetails,
   StudentDashboardData,
   StudentParticipationSummaryItem,
   StudentProfileDetails,
@@ -446,4 +447,188 @@ export const syntheticParticipationDetails: Record<string, ParticipationWorkspac
     isSyntheticDemo: true,
   },
 };
+
+/**
+ * Synthetic detailed applications for STU-03 & STU-04.
+ * Includes submitted fit statements, observed terms version snapshot, and status timeline.
+ */
+export const syntheticApplicationsList: StudentApplicationDetails[] = [
+  {
+    id: "app-101",
+    projectId: "proj-sunpower",
+    projectTitle: "Solar Microgrid Telemetry",
+    organizationName: "SunPower Labs",
+    organizationVerified: true,
+    status: "offered",
+    appliedAt: "Oct 22, 2026 at 14:15 GMT",
+    offerDeadline: "Expires in 36 hours",
+    motivationStatement:
+      "I have worked extensively with sensor telemetry, React 19 dashboards, and time-series aggregation. I am eager to apply distributed systems concepts to real solar energy deployments across Ghana.",
+    declaredSkills: ["React 19", "Next.js", "TypeScript", "FastAPI", "Time-Series Data"],
+    externalLinks: [
+      { label: "GitHub Profile", url: "https://github.com/stellaappiok" },
+      { label: "Portfolio", url: "https://stellaappiok.dev" },
+    ],
+    observedTermsSnapshot: {
+      termsVersionId: "terms-sunpower-v1.2",
+      weeklyHours: 18,
+      durationWeeks: 8,
+      ipConditions: "Permissive Open Source (MIT License). Student retains portfolio showcase rights.",
+      confidentialitySummary: "Aggregated solar telemetry without disclosing customer billing identifiers.",
+      snapshotDate: "Oct 22, 2026",
+    },
+    timeline: [
+      {
+        id: "evt-1",
+        status: "submitted",
+        title: "Application Submitted",
+        description: "Application received and cryptographic receipt recorded with terms version terms-sunpower-v1.2.",
+        timestamp: "Oct 22, 2026 at 14:15 GMT",
+      },
+      {
+        id: "evt-2",
+        status: "under_review",
+        title: "Technical Fit Review",
+        description: "Assigned lead mentor and organization engineering team began review of declared coursework and portfolio.",
+        timestamp: "Oct 23, 2026 at 09:30 GMT",
+      },
+      {
+        id: "evt-3",
+        status: "shortlisted",
+        title: "Candidate Shortlisted",
+        description: "Passed technical screening criteria. Selected for final placement offer.",
+        timestamp: "Oct 25, 2026 at 16:00 GMT",
+      },
+      {
+        id: "evt-4",
+        status: "offered",
+        title: "Formal Project Offer Extended",
+        description: "SunPower Labs extended an official project offer. Please review and accept agreed terms before expiration.",
+        timestamp: "Yesterday at 11:00 GMT",
+      },
+    ],
+    isSyntheticDemo: true,
+  },
+  {
+    id: "app-102",
+    projectId: "proj-agroyield",
+    projectTitle: "AgriTech Cold Chain Logger",
+    organizationName: "AgroYield Africa",
+    organizationVerified: true,
+    status: "shortlisted",
+    appliedAt: "Oct 24, 2026 at 10:20 GMT",
+    motivationStatement:
+      "Passionate about agricultural supply chains and IoT hardware integration. Developed WebSocket dashboards and reliable data logging during my university coursework.",
+    declaredSkills: ["Next.js", "WebSockets", "FastAPI", "TypeScript"],
+    externalLinks: [
+      { label: "GitHub Profile", url: "https://github.com/stellaappiok" },
+    ],
+    observedTermsSnapshot: {
+      termsVersionId: "terms-agroyield-v1.1",
+      weeklyHours: 15,
+      durationWeeks: 6,
+      ipConditions: "Open hardware and software documentation under Creative Commons / MIT.",
+      confidentialitySummary: "Vendor farm locations are anonymized.",
+      snapshotDate: "Oct 24, 2026",
+    },
+    timeline: [
+      {
+        id: "evt-10",
+        status: "submitted",
+        title: "Application Submitted",
+        description: "Application filed against observed terms version terms-agroyield-v1.1.",
+        timestamp: "Oct 24, 2026 at 10:20 GMT",
+      },
+      {
+        id: "evt-11",
+        status: "under_review",
+        title: "Engineering Review",
+        description: "AgroYield Africa evaluated applicant code samples.",
+        timestamp: "Oct 25, 2026 at 14:00 GMT",
+      },
+      {
+        id: "evt-12",
+        status: "shortlisted",
+        title: "Candidate Shortlisted",
+        description: "Candidate shortlisted. Organization is confirming mentor availability.",
+        timestamp: "Oct 26, 2026 at 17:30 GMT",
+      },
+    ],
+    isSyntheticDemo: true,
+  },
+  {
+    id: "app-103",
+    projectId: "proj-payflow",
+    projectTitle: "Mobile Money Escrow Prototype",
+    organizationName: "PayFlow Ghana",
+    organizationVerified: true,
+    status: "under_review",
+    appliedAt: "Oct 26, 2026 at 16:40 GMT",
+    motivationStatement:
+      "Interested in secure transaction verification and fintech protocols. Experience designing resilient API integrations and database transaction rollbacks.",
+    declaredSkills: ["TypeScript", "FastAPI", "PostgreSQL", "REST APIs"],
+    externalLinks: [
+      { label: "GitHub Profile", url: "https://github.com/stellaappiok" },
+    ],
+    observedTermsSnapshot: {
+      termsVersionId: "terms-payflow-v1.0",
+      weeklyHours: 15,
+      durationWeeks: 8,
+      ipConditions: "Proprietary organization core; student retains authorized verifiable assertions in Experience Passport.",
+      confidentialitySummary: "Strict test sandbox only; no real bank account or wallet data used.",
+      snapshotDate: "Oct 26, 2026",
+    },
+    timeline: [
+      {
+        id: "evt-20",
+        status: "submitted",
+        title: "Application Submitted",
+        description: "Application successfully submitted to PayFlow Ghana technical reviewers.",
+        timestamp: "Oct 26, 2026 at 16:40 GMT",
+      },
+      {
+        id: "evt-21",
+        status: "under_review",
+        title: "Screening In Progress",
+        description: "Reviewers are currently assessing applicant background and security compliance declaration.",
+        timestamp: "Oct 27, 2026 at 10:15 GMT",
+      },
+    ],
+    isSyntheticDemo: true,
+  },
+  {
+    id: "app-104",
+    projectId: "proj-clinic-dir",
+    projectTitle: "Healthcare Clinic Directory & Triage",
+    organizationName: "HealthNet Africa",
+    organizationVerified: true,
+    status: "submitted",
+    appliedAt: "Yesterday at 15:30 GMT",
+    motivationStatement:
+      "Excited to support public health infrastructure with accessible, mobile-first directory maps and offline caching.",
+    declaredSkills: ["React", "TypeScript", "Tailwind CSS"],
+    externalLinks: [
+      { label: "Portfolio", url: "https://stellaappiok.dev" },
+    ],
+    observedTermsSnapshot: {
+      termsVersionId: "terms-healthnet-v1.0",
+      weeklyHours: 12,
+      durationWeeks: 6,
+      ipConditions: "Permissive Open Source (MIT).",
+      confidentialitySummary: "Open public clinic locations.",
+      snapshotDate: "Yesterday",
+    },
+    timeline: [
+      {
+        id: "evt-30",
+        status: "submitted",
+        title: "Application Submitted",
+        description: "Received into HealthNet Africa review queue. Initial response estimated within 3 business days.",
+        timestamp: "Yesterday at 15:30 GMT",
+      },
+    ],
+    isSyntheticDemo: true,
+  },
+];
+
 

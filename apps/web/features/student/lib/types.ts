@@ -9,6 +9,7 @@ export type ApplicationStatus =
   | "under_review"
   | "shortlisted"
   | "offered"
+  | "accepted"
   | "rejected"
   | "withdrawn";
 
@@ -102,6 +103,41 @@ export interface StudentActionRequiredItem {
   actionHref: string;
   deadlineText?: string;
   urgency: "high" | "medium";
+}
+
+export interface ApplicationTimelineEvent {
+  id: string;
+  status: ApplicationStatus;
+  title: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface StudentApplicationDetails {
+  id: string;
+  projectId: string;
+  projectTitle: string;
+  organizationName: string;
+  organizationVerified: boolean;
+  status: ApplicationStatus;
+  appliedAt: string;
+  offerDeadline?: string;
+  motivationStatement: string;
+  declaredSkills: string[];
+  externalLinks: { label: string; url: string }[];
+  observedTermsSnapshot: {
+    termsVersionId: string;
+    weeklyHours: number;
+    durationWeeks: number;
+    ipConditions: string;
+    confidentialitySummary: string;
+    snapshotDate: string;
+  };
+  timeline: ApplicationTimelineEvent[];
+  rejectionReason?: string;
+  withdrawalReason?: string;
+  participationId?: string;
+  isSyntheticDemo: boolean;
 }
 
 export interface StudentApplicationSummary {
