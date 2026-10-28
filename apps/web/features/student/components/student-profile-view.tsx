@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { syntheticStudentProfile } from "../lib/mock-data";
-import type { SelfReportedSkill, StudentProfileDetails } from "../lib/types";
+import type { SelfReportedSkill, StudentProfileDetails, TopProjectItem } from "../lib/types";
 import { StudentPortalHeader } from "./student-portal-header";
 import { LinkedinProfileCard } from "./linkedin-profile-card";
 import { ProfilePhotoCropper } from "./profile-photo-cropper";
@@ -18,6 +18,9 @@ function getInitialProfile(): StudentProfileDetails {
       if (stored) {
         const parsed = JSON.parse(stored) as StudentProfileDetails;
         if (parsed && parsed.displayName) {
+          if (!parsed.topProjects && syntheticStudentProfile.topProjects) {
+            parsed.topProjects = syntheticStudentProfile.topProjects;
+          }
           return parsed;
         }
       }
@@ -53,6 +56,18 @@ export function StudentProfileView() {
   const [proficiencyLevel, setProficiencyLevel] = useState<"beginner" | "intermediate" | "advanced">("intermediate");
   const [yearsOfExperience, setYearsOfExperience] = useState("1-2 years");
   const [contextOrProject, setContextOrProject] = useState("");
+
+  // New Top Project Form State
+  const [isAddingProject, setIsAddingProject] = useState(false);
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectRole, setProjectRole] = useState("");
+  const [projectOrg, setProjectOrg] = useState("");
+  const [projectIsVerified, setProjectIsVerified] = useState(false);
+  const [projectTimeframe, setProjectTimeframe] = useState("");
+  const [projectSummary, setProjectSummary] = useState("");
+  const [projectTechs, setProjectTechs] = useState("");
+  const [projectGithubUrl, setProjectGithubUrl] = useState("");
+  const [projectDemoUrl, setProjectDemoUrl] = useState("");
 
   // Saving / Loading Animation State
   const [isSaving, setIsSaving] = useState(false);
@@ -147,6 +162,66 @@ export function StudentProfileView() {
   const handleRemoveSkill = (id: string) => {
     const updatedSkills = (profile?.selfReportedSkills ?? []).filter((s) => s.id !== id);
     const updatedProfile = { ...profile, selfReportedSkills: updatedSkills };
+    setProfile(updatedProfile);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+    } catch {
+      // Ignored
+    }
+  };
+
+  // Add Top / Featured Project
+  const handleAddTopProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectTitle.trim() || !projectRole.trim() || !projectSummary.trim()) {
+      alert("Please provide at least a project title, role, and summary.");
+      return;
+    }
+
+    const techs = projectTechs
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const newProject: TopProjectItem = {
+      id: `top-proj-${Date.now()}`,
+      title: projectTitle.trim(),
+      role: projectRole.trim(),
+      organization: projectOrg.trim() || undefined,
+      isVerifiedOrgProject: projectIsVerified,
+      timeframe: projectTimeframe.trim() || "2026",
+      summary: projectSummary.trim(),
+      technologies: techs.length > 0 ? techs : ["TypeScript", "React"],
+      githubUrl: projectGithubUrl.trim() || undefined,
+      projectUrl: projectDemoUrl.trim() || undefined,
+    };
+
+    const updatedProjects = [...(profile?.topProjects ?? []), newProject];
+    const updatedProfile = { ...profile, topProjects: updatedProjects };
+    setProfile(updatedProfile);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+    } catch {
+      // Ignored
+    }
+
+    setProjectTitle("");
+    setProjectRole("");
+    setProjectOrg("");
+    setProjectIsVerified(false);
+    setProjectTimeframe("");
+    setProjectSummary("");
+    setProjectTechs("");
+    setProjectGithubUrl("");
+    setProjectDemoUrl("");
+    setIsAddingProject(false);
+  };
+
+  // Remove Top / Featured Project
+  const handleRemoveTopProject = (id: string) => {
+    const updatedProjects = (profile?.topProjects ?? []).filter((p) => p.id !== id);
+    const updatedProfile = { ...profile, topProjects: updatedProjects };
     setProfile(updatedProfile);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
@@ -622,11 +697,244 @@ export function StudentProfileView() {
                 </div>
               </div>
 
-              {/* Section 3: Availability & Work Preferences */}
+              {/* Section 3: Top & Featured Projects Showcase */}
+              <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-6">
+                <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                      3. Top &amp; Featured Projects Showcase
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Showcase your genuine technical projects, client engagements, and software contributions to visitors and recruiters.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingProject(!isAddingProject)}
+                    className="inline-flex items-center gap-1 self-start rounded-lg bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition"
+                  >
+                    <span>{isAddingProject ? "Cancel" : "+ Add Featured Project"}</span>
+                  </button>
+                </div>
+
+                {/* Add Project Form Modal/Box */}
+                {isAddingProject && (
+                  <div className="rounded-lg border border-teal-300 bg-teal-50/30 p-4 shadow-xs space-y-4 animate-fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Add New Top / Featured Project
+                      </h4>
+                      <span className="text-[10px] text-teal-800 font-semibold bg-white px-2 py-0.5 rounded border border-teal-200">
+                        Featured Showcase
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Project Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={projectTitle}
+                          onChange={(e) => setProjectTitle(e.target.value)}
+                          placeholder="e.g. Community Health Tracker"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Your Role / Contribution Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={projectRole}
+                          onChange={(e) => setProjectRole(e.target.value)}
+                          placeholder="e.g. Lead Frontend &amp; Offline Systems Engineer"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Organization / Context
+                        </label>
+                        <input
+                          type="text"
+                          value={projectOrg}
+                          onChange={(e) => setProjectOrg(e.target.value)}
+                          placeholder="e.g. HealthNet Africa or University Capstone"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Timeframe / Dates
+                        </label>
+                        <input
+                          type="text"
+                          value={projectTimeframe}
+                          onChange={(e) => setProjectTimeframe(e.target.value)}
+                          placeholder="e.g. Oct 2026 – Present or Aug 2026"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 flex items-center gap-2 pt-1">
+                        <input
+                          id="isVerifiedOrg"
+                          type="checkbox"
+                          checked={projectIsVerified}
+                          onChange={(e) => setProjectIsVerified(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-teal-800 focus:ring-teal-800"
+                        />
+                        <label htmlFor="isVerifiedOrg" className="text-xs text-slate-700 cursor-pointer">
+                          Mark as Verified Organization Project (sponsored or supervised engagement)
+                        </label>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Technologies Used (comma separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={projectTechs}
+                          onChange={(e) => setProjectTechs(e.target.value)}
+                          placeholder="e.g. React 19, Next.js, SQLite, TypeScript, Tailwind CSS"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Project Summary &amp; Specific Contribution *
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={projectSummary}
+                          onChange={(e) => setProjectSummary(e.target.value)}
+                          placeholder="Describe the problem, the technology stack, and what you personally built..."
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white p-2.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800 leading-relaxed"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          GitHub Repository URL
+                        </label>
+                        <input
+                          type="url"
+                          value={projectGithubUrl}
+                          onChange={(e) => setProjectGithubUrl(e.target.value)}
+                          placeholder="https://github.com/..."
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">
+                          Live Demo / Artifact URL
+                        </label>
+                        <input
+                          type="url"
+                          value={projectDemoUrl}
+                          onChange={(e) => setProjectDemoUrl(e.target.value)}
+                          placeholder="https://yoursite.dev/demo"
+                          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingProject(false)}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddTopProject}
+                        className="rounded-md bg-teal-800 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-900 transition"
+                      >
+                        Save Project to Showcase
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* List of Current Top Projects */}
+                {(!profile.topProjects || profile.topProjects.length === 0) ? (
+                  <p className="text-xs text-slate-500 italic">
+                    No featured projects listed yet. Click &ldquo;+ Add Featured Project&rdquo; above.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {profile.topProjects.map((proj) => (
+                      <div
+                        key={proj.id}
+                        className="rounded-lg border border-slate-200 bg-slate-50/60 p-4 space-y-2 hover:border-slate-300 transition"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-slate-900">{proj.title}</h5>
+                              {proj.isVerifiedOrgProject && (
+                                <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                  ✓ Verified
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-teal-800 font-semibold">{proj.role}</p>
+                            {proj.organization && (
+                              <p className="text-[10px] text-slate-500">{proj.organization} • {proj.timeframe}</p>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTopProject(proj.id)}
+                            className="text-slate-400 hover:text-rose-600 transition p-1 text-sm leading-none"
+                            title="Remove project"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 leading-relaxed bg-white p-2.5 rounded border border-slate-200/60">
+                          {proj.summary}
+                        </p>
+
+                        {proj.technologies && proj.technologies.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {proj.technologies.map((t, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded bg-white border border-slate-200 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 4: Availability & Work Preferences */}
               <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
                 <div className="border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                    3. Availability &amp; Preferred Focus
+                    4. Availability &amp; Preferred Focus
                   </h3>
                   <p className="text-xs text-slate-500">
                     Indicate your capacity for real organization project milestones.
@@ -698,12 +1006,12 @@ export function StudentProfileView() {
                 </div>
               </div>
 
-              {/* Section 4: Portfolio & Online Presence */}
+              {/* Section 5: Portfolio & Online Presence */}
               <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
                 <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                      4. Portfolio &amp; External Evidence Links
+                      5. Portfolio &amp; External Evidence Links
                     </h3>
                     <p className="text-xs text-slate-500">
                       Private by default. Disclosed to partner organizations only when you apply.

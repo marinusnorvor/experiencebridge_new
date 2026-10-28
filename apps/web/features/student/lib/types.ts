@@ -50,6 +50,20 @@ export interface SelfReportedSkill {
   contextOrProject?: string;
 }
 
+export interface TopProjectItem {
+  id: string;
+  title: string;
+  role: string;
+  organization?: string;
+  isVerifiedOrgProject?: boolean;
+  timeframe: string;
+  summary: string;
+  technologies: string[];
+  projectUrl?: string;
+  githubUrl?: string;
+  participationId?: string;
+}
+
 export interface StudentProfileDetails {
   id: string;
   displayName: string;
@@ -73,6 +87,7 @@ export interface StudentProfileDetails {
   };
   assessedSkills: AssessedSkill[];
   selfReportedSkills: SelfReportedSkill[];
+  topProjects?: TopProjectItem[];
   isSyntheticDemo: boolean;
 }
 
@@ -136,3 +151,95 @@ export interface StudentDashboardData {
   passportSummary: StudentPassportTeaser;
   isSyntheticDemo: true;
 }
+
+export interface ProjectMilestone {
+  id: string;
+  order: number;
+  title: string;
+  description: string;
+  deadline: string;
+  status: "completed" | "in_progress" | "upcoming";
+  deliverables: string[];
+  acceptanceCriteria: string[];
+  submissionId?: string;
+}
+
+export interface SubmissionReview {
+  id: string;
+  reviewerType: "mentor" | "organization";
+  reviewerName: string;
+  status: "approved" | "changes_requested" | "under_review";
+  feedback: string;
+  reviewedAt: string;
+}
+
+export interface MilestoneSubmission {
+  id: string;
+  milestoneId: string;
+  milestoneTitle: string;
+  revisionNumber: number;
+  summary: string;
+  contributionStatement: string;
+  links: { label: string; url: string }[];
+  status: "draft" | "submitted" | "revision_requested" | "accepted";
+  submittedAt?: string;
+  mentorReview?: SubmissionReview;
+  organizationDecision?: SubmissionReview;
+}
+
+export interface AgreedTermsSnapshot {
+  termsVersionId: string;
+  termsHash: string;
+  compensationSummary?: string;
+  weeklyHours: number;
+  durationWeeks: number;
+  ipConditions: string;
+  confidentialitySummary: string;
+  acceptedAt: string;
+}
+
+export interface ParticipationWorkspaceDetails {
+  participationId: string;
+  projectId: string;
+  projectTitle: string;
+  organizationName: string;
+  organizationContact: string;
+  organizationVerificationStatus: string;
+  mentor: {
+    name: string;
+    title: string;
+    status: "accepted" | "proposed" | "pending";
+    email?: string;
+  };
+  status: ParticipationStatus;
+  startedAt: string;
+  targetCompletionDate: string;
+  progressPercent: number;
+  currentMilestoneId: string;
+  repositoryUrl?: string;
+  designUrl?: string;
+  documentationUrl?: string;
+  milestones: ProjectMilestone[];
+  submissions: MilestoneSubmission[];
+  agreedTerms: AgreedTermsSnapshot;
+  isSyntheticDemo: boolean;
+}
+
+export interface StudentParticipationSummaryItem {
+  participationId: string;
+  projectId: string;
+  projectTitle: string;
+  organizationName: string;
+  organizationVerified: boolean;
+  mentorName: string;
+  mentorStatus: "accepted" | "proposed" | "pending";
+  status: ParticipationStatus;
+  currentMilestone: string;
+  nextMilestoneDue: string;
+  progressPercent: number;
+  completedMilestonesCount: number;
+  totalMilestonesCount: number;
+  compensationSummary?: string;
+  weeklyHours: number;
+}
+

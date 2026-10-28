@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { StudentProfileDetails } from "../lib/types";
 
 interface LinkedinProfileCardProps {
@@ -16,6 +17,9 @@ export function LinkedinProfileCard({
   onOpenPhotoModal,
   onOpenCoverModal,
 }: LinkedinProfileCardProps) {
+  const pathname = usePathname();
+  const basePath = pathname?.startsWith("/dev/student") ? "/dev/student" : "/student";
+  const topProjects = profile.topProjects ?? [];
   // Extract initials for fallback avatar
   const initials = profile.displayName
     ? profile.displayName
@@ -239,7 +243,135 @@ export function LinkedinProfileCard({
         </p>
       </div>
 
-      {/* 3. Mentor-Assessed Capabilities (Evidence-Backed) */}
+      {/* 3. Top & Featured Projects Section */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-teal-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <h2 className="text-base font-bold text-slate-900">
+                Top &amp; Featured Projects ({topProjects.length})
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Verified organization engagements, software engineering initiatives, and technical contributions.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onEditClick}
+            className="text-xs font-semibold text-teal-800 hover:text-teal-900 self-start sm:self-auto"
+          >
+            + Add or Manage Projects
+          </button>
+        </div>
+
+        {topProjects.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
+            No featured projects added yet. Click &ldquo;+ Add or Manage Projects&rdquo; to showcase your work.
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {topProjects.map((proj) => (
+              <div
+                key={proj.id}
+                className="rounded-xl border border-slate-200/90 bg-slate-50/50 p-4 space-y-3 hover:border-slate-300 hover:bg-slate-50 transition flex flex-col justify-between shadow-2xs"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-bold tracking-tight text-slate-900">
+                      {proj.title}
+                    </h3>
+                    {proj.isVerifiedOrgProject ? (
+                      <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                        ✓ Verified Org Project
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                        Personal / Academic
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-600">
+                    <span className="font-semibold text-teal-900">{proj.role}</span>
+                    {proj.organization && (
+                      <>
+                        <span>•</span>
+                        <span className="font-medium text-slate-700">{proj.organization}</span>
+                      </>
+                    )}
+                    {proj.timeframe && (
+                      <>
+                        <span>•</span>
+                        <span className="text-slate-500">{proj.timeframe}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-lg border border-slate-200/70">
+                    {proj.summary}
+                  </p>
+
+                  {proj.technologies && proj.technologies.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {proj.technologies.map((tech, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded-md bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700"
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-slate-200/60 text-xs">
+                  {proj.participationId && (
+                    <Link
+                      href={`${basePath}/projects/${proj.participationId}`}
+                      className="inline-flex items-center gap-1 font-semibold text-teal-800 hover:text-teal-900 text-xs"
+                    >
+                      <span>View Project Workspace</span>
+                      <span aria-hidden="true">→</span>
+                    </Link>
+                  )}
+
+                  {proj.githubUrl && (
+                    <a
+                      href={proj.githubUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900 text-[11px] ml-auto"
+                    >
+                      <svg className="h-3.5 w-3.5 text-slate-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                      </svg>
+                      <span>Code ↗</span>
+                    </a>
+                  )}
+
+                  {proj.projectUrl && (
+                    <a
+                      href={proj.projectUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 font-medium text-slate-700 hover:text-slate-900 text-[11px]"
+                    >
+                      <span>Demo ↗</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Mentor-Assessed Capabilities (Evidence-Backed) */}
       <div className="rounded-2xl border border-teal-200 bg-white p-6 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
