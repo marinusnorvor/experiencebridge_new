@@ -1,3 +1,6 @@
+import Link from "next/link";
+
+import { ProposalDecisionButtons } from "./assignment-proposal-detail";
 import type { MentorDashboardData } from "../lib/sample-dashboard-data";
 
 type DashboardState = "loading" | "error" | "ready";
@@ -196,6 +199,15 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
                         <dd className="inline">{proposal.expectedCommitment}</dd>
                       </div>
                     </dl>
+                    <div className="mt-4 flex flex-col gap-4 border-t border-slate-200 pt-4">
+                      <Link
+                        href={`/mentor/assignments/${proposal.id}`}
+                        className="inline-flex min-h-11 w-fit items-center rounded-md font-medium text-teal-900 underline decoration-teal-700 underline-offset-4 hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-800"
+                      >
+                        View proposal details
+                      </Link>
+                      <ProposalDecisionButtons />
+                    </div>
                   </article>
                 </li>
               ))}
@@ -224,7 +236,12 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
                       Accepted assignment
                     </span>
                     <h3 className="mt-3 font-semibold text-slate-900">
-                      {assignment.projectTitle}
+                      <Link
+                        href={`/mentor/participations/${assignment.participationId}`}
+                        className="rounded-sm underline decoration-slate-400 underline-offset-4 hover:text-teal-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-800"
+                      >
+                        {assignment.projectTitle}
+                      </Link>
                     </h3>
                     <dl className="mt-3 grid gap-2 text-sm leading-6 text-slate-600">
                       <div>
@@ -243,7 +260,17 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
                         <dt className="inline font-medium text-slate-800">Due: </dt>
                         <dd className="inline">{formatDate(assignment.dueDate)}</dd>
                       </div>
+                      <div>
+                        <dt className="inline font-medium text-slate-800">Status: </dt>
+                        <dd className="inline">{assignment.participationStatus}</dd>
+                      </div>
                     </dl>
+                    <Link
+                      href={`/mentor/participations/${assignment.participationId}`}
+                      className="mt-4 inline-flex min-h-11 items-center rounded-md font-medium text-teal-900 underline decoration-teal-700 underline-offset-4 hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-800"
+                    >
+                      View project context
+                    </Link>
                   </article>
                 </li>
               ))}
