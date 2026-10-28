@@ -37,3 +37,9 @@ htmlcov/
 Thumbs.db
 *.swp
 .neon
+
+.agent/
+.codex/
+.skills-lock.json
+
+/apps/api/.env.production.example
