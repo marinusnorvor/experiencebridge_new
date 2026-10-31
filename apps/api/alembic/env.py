@@ -8,10 +8,13 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import app.identity.models  # noqa: F401
+import app.organizations.models  # noqa: F401
+import app.projects.models  # noqa: F401
+import app.core.commands  # noqa: F401
 from app.database.base import Base
 from app.database.migrations import get_migration_settings
 
-# Canonical SQLAlchemy metadata including approved ADR-002 identity tables (users, user_role_grants).
+# Canonical metadata; new supervisor migrations still require development migration approval.
 target_metadata = Base.metadata
 
 

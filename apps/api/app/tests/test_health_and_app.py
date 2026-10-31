@@ -140,7 +140,7 @@ def test_cors_preflight_allows_configured_origin_and_blocks_unknown() -> None:
         assert disallowed.headers.get("access-control-allow-origin") is None
 
 
-def test_domain_modules_prepared_and_only_approved_adr002_tables_registered() -> None:
+def test_domain_modules_and_supervisor_checkpoint_tables_registered() -> None:
     keys = [spec.key for spec in DOMAIN_MODULES]
     assert keys == [
         "identity",
@@ -157,5 +157,9 @@ def test_domain_modules_prepared_and_only_approved_adr002_tables_registered() ->
         assert len(spec.blocking_decisions) > 0
         assert len(spec.invariants) > 0
 
-    # Strict rule: only approved ADR-002 / Contract C-01 identity tables exist on Base.metadata.
-    assert set(Base.metadata.tables.keys()) == {"users", "user_role_grants"}
+    # Identity is preserved; the explicitly assigned supervisor slice adds its own tables.
+    assert set(Base.metadata.tables.keys()) == {
+        "users", "user_role_grants", "organizations", "organization_memberships",
+        "projects", "project_terms_versions", "moderation_decisions",
+        "audit_events", "idempotency_records",
+    }
