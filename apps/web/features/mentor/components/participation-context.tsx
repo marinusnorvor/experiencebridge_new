@@ -9,6 +9,14 @@ export function ParticipationContext({
 }: {
   assignment: AcceptedAssignment;
 }) {
+  const submissionCount = assignment.milestones.reduce(
+    (count, milestone) => count + milestone.submissions.length,
+    0,
+  );
+  const milestonesWithSubmissions = assignment.milestones.filter(
+    (milestone) => milestone.submissions.length > 0,
+  ).length;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       <Link
@@ -78,12 +86,26 @@ export function ParticipationContext({
       >
         <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
           <h2 id="milestones-title" className="text-xl font-semibold tracking-tight text-slate-900">
-            Participation milestones
+            Learner progress and milestones
           </h2>
           <span className="text-sm text-slate-500">
             {assignment.milestones.length} sample{" "}
             {assignment.milestones.length === 1 ? "milestone" : "milestones"}
           </span>
+        </div>
+
+        <div
+          aria-label="Sample progress summary"
+          className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4"
+        >
+          <h3 className="font-semibold text-slate-900">Progress record summary</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-700">
+            {milestonesWithSubmissions} sample{" "}
+            {milestonesWithSubmissions === 1 ? "milestone has" : "milestones have"} a submission
+            record; {submissionCount} sample{" "}
+            {submissionCount === 1 ? "submission is" : "submissions are"} listed. This is a
+            summary of sample records, not a completion score or assessment.
+          </p>
         </div>
 
         {assignment.milestones.length === 0 ? (
@@ -105,9 +127,108 @@ export function ParticipationContext({
                     </time>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{milestone.description}</p>
-                  <p className="mt-3 text-sm font-medium text-slate-800">
-                    Status: {milestone.status}
+                  <p className="mt-3 text-sm text-slate-700">
+                    <span className="font-medium text-slate-800">Milestone availability: </span>
+                    {formatMilestoneAvailability(milestone.availabilityStatus)}
                   </p>
+
+                  <section
+                    aria-labelledby={`${milestone.id}-submissions-title`}
+                    className="mt-4 border-t border-slate-200 pt-4"
+                  >
+                    <h4
+                      id={`${milestone.id}-submissions-title`}
+                      className="font-medium text-slate-900"
+                    >
+                      Learner submissions
+                    </h4>
+                    {milestone.submissions.length === 0 ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        No sample submission record is listed for this milestone.
+                      </p>
+                    ) : (
+                      <ul className="mt-3 space-y-3">
+                        {milestone.submissions.map((submission) => {
+                          const mentorReview = assignment.mentorReviews.find(
+                            (review) => review.submissionId === submission.id,
+                          );
+
+                          return (
+                            <li key={submission.id}>
+                              <article className="rounded-lg bg-slate-50 p-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <h5 className="font-medium text-slate-900">
+                                    Sample submission · revision {submission.revisionNumber}
+                                  </h5>
+                                  <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-800">
+                                    Submission: {formatSubmissionStatus(submission.status)}
+                                  </span>
+                                </div>
+                                {submission.status === "submitted" && !mentorReview && (
+                                  <Link
+                                    href={`/mentor/submissions/${submission.id}/review`}
+                                    className="mt-3 inline-flex min-h-11 items-center rounded-md font-medium text-teal-900 underline decoration-teal-700 underline-offset-4 hover:text-teal-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-800"
+                                  >
+                                    Review sample submission
+                                  </Link>
+                                )}
+                                <p className="mt-2 text-sm leading-6 text-slate-600">
+                                  {submission.summary}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-700">
+                                  <span className="font-medium text-slate-800">Submitted: </span>
+                                  {submission.submittedAt ? (
+                                    <time dateTime={submission.submittedAt}>
+                                      {formatDate(submission.submittedAt)}
+                                    </time>
+                                  ) : (
+                                    "Not submitted"
+                                  )}
+                                </p>
+
+                                <div className="mt-3">
+                                  <h6 className="text-sm font-medium text-slate-800">
+                                    Evidence references
+                                  </h6>
+                                  {submission.evidenceReferences.length === 0 ? (
+                                    <p className="mt-1 text-sm text-slate-600">
+                                      No sample evidence references are listed.
+                                    </p>
+                                  ) : (
+                                    <ul className="mt-1 list-inside list-disc space-y-1 text-sm leading-6 text-slate-600">
+                                      {submission.evidenceReferences.map((evidence) => (
+                                        <li key={evidence.id}>
+                                          {evidence.name} ({formatEvidenceKind(evidence.kind)})
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+
+                                <div className="mt-3 border-t border-slate-200 pt-3">
+                                  <h6 className="text-sm font-medium text-slate-800">
+                                    Mentor review
+                                  </h6>
+                                  {mentorReview ? (
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                      Sample review record:{" "}
+                                      {formatReviewDecision(mentorReview.decision)} · rubric{" "}
+                                      {mentorReview.rubricVersion} ·{" "}
+                                      {formatDate(mentorReview.createdAt)}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                      No mentor review record is listed for this sample submission.
+                                    </p>
+                                  )}
+                                </div>
+                              </article>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </section>
                 </article>
               </li>
             ))}
@@ -179,4 +300,47 @@ function formatDate(date: string) {
     timeZone: "UTC",
     year: "numeric",
   }).format(new Date(`${date}T12:00:00Z`));
+}
+
+function formatMilestoneAvailability(status: "planned" | "active" | "archived") {
+  switch (status) {
+    case "planned":
+      return "Planned (available template)";
+    case "active":
+      return "Active (assigned work is open)";
+    case "archived":
+      return "Archived (no longer active)";
+  }
+}
+
+function formatSubmissionStatus(
+  status: "draft" | "submitted" | "revision_requested" | "withdrawn",
+) {
+  switch (status) {
+    case "draft":
+      return "Draft";
+    case "submitted":
+      return "Submitted";
+    case "revision_requested":
+      return "Revision requested";
+    case "withdrawn":
+      return "Withdrawn";
+  }
+}
+
+function formatReviewDecision(
+  decision: "reviewed" | "revision_requested" | "unable_to_assess",
+) {
+  switch (decision) {
+    case "reviewed":
+      return "Reviewed";
+    case "revision_requested":
+      return "Revision requested";
+    case "unable_to_assess":
+      return "Unable to assess";
+  }
+}
+
+function formatEvidenceKind(kind: "external_url" | "text_excerpt") {
+  return kind === "external_url" ? "external URL reference" : "text excerpt reference";
 }
