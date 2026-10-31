@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { OrganizationPortalShell } from "@/features/organization";
+import { OrganizationDemoProvider } from "@/features/organization/hooks/organization-demo-context";
 
 export const metadata = {
   title: "Organization Portal | ExperienceBridge",
@@ -11,6 +12,6 @@ export default function OrganizationPortalLayout({
 }: {
   children: ReactNode;
 }) {
-  return <OrganizationPortalShell>{children}</OrganizationPortalShell>;
+  return <OrganizationDemoProvider><OrganizationPortalShell>{children}</OrganizationPortalShell></OrganizationDemoProvider>;
 }
 

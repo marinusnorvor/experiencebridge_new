@@ -1,0 +1,50 @@
+import type { Brief } from "../types/portal.ts";
+
+export const briefSteps: (keyof Brief)[][] = [
+  ["title", "problem", "audience", "outcome"],
+  ["skills", "difficulty", "seats", "hours", "eligibility"],
+  ["deliverables", "criteria", "evidence", "exclusions"],
+  ["start", "due", "milestonePlan", "mentorPlan", "reviewer"],
+  ["fee", "paymentTerms", "ipTerms", "privacyTerms"],
+];
+export function validateBrief(brief: Brief, step?: number) {
+  const errors: Partial<Record<keyof Brief, string>> = {};
+  for (const key of step === undefined ? briefSteps.flat() : briefSteps[step]) {
+    const value = brief[key];
+    if (typeof value === "string" && !value.trim()) errors[key] = "Complete this field.";
+    if (typeof value === "string" && value.length > 4000) errors[key] = "Use 4,000 characters or fewer.";
+  }
+  if (step === undefined || step === 0) {
+    if (brief.title.trim().length < 5 || brief.title.length > 100) errors.title = "Use a title between 5 and 100 characters.";
+  }
+  if (step === undefined || step === 1) {
+    if (!Number.isInteger(brief.seats) || brief.seats < 1 || brief.seats > 10) errors.seats = "Choose 1–10 places for this demo.";
+    if (!Number.isFinite(brief.hours) || brief.hours < 1 || brief.hours > 20) errors.hours = "Enter 1–20 hours per week.";
+  }
+  if (step === undefined || step === 3) {
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    if (!validDate(brief.start)) errors.start = "Choose a valid start date.";
+    if (!validDate(brief.due) || brief.due <= brief.start) errors.due = "Choose an end date after the start.";
+  }
+  if (step === undefined || step === 4) {
+    if (!/^\d+(\.\d{1,2})?$/.test(brief.fee) || !Number.isFinite(Number(brief.fee)) || Number(brief.fee) <= 0) errors.fee = "Enter a positive sample fee, with at most two decimal places.";
+  }
+  return errors;
+}
+
+/** Validate browser storage before restoring it; never treat it as trusted data. */
+export function parseSavedBrief(raw: string, template: Brief): Brief | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !("brief" in parsed)) return null;
+    const values = parsed.brief;
+    if (!values || typeof values !== "object") return null;
+    const result = { ...template };
+    for (const key of Object.keys(template) as (keyof Brief)[]) {
+      const value = (values as Record<string, unknown>)[key];
+      if (typeof value !== typeof template[key] || (typeof value === "string" && value.length > 4000) || (typeof value === "number" && !Number.isFinite(value))) return null;
+      Object.assign(result, { [key]: value });
+    }
+    return result;
+  } catch { return null; }
+}

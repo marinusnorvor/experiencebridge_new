@@ -59,6 +59,7 @@ export function DashboardDetail({ snapshot, view, recordId, emptyPreview }: { sn
         <OrganizationButton aria-label="Close dashboard preview" onClick={close}><OrganizationIcon name="close" /></OrganizationButton>
       </div>
       <div className={styles.dialogBody}>
+        {(project || record?.href) && <Link className={styles.textLink} href={project ? `/organization/projects/${project.id}/workspace` : record!.href!}>Open full workspace record →</Link>}
         {recordId && <Link href={href()} replace scroll={false} className={styles.textLink}>← Back to {titles[view].toLowerCase()}</Link>}
         {missing ? <p role="status" className={styles.status}>The requested record is not in this sample collection. Choose another record or return to the overview.</p> : project ? <>
           <p className={styles.muted}>{project.summary}</p>

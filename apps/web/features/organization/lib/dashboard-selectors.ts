@@ -14,8 +14,8 @@ function isUpcomingDeadline(record: DashboardSnapshot["records"][number], asOf: 
 export function getDashboardMetrics(snapshot: DashboardSnapshot) {
   return [
     { id: "projects" as const, label: "Active projects", value: snapshot.projects.filter((project) => project.state === "Active").length, caption: "Moving from ideas to outcomes", icon: "projects" },
-    { id: "applications" as const, label: "New applications", value: snapshot.records.filter((record) => record.category === "applications").length, caption: "People ready to contribute", icon: "applications" },
-    { id: "reviews" as const, label: "Pending reviews", value: snapshot.records.filter((record) => record.category === "reviews").length, caption: "Deliverables awaiting your input", icon: "reviews" },
+    { id: "applications" as const, label: "New applications", value: selectDashboardRecords(snapshot, "applications").length, caption: "People ready to contribute", icon: "applications" },
+    { id: "reviews" as const, label: "Pending reviews", value: selectDashboardRecords(snapshot, "reviews").length, caption: "Deliverables awaiting your input", icon: "reviews" },
     { id: "deadlines" as const, label: "Upcoming deadlines", value: snapshot.records.filter((record) => isUpcomingDeadline(record, snapshot.asOf)).length, caption: "Due within the next seven days", icon: "calendar" },
   ];
 }
@@ -23,6 +23,8 @@ export function getDashboardMetrics(snapshot: DashboardSnapshot) {
 export function selectDashboardRecords(snapshot: DashboardSnapshot, category: DashboardCategory, query = "") {
   const search = query.trim().toLowerCase();
   return snapshot.records.filter((record) => record.category === category && (category !== "deadlines" || isUpcomingDeadline(record, snapshot.asOf)))
+    .filter((record) => category !== "applications" || ["New", "New application"].includes(record.status))
+    .filter((record) => category !== "reviews" || ["Awaiting review", "Awaiting organization review"].includes(record.status))
     .filter((record) => `${record.title} ${record.description} ${snapshot.projects.find((project) => project.id === record.projectId)?.title ?? ""}`.toLowerCase().includes(search));
 }
 

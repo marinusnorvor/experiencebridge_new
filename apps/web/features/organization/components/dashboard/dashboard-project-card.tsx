@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { DashboardProject } from "../../types/dashboard";
-import { dashboardHref, formatDashboardDate } from "../../lib/dashboard-selectors";
+import { formatDashboardDate } from "../../lib/dashboard-selectors";
 import { OrganizationIcon } from "../ui/organization-ui";
 import styles from "./dashboard.module.css";
 
@@ -11,6 +11,6 @@ export function DashboardProjectCard({ project }: { project: DashboardProject })
     <div className={styles.progressLabel}><span>Milestone progress</span><strong>{project.completedMilestones}/{project.totalMilestones}</strong></div>
     <progress className={styles.progress} value={project.completedMilestones} max={project.totalMilestones} aria-label={`${project.title}: milestone progress`} />
     <div className={styles.projectDue}><OrganizationIcon name="calendar" /><span>Next milestone · {formatDashboardDate(project.due)}</span></div>
-    <div className={styles.projectFooter}><div className={styles.avatars} aria-label={`Sample team: ${project.members.join(", ")}`}>{project.members.map((member) => <span title={member} aria-hidden="true" className={styles.avatar} key={member}>{member.split(" ").at(-1)}</span>)}</div><Link href={dashboardHref("projects", project.id)} scroll={false} className={styles.textLink} aria-label={`Preview workspace: ${project.title}`}>Preview workspace <OrganizationIcon name="arrow" /></Link></div>
+    <div className={styles.projectFooter}><div className={styles.avatars} aria-label={`Sample team: ${project.members.join(", ")}`}>{project.members.map((member) => <span title={member} aria-hidden="true" className={styles.avatar} key={member}>{member.split(" ").at(-1)}</span>)}</div><Link href={`/organization/projects/${project.id}/workspace`} className={styles.textLink} aria-label={`Open workspace: ${project.title}`}>Open workspace <OrganizationIcon name="arrow" /></Link></div>
   </article>;
 }

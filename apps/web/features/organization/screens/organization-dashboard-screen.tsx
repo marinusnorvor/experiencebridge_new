@@ -1,12 +1,12 @@
-﻿"use client";
+"use client";
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import { PortalAuthStatus } from "@/components/layouts/portal-auth-status";
-import { syntheticDashboard } from "../data/synthetic-dashboard";
-import { syntheticOrganizationData } from "../data/synthetic-organization-data";
+import { useOrganizationDemo } from "../hooks/organization-demo-context";
+import { portalDashboard } from "../lib/portal-dashboard";
 import { dashboardHref, formatDashboardDate, getDashboardMetrics, parseDashboardView, selectAttention } from "../lib/dashboard-selectors";
 import { DashboardDetail } from "../components/dashboard/dashboard-detail";
 import { DashboardProjectCard } from "../components/dashboard/dashboard-project-card";
@@ -22,12 +22,14 @@ export function OrganizationDashboardScreen() {
 }
 
 function SyntheticDashboard() {
+  const { state } = useOrganizationDemo();
   const params = useSearchParams();
   const router = useRouter();
   const [filter, setFilter] = useState("all");
   const [projectId, setProjectId] = useState("all");
   const emptyPreview = params.get("sample") === "empty";
-  const snapshot = emptyPreview ? { ...syntheticDashboard, projects: [], records: [], attention: [], activity: [] } : syntheticDashboard;
+  const liveSnapshot = portalDashboard(state);
+  const snapshot = emptyPreview ? { ...liveSnapshot, projects: [], records: [], attention: [], activity: [] } : liveSnapshot;
   const view = parseDashboardView(params.get("view"));
   const attention = selectAttention(snapshot, filter, projectId);
   const activeProjects = snapshot.projects.filter((project) => project.state === "Active");
@@ -46,7 +48,7 @@ function SyntheticDashboard() {
   return (
     <main aria-labelledby="org-dashboard-title" className={styles.dashboard}>
       <div className={styles.intro}>
-        <div><p className={styles.eyebrow}><span className={styles.dot} />Your organization, at a glance</p><h1 id="org-dashboard-title" className={styles.title}>Good work starts with a clear view.</h1><p className={styles.muted}>{syntheticOrganizationData.organizationName} · <span>Not independently verified</span></p></div>
+        <div><p className={styles.eyebrow}><span className={styles.dot} />Your organization, at a glance</p><h1 id="org-dashboard-title" className={styles.title}>Good work starts with a clear view.</h1><p className={styles.muted}>{state.profile.name} · <span>Not independently verified</span></p></div>
         <Link href="/organization/projects/new" className={styles.primary}><OrganizationIcon name="create-project" />Create project</Link>
       </div>
 
@@ -64,7 +66,7 @@ function SyntheticDashboard() {
             <ul className={styles.attentionList}>{attention.map((item) => {
               const record = snapshot.records.find((entry) => entry.id === item.recordId)!;
               const project = snapshot.projects.find((entry) => entry.id === record.projectId);
-              return <li className={styles.attentionRow} key={item.id}><span className={styles.rowIcon} data-priority={item.priority}><OrganizationIcon name={record.category === "deadlines" ? "alert" : record.category} /></span><div><span className={styles.rowTitle}>{item.label}</span><span className={styles.rowMeta}>{project?.title}</span><span className={styles.rowMeta}>{item.priority === "High" ? "Priority · " : ""}{record.status}</span></div><Link className={`${styles.textLink} ${styles.rowAction}`} href={href(record.category, record.category === "applications" ? undefined : record.id)} scroll={false}>{item.action}<OrganizationIcon name="arrow" /></Link></li>;
+              return <li className={styles.attentionRow} key={item.id}><span className={styles.rowIcon} data-priority={item.priority}><OrganizationIcon name={record.category === "deadlines" ? "alert" : record.category} /></span><div><span className={styles.rowTitle}>{item.label}</span><span className={styles.rowMeta}>{project?.title}</span><span className={styles.rowMeta}>{item.priority === "High" ? "Priority · " : ""}{record.status}</span></div><Link className={`${styles.textLink} ${styles.rowAction}`} href={record.href ?? href(record.category, record.id)} scroll={false}>{item.action}<OrganizationIcon name="arrow" /></Link></li>;
             })}</ul>
             {!attention.length && <div className={styles.empty}><span className={styles.emptyIcon}><OrganizationIcon name="check" /></span><h3>{snapshot.attention.length ? "Nothing in this view" : "A clear starting point"}</h3><p>{snapshot.attention.length ? "Try another project or category to see what needs attention." : "No sample items need attention. New project activity will appear here."}</p>{(filter !== "all" || projectId !== "all") && <OrganizationButton className="mt-4" onClick={() => { setFilter("all"); setProjectId("all"); }}>Reset filters</OrganizationButton>}</div>}
           </section>
@@ -77,10 +79,10 @@ function SyntheticDashboard() {
         </div>
 
         <aside className={styles.sideColumn} aria-label="Focus and recent activity">
-          <section className={styles.focusPanel}><span className={styles.eyebrow}>A little focus goes a long way</span><h2>{highPriority ? `${highPriority} things deserve a closer look.` : "Space for your next good idea."}</h2><p>{highPriority ? "A timely check-in and thoughtful feedback can help your teams take their next step." : "A well-scoped challenge gives emerging talent a purposeful place to start."}</p>{firstPriority ? <Link className={styles.textLink} href={href(firstPriority.category, firstPriority.id)} scroll={false}>Start with the priority <OrganizationIcon name="arrow" /></Link> : <Link className={styles.textLink} href="/organization/projects/new">Explore project creation <OrganizationIcon name="arrow" /></Link>}</section>
+          <section className={styles.focusPanel}><span className={styles.eyebrow}>A little focus goes a long way</span><h2>{highPriority ? `${highPriority} things deserve a closer look.` : "Space for your next good idea."}</h2><p>{highPriority ? "A timely check-in and thoughtful feedback can help your teams take their next step." : "A well-scoped challenge gives emerging talent a purposeful place to start."}</p>{firstPriority ? <Link className={styles.textLink} href={firstPriority.href ?? href(firstPriority.category, firstPriority.id)} scroll={false}>Start with the priority <OrganizationIcon name="arrow" /></Link> : <Link className={styles.textLink} href="/organization/projects/new">Explore project creation <OrganizationIcon name="arrow" /></Link>}</section>
           <section className={styles.activity} aria-labelledby="activity-heading"><div className={styles.activityHeader}><h2 id="activity-heading" className={styles.sectionTitle}>Recent activity</h2><span className={styles.muted}>Sample history</span></div><ol className={styles.timeline}>{snapshot.activity.map((event) => {
             const record = snapshot.records.find((item) => item.id === event.recordId)!;
-            return <li className={styles.timelineItem} key={event.id}><Link href={href(record.category, record.id)} scroll={false}>{event.title}</Link><p>{event.description}</p><time dateTime={event.date}>{formatDashboardDate(event.date)}</time></li>;
+            return <li className={styles.timelineItem} key={event.id}><Link href={event.href ?? href(record.category, record.id)} scroll={false}>{event.title}</Link><p>{event.description}</p><time dateTime={event.date}>{formatDashboardDate(event.date)}</time></li>;
           })}</ol>{!snapshot.activity.length && <p className={styles.muted}>No activity yet. Project updates will appear here as work progresses.</p>}</section>
         </aside>
       </div>

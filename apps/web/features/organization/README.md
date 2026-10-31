@@ -2,6 +2,16 @@
 
 ## Current status
 
+**Latest continuation:** See [IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md)
+for the current run, checkpoint results and remaining blockers. The historical
+O02 handoff below is retained; its instruction to stop before O03 is superseded
+by the user's explicit authorization to continue the remaining checkpoints.
+
+**Current delivery:** [DELIVERY_REPORT.md](./DELIVERY_REPORT.md) covers O03–O09/O11
+implementation, 41 passing tests, lint/typecheck/build, working localhost:3000 URLs,
+exact changed files and Git commands. O10 visual QA is partial; O12 awaits owner
+agreement; O13 is blocked on approved backend contracts; O14 real E2E remains pending.
+
 **Rendering repair follow-up:** A shared Turbopack rule was misclassifying CSS
 Modules as global CSS. The user approved a narrow configuration fix; see
 [UI_RENDERING_FIX.md](./UI_RENDERING_FIX.md) for before/after evidence, the new

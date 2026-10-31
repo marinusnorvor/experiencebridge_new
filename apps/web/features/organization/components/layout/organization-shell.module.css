@@ -19,6 +19,7 @@
 .header { display: flex; min-height: 80px; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 32px; border-bottom: 1px solid #e2e8f0; background: #ffffffd9; }
 .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: #64748b; }
 .heading { margin-top: 3px; font-size: 14px; font-weight: 600; }
+.previewTag { display:inline-flex; }
 .mobileToggle { display: none; }
 .dialog { position: fixed; inset: 0 auto 0 0; margin: 0; width: min(320px, calc(100vw - 32px)); height: 100dvh; max-height: none; max-width: none; border: none; padding: 24px 20px; background: white; color: #17202b; box-shadow: 12px 0 50px #0f172a22; overflow-y: auto; }
 .dialog[open] { animation: enter 200ms ease-out; }
@@ -26,5 +27,5 @@
 .drawerHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
 @keyframes enter { from { transform: translateX(-24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @media (max-width: 1023px) { .sidebar { display: none; } .mobileToggle { display: inline-flex; } .header { padding: 16px; gap: 12px; } }
-@media (max-width: 479px) { .header { flex-wrap: wrap; } .eyebrow { font-size: 10px; } }
+@media (max-width: 479px) { .header { flex-wrap: wrap; } .eyebrow { font-size: 10px; } .previewTag { display:none; } }
 @media (prefers-reduced-motion: reduce) { .dialog[open] { animation: none; } .navLink { transition: none; } }

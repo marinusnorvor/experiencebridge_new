@@ -1,5 +1,6 @@
-import { OrganizationRouteSlot } from "@/features/organization";
+import { OrganizationFeatureRouter } from "@/features/organization/screens/organization-feature-router";
 import { Suspense } from "react";
+import { PortalLoading } from "@/features/organization/components/ui/portal-states";
 
 type PageProps = {
   params: Promise<{
@@ -11,14 +12,12 @@ async function OrganizationRouteContent({
   params,
 }: PageProps) {
   const resolvedParams = await params;
-  const slugPath = resolvedParams.slug ? resolvedParams.slug.join("/") : undefined;
-
-  return <OrganizationRouteSlot slugPath={slugPath} />;
+  return <OrganizationFeatureRouter slug={resolvedParams.slug ?? []} />;
 }
 
 export default function OrganizationDynamicRoutePage(props: PageProps) {
   return (
-    <Suspense fallback={<main className="p-6 text-sm text-slate-600" aria-busy="true"><p role="status">Loading organization section…</p></main>}>
+    <Suspense fallback={<PortalLoading />}>
       <OrganizationRouteContent {...props} />
     </Suspense>
   );

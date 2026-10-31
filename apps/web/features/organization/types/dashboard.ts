@@ -10,6 +10,7 @@ export interface DashboardRecord {
   status: string;
   date: string;
   details: readonly string[];
+  href?: string;
 }
 
 export interface DashboardProject {
@@ -31,5 +32,5 @@ export interface DashboardSnapshot {
   projects: readonly DashboardProject[];
   records: readonly DashboardRecord[];
   attention: readonly { id: string; recordId: string; priority: "High" | "Normal"; label: string; action: string }[];
-  activity: readonly { id: string; recordId: string; title: string; date: string; description: string }[];
+  activity: readonly { id: string; recordId: string; title: string; date: string; description: string; href?: string }[];
 }
