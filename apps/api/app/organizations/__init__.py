@@ -1,4 +1,4 @@
-"""Organizations domain package; no unapproved models or business operations yet (D3/D1)."""
+"""Organization domain metadata; supervisor operations register with the project workflow."""
 
 from __future__ import annotations
 

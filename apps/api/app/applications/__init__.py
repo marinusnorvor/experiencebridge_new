@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.core.domains import DomainModuleSpec, create_domain_router
+from app.core.domains import DomainModuleSpec
+from app.applications.router import router
 
 MODULE_SPEC = DomainModuleSpec(
     key="applications",
@@ -25,7 +26,5 @@ MODULE_SPEC = DomainModuleSpec(
         "Students may only read their own applications; organization access is scoped to authorized project managers.",
     ),
 )
-
-router = create_domain_router(MODULE_SPEC)
 
 __all__ = ["MODULE_SPEC", "router"]

@@ -1,8 +1,9 @@
-"""Projects domain package; no unapproved models or business operations yet (D3)."""
+"""Projects domain and authenticated, development-only supervisor workflow."""
 
 from __future__ import annotations
 
-from app.core.domains import DomainModuleSpec, create_domain_router
+from app.core.domains import DomainModuleSpec
+from app.projects.router import router
 
 MODULE_SPEC = DomainModuleSpec(
     key="projects",
@@ -25,7 +26,5 @@ MODULE_SPEC = DomainModuleSpec(
         "Unpaid commercial production work is blocked; publication requires authorized moderation approval.",
     ),
 )
-
-router = create_domain_router(MODULE_SPEC)
 
 __all__ = ["MODULE_SPEC", "router"]

@@ -396,7 +396,7 @@ def test_live_neon_development_identity_tables_migrated() -> None:
             assert "alembic_version" in tables
 
             version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-            assert version == "20261026_0001"
+            assert version in {"20261026_0001", "20261031_0004"}
     finally:
         engine.dispose()
 

@@ -1,6 +1,10 @@
-import { MentorDashboard } from "@/features/mentor/components/mentor-dashboard";
-import { sampleMentorDashboard } from "@/features/mentor/lib/sample-dashboard-data";
+import { MentorDashboardConnected } from "@/features/mentor/components/mentor-dashboard-connected";
+
+export const metadata = {
+  title: "Mentor Dashboard | ExperienceBridge",
+  description: "Manage mentor assignments, evaluate student deliverables, and submit rubrics.",
+};
 
 export default function MentorDashboardPage() {
-  return <MentorDashboard data={sampleMentorDashboard} state="ready" />;
+  return <MentorDashboardConnected />;
 }

@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
     rules: {
       "*.css": {
+        condition: { not: { path: "*.module.css" } },
         loaders: [tailwindTurbopackLoader],
         as: "*.css",
       },
