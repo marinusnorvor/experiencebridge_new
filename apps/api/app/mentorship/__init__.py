@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.core.domains import DomainModuleSpec, create_domain_router
+from app.core.domains import DomainModuleSpec
+from app.mentorship.router import router
 
 MODULE_SPEC = DomainModuleSpec(
     key="mentorship",
@@ -22,7 +23,5 @@ MODULE_SPEC = DomainModuleSpec(
         "Mentor observation and rubric assessment never imply organization deliverable acceptance.",
     ),
 )
-
-router = create_domain_router(MODULE_SPEC)
 
 __all__ = ["MODULE_SPEC", "router"]

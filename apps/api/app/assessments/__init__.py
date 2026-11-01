@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.core.domains import DomainModuleSpec, create_domain_router
+from app.core.domains import DomainModuleSpec
+from app.assessments.router import router
 
 MODULE_SPEC = DomainModuleSpec(
     key="assessments",
@@ -27,7 +28,5 @@ MODULE_SPEC = DomainModuleSpec(
         "New submission revisions do not inherit prior mentor or organization review decisions.",
     ),
 )
-
-router = create_domain_router(MODULE_SPEC)
 
 __all__ = ["MODULE_SPEC", "router"]

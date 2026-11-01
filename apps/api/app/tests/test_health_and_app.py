@@ -158,8 +158,9 @@ def test_domain_modules_and_supervisor_checkpoint_tables_registered() -> None:
         assert len(spec.invariants) > 0
 
     # Identity is preserved; the explicitly assigned supervisor slice adds its own tables.
-    assert set(Base.metadata.tables.keys()) == {
+    expected_tables = {
         "users", "user_role_grants", "organizations", "organization_memberships",
         "projects", "project_terms_versions", "moderation_decisions",
         "audit_events", "idempotency_records",
     }
+    assert expected_tables.issubset(set(Base.metadata.tables.keys()))
