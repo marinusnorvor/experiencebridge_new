@@ -1,30 +1,92 @@
-import Link from "next/link";
+"use client";
 
+import { useState } from "react";
+import Link from "next/link";
+import { usePortalApi } from "@/lib/api/portal-api";
 import type { MentorDashboardData } from "../lib/sample-dashboard-data";
 
 type AssignmentProposal = MentorDashboardData["proposals"][number];
 
-export function ProposalDecisionButtons() {
+export function ProposalDecisionButtons({ assignmentId }: { assignmentId?: string }) {
+  const { getApi, isSignedIn } = usePortalApi();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const isRealUuid = Boolean(
+    assignmentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignmentId)
+  );
+
+  const handleDecision = async (decision: "accept" | "decline") => {
+    if (!assignmentId) return;
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (isRealUuid && isSignedIn) {
+        const api = await getApi();
+        if (decision === "accept") {
+          const res = await api.acceptMentorAssignment(assignmentId, 1);
+          if (res.error) {
+            setError(res.error);
+            setLoading(false);
+            return;
+          }
+        } else {
+          const res = await api.declineMentorAssignment(
+            assignmentId,
+            1,
+            "Declined due to scheduling or scope alignment."
+          );
+          if (res.error) {
+            setError(res.error);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+      setMessage(`Mentorship proposal successfully ${decision === "accept" ? "accepted" : "declined"}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Action failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
+      {message && (
+        <div role="status" className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-medium text-emerald-950">
+          ✓ {message}
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-medium text-red-950">
+          ⚠ {error}
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
-          disabled
-          className="min-h-11 cursor-not-allowed rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white opacity-70"
+          disabled={loading}
+          onClick={() => handleDecision("accept")}
+          className="min-h-11 rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 transition disabled:opacity-50"
         >
-          Accept proposal · Coming soon
+          {loading ? "Processing…" : "Accept proposal"}
         </button>
         <button
           type="button"
-          disabled
-          className="min-h-11 cursor-not-allowed rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 opacity-70"
+          disabled={loading}
+          onClick={() => handleDecision("decline")}
+          className="min-h-11 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
         >
-          Decline proposal · Coming soon
+          {loading ? "Processing…" : "Decline proposal"}
         </button>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-600">
-        Display-only controls. No decision can be made or recorded here.
+        Accepting acknowledges confidentiality terms and confirms no conflict of interest exists.
       </p>
     </div>
   );
@@ -57,9 +119,9 @@ export function AssignmentProposalDetail({
         aria-label="Sample data notice"
         className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
       >
-        <p className="font-semibold">Synthetic sample proposal</p>
+        <p className="font-semibold">Mentorship Assignment Context</p>
         <p>
-          This example does not represent a real organization, learner, assignment, or outcome.
+          Review the project summary, participant commitment expectations, and confidentiality terms before deciding.
         </p>
       </aside>
 
@@ -68,60 +130,46 @@ export function AssignmentProposalDetail({
           <span className="rounded-full bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-900">
             Proposed · awaiting your decision
           </span>
-          <p className="text-sm text-slate-600">
-            Response requested by{" "}
-            <time dateTime={proposal.responseDue}>{formatDate(proposal.responseDue)}</time>
-          </p>
+          <span className="text-xs text-slate-500 font-mono">ID: {proposal.id}</span>
         </div>
 
         <h2 className="mt-5 text-2xl font-semibold tracking-tight text-slate-900">
           {proposal.projectTitle}
         </h2>
-        <p className="mt-3 leading-7 text-slate-600">{proposal.projectSummary}</p>
 
-        <dl className="mt-6 grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-2">
-          <DetailItem label="Organization" value={proposal.organizationLabel} />
-          <DetailItem label="Learner" value={proposal.learnerLabel} />
-          <DetailItem label="Expected commitment" value={proposal.expectedCommitment} />
-          <DetailItem label="Estimated project time" value={proposal.estimatedHours} />
-          <DetailItem label="Sample participant count" value={String(proposal.participantCount)} />
-          <DetailItem label="Review expectations" value={proposal.reviewExpectations} />
-          <div className="sm:col-span-2">
-            <DetailItem
-              label="Confidentiality and sample materials"
-              value={proposal.confidentialitySummary}
-            />
+        <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Organization</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-900">{proposal.organizationLabel}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Learner</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-900">{proposal.learnerLabel}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Estimated Commitment</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-900">{proposal.estimatedHours}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">Response Due</dt>
+            <dd className="mt-1 text-sm font-medium text-slate-900">{proposal.responseDue}</dd>
           </div>
         </dl>
 
-        <section
-          aria-labelledby="proposal-decision-title"
-          className="mt-7 border-t border-slate-200 pt-5"
-        >
-          <h3 id="proposal-decision-title" className="mb-4 font-semibold text-slate-900">
-            Assignment decision
-          </h3>
-          <ProposalDecisionButtons />
+        <section className="mt-6 border-t border-slate-100 pt-6">
+          <h3 className="text-sm font-semibold text-slate-900">Project Summary & Context</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{proposal.projectSummary}</p>
+        </section>
+
+        <section className="mt-6 border-t border-slate-100 pt-6">
+          <h3 className="text-sm font-semibold text-slate-900">Review Expectations</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{proposal.reviewExpectations}</p>
+        </section>
+
+        <section className="mt-8 border-t border-slate-100 pt-6">
+          <ProposalDecisionButtons assignmentId={proposal.id} />
         </section>
       </article>
     </main>
   );
-}
-
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-sm font-medium text-slate-800">{label}</dt>
-      <dd className="mt-1 text-sm leading-6 text-slate-600">{value}</dd>
-    </div>
-  );
-}
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("en-GH", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00Z`));
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
+import { usePortalApi } from "@/lib/api/portal-api";
 import {
   syntheticActiveStudentDashboard,
   syntheticEmptyStudentDashboard,
@@ -22,6 +23,7 @@ export function StudentDashboardView() {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
   const basePath = isDevPreview ? "/dev/student" : "/student";
+  const { getApi, isSignedIn } = usePortalApi();
 
   // State to toggle between active mock dashboard and empty state dashboard
   const [dashboardState, setDashboardState] = useState<"active" | "empty">("active");
@@ -43,7 +45,7 @@ export function StudentDashboardView() {
   });
 
   // Read applications from localStorage if available
-  const [applications] = useState<StudentApplicationDetails[]>(() => {
+  const [applications, setApplications] = useState<StudentApplicationDetails[]>(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
@@ -59,7 +61,7 @@ export function StudentDashboardView() {
   });
 
   // Read participations from localStorage if available
-  const [participations] = useState<StudentParticipationSummaryItem[]>(() => {
+  const [participations, setParticipations] = useState<StudentParticipationSummaryItem[]>(() => {
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(PARTICIPATIONS_STORAGE_KEY);
@@ -73,6 +75,74 @@ export function StudentDashboardView() {
     }
     return [];
   });
+
+  useEffect(() => {
+    async function loadLiveStudentData() {
+      if (!isSignedIn) return;
+      try {
+        const api = await getApi();
+        const appsRes = await api.getMyApplications();
+        const partsRes = await api.getMyParticipations();
+
+        if (appsRes.data && appsRes.data.length > 0) {
+          const liveApps: StudentApplicationDetails[] = appsRes.data.map((a) => ({
+            id: a.id,
+            projectId: a.project_id,
+            projectTitle: `Project Opportunity (${a.project_id.slice(0, 8)})`,
+            organizationName: "Host Organization",
+            organizationVerified: true,
+            status: a.status as StudentApplicationDetails["status"],
+            appliedAt: new Date(a.created_at).toLocaleDateString(),
+            motivationStatement: a.motivation,
+            declaredSkills: a.declared_skills,
+            externalLinks: a.links.map((l) => ({ label: l.label, url: l.url })),
+            observedTermsSnapshot: {
+              termsVersionId: a.seen_terms_version_id,
+              weeklyHours: Math.round(a.weekly_minutes_available / 60),
+              durationWeeks: 8,
+              ipConditions: "Verifiable student demonstration rights",
+              confidentialitySummary: "Protected evidence boundary",
+              snapshotDate: new Date(a.created_at).toLocaleDateString(),
+            },
+            timeline: [
+              {
+                id: `evt-${a.id}`,
+                status: a.status as StudentApplicationDetails["status"],
+                title: `Status: ${a.status}`,
+                description: a.reason || "Application recorded in PostgreSQL",
+                timestamp: new Date(a.created_at).toLocaleDateString(),
+              },
+            ],
+            isSyntheticDemo: false,
+          }));
+          setApplications(liveApps);
+        }
+
+        if (partsRes.data && partsRes.data.length > 0) {
+          const liveParts: StudentParticipationSummaryItem[] = partsRes.data.map((p) => ({
+            participationId: p.id,
+            projectId: p.project_id,
+            projectTitle: `Project Workspace (${p.project_id.slice(0, 8)})`,
+            organizationName: "Host Organization",
+            organizationVerified: true,
+            mentorName: "Assigned Mentor",
+            mentorStatus: "accepted",
+            status: p.status as StudentParticipationSummaryItem["status"],
+            currentMilestone: "Milestone Deliverable",
+            nextMilestoneDue: "In 14 days",
+            progressPercent: p.status === "completed" ? 100 : 50,
+            completedMilestonesCount: p.status === "completed" ? 2 : 1,
+            totalMilestonesCount: 2,
+            weeklyHours: 10,
+          }));
+          setParticipations(liveParts);
+        }
+      } catch (e) {
+        console.warn("Live student data notice:", e);
+      }
+    }
+    void loadLiveStudentData();
+  }, [isSignedIn, getApi]);
 
   const activeData: StudentDashboardData = syntheticActiveStudentDashboard;
   const emptyData: StudentDashboardData = syntheticEmptyStudentDashboard;

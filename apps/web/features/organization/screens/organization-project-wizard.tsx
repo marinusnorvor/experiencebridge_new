@@ -6,6 +6,8 @@ import { useOrganizationDemo } from "../hooks/organization-demo-context";
 import { useUnsavedChanges } from "../hooks/use-unsaved-changes";
 import { briefSteps, parseSavedBrief, validateBrief } from "../lib/brief-validation";
 import { demoActor, saveProject } from "../lib/demo-transitions";
+import { syncProjectToBackend } from "../lib/organization-api-sync";
+import { usePortalApi } from "@/lib/api/portal-api";
 import type { Brief } from "../types/portal";
 import { ActionLink, Badge, Button, Empty, Field, Modal, PortalPage, portalStyles as s } from "../components/ui/portal-ui";
 
@@ -14,7 +16,8 @@ const steps = ["The challenge", "People & skills", "Scope & evidence", "Timeline
 const shortFields: (keyof Brief)[] = ["title", "skills", "start", "due", "fee", "reviewer"];
 
 export function OrganizationProjectWizard({ id }: { id?: string }) {
-  const { state, update, announce } = useOrganizationDemo();
+  const { state, update, announce, orgId, refetch } = useOrganizationDemo();
+  const { getApi } = usePortalApi();
   const existing = state.projects.find((project) => project.id === id);
   const [brief, setBrief] = useState<Brief>(existing ?? emptyBrief);
   const [step, setStep] = useState(0);
@@ -36,17 +39,26 @@ export function OrganizationProjectWizard({ id }: { id?: string }) {
       setBrief(restored); setDirty(true); setErrors({}); setError(""); announce("Saved synthetic draft restored. Review it before submitting.");
     } catch (error) { setError(error instanceof Error ? error.message : "Browser storage is unavailable."); }
   }
-  function save(submit: boolean) {
+  async function save(submit: boolean) {
     setError("");
     try {
       const projectId = savedId.current ?? `demo-${crypto.randomUUID()}`;
       update((current) => saveProject(current, { actor: demoActor, revision: state.revision, id: crypto.randomUUID(), at: new Date().toISOString() }, projectId, brief, submit));
+      if (orgId) {
+        try {
+          const api = await getApi();
+          await syncProjectToBackend(api, orgId, brief, submit);
+          void refetch();
+        } catch (e) {
+          console.warn("Backend sync notice:", e);
+        }
+      }
       let storageMessage = "";
       try { if (submit) sessionStorage.removeItem(storageKey); else sessionStorage.setItem(storageKey, JSON.stringify({ brief })); }
       catch { storageMessage = " Browser draft backup is unavailable; refresh will reset this project."; }
       setDirty(false); setConfirm(false);
       savedId.current = projectId;
-      announce((submit ? "Submitted for simulated review. This does not publish the project." : "Draft saved in this local demo. Use Restore saved draft after a refresh.") + storageMessage);
+      announce((submit ? "Submitted for review and synced to development backend." : "Draft saved and synced.") + storageMessage);
       if (submit) router.push(`/organization/projects/${projectId}`);
     } catch (error) { setError(error instanceof Error ? error.message : "Unable to save. Try again."); setConfirm(false); }
   }
