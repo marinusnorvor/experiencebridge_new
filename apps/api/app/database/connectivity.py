@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 from app.core.config import Settings, get_settings
-from app.core.logging import scrub_sensitive_text
 from app.database.session import create_db_engine
 
 
@@ -48,11 +47,14 @@ def verify_database_connectivity(
         )
 
     owns_engine = engine is None
-    target_engine = engine or create_db_engine(active_settings)
-    pool_class_name = target_engine.pool.__class__.__name__
+    target_engine = engine
+    pool_class_name = "unavailable"
     start = time.perf_counter()
 
     try:
+        if target_engine is None:
+            target_engine = create_db_engine(active_settings)
+        pool_class_name = target_engine.pool.__class__.__name__
         with target_engine.connect() as connection:
             connection.execute(text("SET TRANSACTION READ ONLY"))
             row = connection.execute(
@@ -88,11 +90,13 @@ def verify_database_connectivity(
             neon_branch=active_settings.neon_branch,
             database_name=None,
             database_role=None,
-            read_only=True,
+            read_only=False,
             pool_class=pool_class_name,
             latency_ms=elapsed_ms,
-            error=scrub_sensitive_text(f"{exc.__class__.__name__}: {exc}"),
+            # Driver exception strings can include raw SQL, parameters and connection
+            # credentials. Report only the type, like the API's database error handler.
+            error=f"{exc.__class__.__name__}: Database connectivity verification failed.",
         )
     finally:
-        if owns_engine:
+        if owns_engine and target_engine is not None:
             target_engine.dispose()
