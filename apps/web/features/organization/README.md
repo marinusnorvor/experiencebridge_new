@@ -1,4 +1,4 @@
-﻿# Organization Portal — checkpoint handoff
+# Organization Portal — checkpoint handoff
 
 ## Current status
 

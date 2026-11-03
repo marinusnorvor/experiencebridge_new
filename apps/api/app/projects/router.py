@@ -340,7 +340,9 @@ def submit_project(project_id: UUID, body: SubmitProject, request: Request, resp
         project.status = "pending_review"
         project.row_version += 1
         audit(db, user, request, "project.review_submitted", project, terms_version_id=str(terms.id))
-        return serialize(project)
+        result = serialize(project)
+        add_published_terms_ids(db, [result], include_submitted=True)
+        return result
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
 
 
@@ -379,7 +381,9 @@ def project_decision(project_id: UUID, body: DecisionInput, request: Request, re
         db.add(ModerationDecision(project_id=project_id, terms_version_id=terms.id, admin_user_id=user.id,
                                  decision=body.decision, explanation=body.explanation))
         audit(db, user, request, "project.moderation_decided", project, decision=body.decision, terms_version_id=str(terms.id))
-        return serialize(project)
+        result = serialize(project)
+        add_published_terms_ids(db, [result], include_submitted=True)
+        return result
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
 
 
