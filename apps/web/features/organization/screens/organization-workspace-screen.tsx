@@ -1,4 +1,5 @@
 "use client";
+import { OrganizationWorkspaceLive } from "./organization-workspace-live";
 import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -11,6 +12,10 @@ import { ActionLink, Badge, Button, Empty, Field, Modal, PortalPage, portalStyle
 const tabs = ["overview", "team", "milestones", "updates", "deliverables", "discussion"];
 
 export function OrganizationWorkspaceScreen({ id }: { id: string }) {
+  const { preview } = useOrganizationDemo();
+  return preview ? <PreviewWorkspace id={id} /> : <OrganizationWorkspaceLive id={id} />;
+}
+function PreviewWorkspace({ id }: { id: string }) {
   const { state } = useOrganizationDemo();
   const params = useSearchParams();
   const selectedTab = params.get("tab") ?? "overview";

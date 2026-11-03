@@ -1,10 +1,8 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
-import { PortalAuthStatus } from "@/components/layouts/portal-auth-status";
 import { useOrganizationDemo } from "../hooks/organization-demo-context";
 import { portalDashboard } from "../lib/portal-dashboard";
 import { dashboardHref, formatDashboardDate, getDashboardMetrics, parseDashboardView, selectAttention } from "../lib/dashboard-selectors";
@@ -15,19 +13,16 @@ import { OrganizationButton, OrganizationIcon } from "../components/ui/organizat
 import styles from "../components/dashboard/dashboard.module.css";
 
 export function OrganizationDashboardScreen() {
-  if (!isPortalPresentationMode()) {
-    return <main className={styles.dashboard} aria-labelledby="org-dashboard-title"><h1 id="org-dashboard-title" className={styles.title}>Organization overview</h1><p className={styles.muted}>Your organization overview will be available after authorized integration. Sample activity appears only in local presentation mode.</p><Suspense fallback={<p role="status">Checking organization access…</p>}><PortalAuthStatus portalContext="organization" portalLabel="Organization" /></Suspense></main>;
-  }
   return <SyntheticDashboard />;
 }
 
 function SyntheticDashboard() {
-  const { state } = useOrganizationDemo();
+  const { state, preview, organization } = useOrganizationDemo();
   const params = useSearchParams();
   const router = useRouter();
   const [filter, setFilter] = useState("all");
   const [projectId, setProjectId] = useState("all");
-  const emptyPreview = params.get("sample") === "empty";
+  const emptyPreview = preview && params.get("sample") === "empty";
   const liveSnapshot = portalDashboard(state);
   const snapshot = emptyPreview ? { ...liveSnapshot, projects: [], records: [], attention: [], activity: [] } : liveSnapshot;
   const view = parseDashboardView(params.get("view"));
@@ -38,8 +33,8 @@ function SyntheticDashboard() {
   const filters = [{ id: "all", label: "All" }, { id: "reviews", label: "Reviews" }, { id: "applications", label: "Applications" }, { id: "deadlines", label: "Deadlines" }, { id: "invitations", label: "Invitations" }];
 
   // Explicit local QA previews. These flags never change production auth or data.
-  if (params.get("sample") === "loading") return <><p className="px-6 pt-4 text-xs text-slate-600">Synthetic loading-state preview · <Link href="/organization/dashboard" className="underline">Exit preview</Link></p><DashboardLoading /></>;
-  if (params.get("sample") === "error") return <><p className="px-6 pt-4 text-xs text-slate-600">Synthetic error-state preview</p><DashboardError reset={() => router.replace("/organization/dashboard")} /></>;
+  if (preview && params.get("sample") === "loading") return <><p className="px-6 pt-4 text-xs text-slate-600">Synthetic loading-state preview · <Link href="/organization/dashboard" className="underline">Exit preview</Link></p><DashboardLoading /></>;
+  if (preview && params.get("sample") === "error") return <><p className="px-6 pt-4 text-xs text-slate-600">Synthetic error-state preview</p><DashboardError reset={() => router.replace("/organization/dashboard")} /></>;
 
   function href(category: Parameters<typeof dashboardHref>[0], id?: string) {
     return `${dashboardHref(category, id)}${emptyPreview ? "&sample=empty" : ""}`;
@@ -48,7 +43,7 @@ function SyntheticDashboard() {
   return (
     <main aria-labelledby="org-dashboard-title" className={styles.dashboard}>
       <div className={styles.intro}>
-        <div><p className={styles.eyebrow}><span className={styles.dot} />Your organization, at a glance</p><h1 id="org-dashboard-title" className={styles.title}>Good work starts with a clear view.</h1><p className={styles.muted}>{state.profile.name} · <span>Not independently verified</span></p></div>
+        <div><p className={styles.eyebrow}><span className={styles.dot} />Your organization, at a glance</p><h1 id="org-dashboard-title" className={styles.title}>Good work starts with a clear view.</h1><p className={styles.muted}>{state.profile.name} · <span>{preview ? "Synthetic preview" : organization?.verification_status ?? "Create an organization in Settings"}</span></p></div>
         <Link href="/organization/projects/new" className={styles.primary}><OrganizationIcon name="create-project" />Create project</Link>
       </div>
 

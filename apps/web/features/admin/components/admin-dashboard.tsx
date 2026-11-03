@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { termsSnapshot } from "../../student/lib/api-records";
 import { usePortalApi } from "@/lib/api/portal-api";
-import type { OrganizationRead, ProjectReviewItem } from "@experiencebridge/api-client";
+import type { OrganizationRead, ProjectReviewItem, MentorProfileRead } from "@experiencebridge/api-client";
 
 export function AdminDashboard() {
   const { getApi, isSignedIn } = usePortalApi();
+  const [mentors, setMentors] = useState<MentorProfileRead[]>([]);
+  const [busy, setBusy] = useState(false);
+  const acting = useRef(false);
   const [pendingOrgs, setPendingOrgs] = useState<OrganizationRead[]>([]);
   const [pendingProjects, setPendingProjects] = useState<ProjectReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,21 +19,29 @@ export function AdminDashboard() {
   // Mentor eligibility form state
   const [mentorUserId, setMentorUserId] = useState("");
   const [mentorDecision, setMentorDecision] = useState<"approve" | "reject" | "suspend">("approve");
-  const [mentorReason, setMentorReason] = useState("Meets all technical qualifications and vetting standards.");
+  const [mentorReason, setMentorReason] = useState("");
+  const [decisionReasons, setDecisionReasons] = useState<Record<string,string>>({});
 
   const refreshData = async () => {
+    setActionError(null);
     try {
       const api = await getApi();
       const orgsRes = await api.getPendingOrganizations();
+      if (orgsRes.error) throw new Error(orgsRes.error);
       if (orgsRes.data) {
         setPendingOrgs(orgsRes.data);
       }
+      const mentorRes = await api.getMentorProfilesForAdmin();
+      if (mentorRes.error) throw new Error(mentorRes.error);
+      setMentors(mentorRes.data ?? []);
       const projectsRes = await api.getPendingProjects();
+      if (projectsRes.error) throw new Error(projectsRes.error);
       if (projectsRes.data) {
         setPendingProjects(projectsRes.data);
       }
     } catch (e) {
-      console.warn("Admin fetch notice:", e);
+      setActionError(e instanceof Error ? e.message : "Admin records unavailable.");
+      setPendingOrgs([]); setPendingProjects([]); setMentors([]);
     } finally {
       setLoading(false);
     }
@@ -41,14 +53,19 @@ export function AdminDashboard() {
       try {
         const api = await getApi();
         const orgsRes = await api.getPendingOrganizations();
-        const projectsRes = await api.getPendingProjects();
+        const mentorRes = await api.getMentorProfilesForAdmin();
+      if (mentorRes.error) throw new Error(mentorRes.error);
+      if (active) setMentors(mentorRes.data ?? []);
+      const projectsRes = await api.getPendingProjects();
+        if (orgsRes.error || projectsRes.error) throw new Error(orgsRes.error ?? projectsRes.error ?? "Admin data unavailable.");
         if (active) {
+          setActionError(null);
           if (orgsRes.data) setPendingOrgs(orgsRes.data);
           if (projectsRes.data) setPendingProjects(projectsRes.data);
           setLoading(false);
         }
-      } catch {
-        if (active) setLoading(false);
+      } catch (e) {
+        if (active) { setLoading(false); setPendingOrgs([]); setPendingProjects([]); setMentors([]); setActionError(e instanceof Error ? e.message : "Admin records unavailable."); }
       }
     }
     void init();
@@ -58,6 +75,8 @@ export function AdminDashboard() {
   }, [isSignedIn, getApi]);
 
   const handleOrgDecision = async (org: OrganizationRead, decision: "verify" | "reject") => {
+    if (acting.current) return;
+    acting.current = true; setBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
@@ -66,7 +85,7 @@ export function AdminDashboard() {
         org.id,
         org.row_version,
         decision,
-        decision === "verify" ? "Organization credentials and incorporation documents verified." : "Organization does not meet qualification standards."
+        decisionReasons[org.id]?.trim() ?? ""
       );
       if (res.error) {
         setActionError(res.error);
@@ -76,10 +95,12 @@ export function AdminDashboard() {
       }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Decision failed.");
-    }
+    } finally { acting.current = false; setBusy(false); }
   };
 
-  const handleProjectDecision = async (item: ProjectReviewItem, decision: "verify" | "reject") => {
+  const handleProjectDecision = async (item: ProjectReviewItem, decision: "approve" | "reject") => {
+    if (acting.current) return;
+    acting.current = true; setBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
@@ -88,29 +109,34 @@ export function AdminDashboard() {
         item.project.id,
         item.project.row_version,
         decision,
-        decision === "verify" ? "Project challenge, learning outcomes, and terms approved for publication." : "Project brief requires revisions."
+        decisionReasons[item.project.id]?.trim() ?? "",
+        item.terms.id, item.terms.content_hash
       );
       if (res.error) {
         setActionError(res.error);
       } else {
-        setActionMessage(`Project ${item.project.title} has been ${decision === "verify" ? "approved and published" : "rejected"}.`);
+        setActionMessage(`Project ${item.project.title} has been ${decision === "approve" ? "approved and published" : "rejected"}.`);
         await refreshData();
       }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Decision failed.");
-    }
+    } finally { acting.current = false; setBusy(false); }
   };
 
   const handleMentorEligibility = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mentorUserId.trim()) return;
+    if (acting.current) return;
+    acting.current = true; setBusy(true);
     setActionError(null);
     setActionMessage(null);
     try {
       const api = await getApi();
+      const candidate = mentors.find(m => m.user_id === mentorUserId.trim());
+      if (!candidate) throw new Error("Select a mentor profile from the current queue.");
       const res = await api.decideMentorEligibility(
-        mentorUserId.trim(),
-        1,
+        candidate.user_id,
+        candidate.row_version,
         mentorDecision,
         mentorReason
       );
@@ -118,11 +144,12 @@ export function AdminDashboard() {
         setActionError(res.error);
       } else {
         setActionMessage(`Mentor ${mentorUserId} eligibility set to ${mentorDecision}.`);
-        setMentorUserId("");
+        await refreshData();
+        setMentorUserId(""); setMentorReason("");
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Mentor eligibility update failed.");
-    }
+    } finally { acting.current = false; setBusy(false); }
   };
 
   return (
@@ -154,6 +181,7 @@ export function AdminDashboard() {
         </div>
       )}
 
+      <button type="button" onClick={() => void refreshData()} disabled={loading || busy} className="mb-4 rounded-lg border border-slate-300 px-4 py-2 text-sm">Refresh moderation queues</button>
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Pending Organizations */}
         <section aria-labelledby="pending-orgs-title" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -169,7 +197,7 @@ export function AdminDashboard() {
           <div className="mt-4 space-y-4">
             {pendingOrgs.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">
-                No organizations currently awaiting moderation.
+                {actionError ? "Queue unavailable. Resolve the error and retry." : "No organizations currently awaiting moderation."}
               </p>
             ) : (
               pendingOrgs.map((org) => (
@@ -177,9 +205,11 @@ export function AdminDashboard() {
                   <h3 className="font-semibold text-slate-900">{org.display_name}</h3>
                   <p className="mt-1 text-xs text-slate-600 line-clamp-2">{org.description}</p>
                   <p className="mt-2 text-[11px] text-slate-400 font-mono">ID: {org.id}</p>
+                  <label className="mt-3 block text-xs">Decision rationale<textarea minLength={10} maxLength={2000} value={decisionReasons[org.id] ?? ""} onChange={e => setDecisionReasons({...decisionReasons,[org.id]:e.target.value})} className="mt-1 block w-full rounded border p-2" /></label>
                   <div className="mt-4 flex gap-2">
                     <button
                       type="button"
+                      disabled={busy || (decisionReasons[org.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleOrgDecision(org, "verify")}
                       className="rounded-lg bg-teal-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition"
                     >
@@ -187,6 +217,7 @@ export function AdminDashboard() {
                     </button>
                     <button
                       type="button"
+                      disabled={busy || (decisionReasons[org.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleOrgDecision(org, "reject")}
                       className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition"
                     >
@@ -213,7 +244,7 @@ export function AdminDashboard() {
           <div className="mt-4 space-y-4">
             {pendingProjects.length === 0 ? (
               <p className="py-6 text-center text-sm text-slate-500">
-                No projects currently awaiting publication review.
+                {actionError ? "Queue unavailable. Resolve the error and retry." : "No projects currently awaiting publication review."}
               </p>
             ) : (
               pendingProjects.map((item) => (
@@ -225,16 +256,27 @@ export function AdminDashboard() {
                     <span>•</span>
                     <span className="font-mono text-[11px]">Hash: {item.terms.content_hash.slice(0, 8)}...</span>
                   </div>
+                  <details className="mt-3 space-y-2 text-xs"><summary>Review complete scope and terms</summary>
+                    <p>Scope: {termsSnapshot(item.terms).scope.scope_in}</p><p>Excluded: {termsSnapshot(item.terms).scope.scope_out}</p>
+                    <p>Dates: {termsSnapshot(item.terms).scope.start_on} to {termsSnapshot(item.terms).scope.due_on}</p>
+                    <p>Compensation: {termsSnapshot(item.terms).terms.currency} {termsSnapshot(item.terms).terms.fee_amount}. {termsSnapshot(item.terms).terms.payment_terms}</p>
+                    <p>IP: {termsSnapshot(item.terms).terms.ip_ownership_terms}</p><p>Confidentiality: {termsSnapshot(item.terms).terms.confidentiality_terms}</p>
+                    <p>Mentor plan: {termsSnapshot(item.terms).terms.mentor_plan}</p>
+                    {termsSnapshot(item.terms).scope.milestones.map((m,i)=><div key={i}><strong>{m.title} - {m.due_on}</strong><ul>{m.acceptance_criteria.map((c,j)=><li key={j}>{c}</li>)}</ul></div>)}
+                  </details>
+                  <label className="mt-3 block text-xs">Decision rationale<textarea minLength={10} maxLength={2000} value={decisionReasons[item.project.id] ?? ""} onChange={e => setDecisionReasons({...decisionReasons,[item.project.id]:e.target.value})} className="mt-1 block w-full rounded border p-2" /></label>
                   <div className="mt-4 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => handleProjectDecision(item, "verify")}
+                      disabled={busy || (decisionReasons[item.project.id]?.trim().length ?? 0) < 10}
+                      onClick={() => handleProjectDecision(item, "approve")}
                       className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 transition"
                     >
                       Approve & Publish
                     </button>
                     <button
                       type="button"
+                      disabled={busy || (decisionReasons[item.project.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleProjectDecision(item, "reject")}
                       className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition"
                     >
@@ -257,17 +299,13 @@ export function AdminDashboard() {
           Authorize or suspend mentor candidates for project assignment matching.
         </p>
 
+        {mentors.find(m=>m.user_id===mentorUserId) && <div className="mt-4 rounded border p-3"><p>{mentors.find(m=>m.user_id===mentorUserId)?.bio}</p><p>{mentors.find(m=>m.user_id===mentorUserId)?.availability_text}</p></div>}
         <form onSubmit={handleMentorEligibility} className="mt-4 grid gap-4 sm:grid-cols-3">
           <div>
-            <label className="block text-xs font-semibold text-slate-700">Mentor User UUID</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. adf1cf2c-3358-4d1a-ba01-633ced8f1246"
-              value={mentorUserId}
-              onChange={(e) => setMentorUserId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-mono"
-            />
+            <label className="block text-xs font-semibold text-slate-700">Mentor profile</label>
+            <select required value={mentorUserId} onChange={e=>setMentorUserId(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs">
+              <option value="">Choose submitted mentor profile</option>{mentors.map(m=><option key={m.id} value={m.user_id}>{m.user_id.slice(0,8)} | {m.skills.join(", ")} | {m.eligibility_status}</option>)}
+            </select>
           </div>
 
           <div>
@@ -288,6 +326,7 @@ export function AdminDashboard() {
             <input
               type="text"
               required
+              minLength={10} maxLength={2000}
               value={mentorReason}
               onChange={(e) => setMentorReason(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-xs"
@@ -296,7 +335,7 @@ export function AdminDashboard() {
 
           <div className="sm:col-span-3">
             <button
-              type="submit"
+              type="submit" disabled={busy}
               className="rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700 transition"
             >
               Submit Eligibility Decision

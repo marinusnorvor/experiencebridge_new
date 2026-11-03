@@ -13,16 +13,19 @@ export interface DemoProject extends Brief {
 }
 export type ApplicationStatus = "New" | "Shortlisted" | "Offered" | "Accepted" | "Declined" | "Withdrawn";
 export interface DemoApplication {
+  rowVersion?: number;
+  offerId?: string; offerStatus?: string;
   id: string; projectId: string; name: string; skills: string[]; note: string; evidence: string;
   availability: string; status: ApplicationStatus; termsVersion: number; offerExpiry?: string;
 }
 export interface DemoMentor { id: string; name: string; skills: string; availability: string; eligible: boolean }
 export interface DemoInvitation { id: string; projectId: string; mentorId: string; status: "Pending" | "Accepted" | "Declined" | "Expired"; context: string }
 export interface DemoSubmission {
+  rowVersion?: number;
   id: string; projectId: string; title: string; student: string; criteria: string[];
   versions: { version: number; date: string; note: string; content: string }[];
-  status: "Awaiting review" | "Accepted" | "Changes requested";
-  reviews: { version: number; decision: "Accepted" | "Changes requested"; rationale: string; criteria: boolean[]; actor: string; at: string }[];
+  status: "Awaiting review" | "Accepted" | "Changes requested" | "Rejected";
+  reviews: { version: number; decision: "Accepted" | "Changes requested" | "Rejected"; rationale: string; criteria: boolean[]; actor: string; at: string }[];
   sharedMentorNote: string;
 }
 export interface DemoMessage { id: string; projectId: string; author: string; body: string; at: string; read: boolean }
