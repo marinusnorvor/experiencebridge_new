@@ -221,7 +221,9 @@ def edit_project(project_id: UUID, body: ProjectCreate, request: Request, respon
 def organization_projects(org_id: UUID, response: Response, db: DB, user: Actor):
     require_member(db, org_id, user)
     response.headers["Cache-Control"] = "no-store, private"
-    return page(db.scalars(select(Project).where(Project.organization_id == org_id).order_by(Project.created_at.desc())).all())
+    result = page(db.scalars(select(Project).where(Project.organization_id == org_id).order_by(Project.created_at.desc())).all())
+    add_published_terms_ids(db, result["items"], include_submitted=True)
+    return result
 
 
 @router.get("/projects", response_model=ProjectPage, response_model_exclude_none=True)
@@ -230,8 +232,32 @@ def discover_projects(db: DB, q: str = Query(default="", max_length=100), limit:
     if q:
         query = query.where(Project.title.icontains(q, autoescape=True))
     records = db.scalars(query.order_by(Project.created_at.desc(), Project.id).limit(limit + 1).offset(offset)).all()
-    return {"items": [public_project(p) for p in records[:limit]],
+    items = [public_project(p) for p in records[:limit]]
+    add_published_terms_ids(db, items)
+    return {"items": items,
             "next_offset": offset + limit if len(records) > limit else None}
+
+
+def add_published_terms_ids(db, items, include_submitted=False):
+    """Expose the identifier of already-disclosed published terms (and submitted terms for org members)."""
+    if not items:
+        return
+    ids = [UUID(str(item["id"])) for item in items]
+    rows = db.execute(select(TermsVersion.project_id, TermsVersion.id).join(
+        Project, (Project.id == TermsVersion.project_id) &
+        (Project.published_terms_version == TermsVersion.version_no)
+    ).where(Project.id.in_(ids))).all()
+    terms = {str(project_id): str(version_id) for project_id, version_id in rows}
+    for item in items:
+        item["published_terms_version_id"] = terms.get(str(item["id"]))
+    if include_submitted:
+        sub_rows = db.execute(select(TermsVersion.project_id, TermsVersion.id).join(
+            Project, (Project.id == TermsVersion.project_id) &
+            (Project.submitted_terms_version == TermsVersion.version_no)
+        ).where(Project.id.in_(ids))).all()
+        sub_terms = {str(project_id): str(version_id) for project_id, version_id in sub_rows}
+        for item in items:
+            item["submitted_terms_version_id"] = sub_terms.get(str(item["id"]))
 
 
 def public_project(project):
@@ -242,12 +268,14 @@ def public_project(project):
 def get_project(project_id: UUID, response: Response, db: DB, user: Actor):
     project = read_record(db, Project, project_id)
     org = read_record(db, Organization, project.organization_id)
-    if membership(db, org.id, user.id):
+    is_org_member = bool(membership(db, org.id, user.id))
+    if is_org_member:
         result = serialize(project)
     elif project.status == "open" and org.verification_status == "verified":
         result = public_project(project)
     else:
         fail("NOT_FOUND", "Project unavailable.", 404)
+    add_published_terms_ids(db, [result], include_submitted=is_org_member)
     headers(response, project)
     return result
 
@@ -403,6 +431,8 @@ def start_project(project_id: UUID, body: Empty, request: Request, response: Res
             )
             if not accepted_assignment:
                 fail("MENTOR_REQUIRED", f"Participant does not have an accepted mentor assignment.")
+            from app.mentorship.router import require_eligible_mentor
+            require_eligible_mentor(db, project, part.student_user_id, accepted_assignment.mentor_user_id)
             part.started_at = now
             part.row_version += 1
 

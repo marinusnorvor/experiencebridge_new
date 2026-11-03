@@ -153,11 +153,18 @@ def test_publish_and_retrieve_after_app_restart(workflow):
         actor(restarted, actors, "outsider")
         listing = restarted.get("/api/v1/projects").json()["items"]
         assert listing[0]["id"] == project["id"]
+        assert listing[0]["published_terms_version_id"] == terms["id"]
+        detail = restarted.get(f'/api/v1/projects/{project["id"]}').json()
+        assert detail["published_terms_version_id"] == terms["id"]
         assert listing[0]["data_origin"] == "synthetic"
         assert "org_reviewer_user_id" not in listing[0]
         read = restarted.get(f'/api/v1/projects/{project["id"]}/terms-versions/{terms["id"]}')
         assert read.status_code == 200
         assert read.json()["snapshot"]["terms"]["fee_amount"] == "450.00"
+        actor(restarted, actors, "owner")
+        org_projects = restarted.get(f'/api/v1/organizations/{project["organization_id"]}/projects').json()["items"]
+        assert org_projects[0]["published_terms_version_id"] == terms["id"]
+        assert org_projects[0]["submitted_terms_version_id"] == terms["id"]
 
 
 def test_auth_tenant_and_independent_moderation(workflow):

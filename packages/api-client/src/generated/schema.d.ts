@@ -684,7 +684,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Participation Mentor Assignments */
+        get: operations["participation_mentor_assignments_api_v1_participations__participation_id__mentor_assignments_get"];
         put?: never;
         /** Propose Mentor Assignment */
         post: operations["propose_mentor_assignment_api_v1_participations__participation_id__mentor_assignments_post"];
@@ -773,6 +774,40 @@ export interface paths {
         put?: never;
         /** End Mentor Assignment */
         post: operations["end_mentor_assignment_api_v1_mentor_assignments__assignment_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/mentors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mentor Eligibility Queue */
+        get: operations["mentor_eligibility_queue_api_v1_admin_mentors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org_id}/mentors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Organization Mentor Directory */
+        get: operations["organization_mentor_directory_api_v1_organizations__org_id__mentors_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1323,6 +1358,11 @@ export interface components {
             score?: number | null;
             /** Observation */
             observation: string;
+        };
+        /** MentorProfilePage */
+        MentorProfilePage: {
+            /** Items */
+            items: components["schemas"]["MentorProfileRead"][];
         };
         /** MentorProfileRead */
         MentorProfileRead: {
@@ -1952,8 +1992,12 @@ export interface components {
             status: "draft" | "pending_review" | "changes_requested" | "rejected" | "open" | "in_progress" | "completed" | "cancelled";
             /** Submitted Terms Version */
             submitted_terms_version: number | null;
+            /** Submitted Terms Version Id */
+            submitted_terms_version_id?: string | null;
             /** Published Terms Version */
             published_terms_version: number | null;
+            /** Published Terms Version Id */
+            published_terms_version_id?: string | null;
             /**
              * Data Origin
              * @constant
@@ -3563,6 +3607,37 @@ export interface operations {
             };
         };
     };
+    participation_mentor_assignments_api_v1_participations__participation_id__mentor_assignments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                participation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     propose_mentor_assignment_api_v1_participations__participation_id__mentor_assignments_post: {
         parameters: {
             query?: never;
@@ -3741,6 +3816,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssignmentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mentor_eligibility_queue_api_v1_admin_mentors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorProfilePage"];
+                };
+            };
+        };
+    };
+    organization_mentor_directory_api_v1_organizations__org_id__mentors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MentorProfilePage"];
                 };
             };
             /** @description Validation Error */

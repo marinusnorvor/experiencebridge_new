@@ -2168,6 +2168,52 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Mentorship"
+        ],
+        "summary": "Participation Mentor Assignments",
+        "operationId": "participation_mentor_assignments_api_v1_participations__participation_id__mentor_assignments_get",
+        "security": [
+          {
+            "ClerkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "participation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/me/mentor-assignments": {
@@ -2401,6 +2447,80 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AssignmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/mentors": {
+      "get": {
+        "tags": [
+          "Mentorship"
+        ],
+        "summary": "Mentor Eligibility Queue",
+        "operationId": "mentor_eligibility_queue_api_v1_admin_mentors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfilePage"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ClerkBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/{org_id}/mentors": {
+      "get": {
+        "tags": [
+          "Mentorship"
+        ],
+        "summary": "Organization Mentor Directory",
+        "operationId": "organization_mentor_directory_api_v1_organizations__org_id__mentors_get",
+        "security": [
+          {
+            "ClerkBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MentorProfilePage"
                 }
               }
             }
@@ -3942,7 +4062,7 @@
         "properties": {
           "criterion_text": {
             "type": "string",
-            "maxLength": 200,
+            "maxLength": 1000,
             "minLength": 2,
             "title": "Criterion Text"
           },
@@ -3973,6 +4093,23 @@
           "observation"
         ],
         "title": "MentorObservation"
+      },
+      "MentorProfilePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MentorProfileRead"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MentorProfilePage"
       },
       "MentorProfileRead": {
         "properties": {
@@ -4689,7 +4826,7 @@
         "properties": {
           "criterion_text": {
             "type": "string",
-            "maxLength": 200,
+            "maxLength": 1000,
             "minLength": 2,
             "title": "Criterion Text"
           },
@@ -5398,6 +5535,18 @@
             ],
             "title": "Submitted Terms Version"
           },
+          "submitted_terms_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Terms Version Id"
+          },
           "published_terms_version": {
             "anyOf": [
               {
@@ -5408,6 +5557,18 @@
               }
             ],
             "title": "Published Terms Version"
+          },
+          "published_terms_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Terms Version Id"
           },
           "data_origin": {
             "type": "string",

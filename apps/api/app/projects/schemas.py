@@ -109,7 +109,9 @@ class ProjectRead(RecordRead):
     scope: dict
     status: Literal["draft", "pending_review", "changes_requested", "rejected", "open", "in_progress", "completed", "cancelled"]
     submitted_terms_version: int | None
+    submitted_terms_version_id: UUID | None = None
     published_terms_version: int | None
+    published_terms_version_id: UUID | None = None
     data_origin: Literal["synthetic"]
     project_manager_user_id: UUID | None = None
     org_reviewer_user_id: UUID | None = None
