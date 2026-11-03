@@ -19,15 +19,23 @@ export function getClerkPublishableKey(): string {
   const appEnv = process.env.NEXT_PUBLIC_APP_ENV?.trim() || process.env.NODE_ENV;
 
   if (configured && !configured.includes("<") && !configured.includes(">")) {
-    if (appEnv === "production" && configured.startsWith("pk_test_")) {
+    if (appEnv === "production" && !configured.startsWith("pk_live_")) {
       throw new Error(
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY must use a live key (pk_live_*) in production."
       );
     }
+    if (appEnv === "production") {
+      try {
+        const domain = atob(configured.slice("pk_live_".length));
+        if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}\$$/i.test(domain)) throw new Error();
+      } catch {
+        throw new Error("Production Clerk publishable key must encode a valid Clerk domain.");
+      }
+    }
     return configured;
   }
 
-  if (appEnv === "production" && process.env.NEXT_PUBLIC_APP_ENV === "production") {
+  if (appEnv === "production") {
     throw new Error(
       "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is required in production builds."
     );

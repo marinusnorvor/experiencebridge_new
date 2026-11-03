@@ -209,26 +209,57 @@ def get_active_role_grants(user: User) -> list[GlobalUserRole]:
     return roles
 
 
-def compute_effective_contexts(active_roles: list[GlobalUserRole]) -> list[PortalContextName]:
-    """Compute effective portal contexts from server-verified role grants.
+def compute_effective_contexts(
+    active_roles: list[GlobalUserRole],
+    *,
+    db: Session | None = None,
+    user: User | None = None,
+) -> list[PortalContextName]:
+    """Compute effective portal contexts from server-verified role grants and active domain records."""
+    has_student_record = False
+    has_mentor_record = False
+    has_active_org_membership = False
 
-    Note: Organization contexts will additionally incorporate active organization_memberships
-    once the organizations schema is migrated (ADR-003).
-    """
+    if db is not None and user is not None:
+        from app.applications.models import Application, Participation
+        from app.mentorship.models import MentorAssignment, MentorProfile
+        from app.organizations.models import OrganizationMembership
+
+        has_student_record = bool(
+            db.scalar(select(Application.id).where(Application.student_user_id == user.id).limit(1))
+            or db.scalar(select(Participation.id).where(Participation.student_user_id == user.id).limit(1))
+        )
+        has_mentor_record = bool(
+            db.scalar(select(MentorProfile.user_id).where(MentorProfile.user_id == user.id).limit(1))
+            or db.scalar(select(MentorAssignment.id).where(MentorAssignment.mentor_user_id == user.id).limit(1))
+        )
+        has_active_org_membership = bool(
+            db.scalar(
+                select(OrganizationMembership.id)
+                .where(
+                    OrganizationMembership.user_id == user.id,
+                    OrganizationMembership.status == "active",
+                )
+                .limit(1)
+            )
+        )
+
     contexts: list[PortalContextName] = []
-    if "student" in active_roles:
+    if "student" in active_roles or has_student_record:
         contexts.append("student")
-    if "mentor_candidate" in active_roles:
+    if "mentor_candidate" in active_roles or has_mentor_record:
         contexts.append("mentor")
+    if has_active_org_membership:
+        contexts.append("organization")
     if "platform_admin" in active_roles:
         contexts.append("admin")
     return contexts
 
 
-def build_user_self_dto(user: User) -> UserSelf:
+def build_user_self_dto(user: User, db: Session | None = None) -> UserSelf:
     """Project an internal User ORM instance into the canonical UserSelf response DTO."""
     active_roles = get_active_role_grants(user)
-    effective_contexts = compute_effective_contexts(active_roles)
+    effective_contexts = compute_effective_contexts(active_roles, db=db, user=user)
     return UserSelf(
         id=user.id,
         identity_issuer=user.identity_issuer,

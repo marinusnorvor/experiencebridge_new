@@ -1,7 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
-import { useCallback } from "react";
+import { createContext, useContext, useCallback } from "react";
 import { getAuthenticatedApiClient, getApiClient } from "./client";
 import type {
   OrganizationRead,
@@ -23,6 +22,7 @@ import type {
   OrganizationReviewRead,
   ProjectReviewItem,
   UserSelf,
+  ApplicationDetail, OfferDetail, ParticipationDetail, SubmissionPatch, AssignmentAccept,
 } from "@experiencebridge/api-client";
 
 function generateKey(): string {
@@ -36,6 +36,20 @@ export interface ApiResult<T> {
   data: T | null;
   error: string | null;
   status: number;
+}
+
+function apiError(payload: unknown, fallback: string): string {
+  if (payload && typeof payload === "object" && "error" in payload) {
+    const detail = (payload as { error?: { message?: unknown; field_errors?: unknown } }).error;
+    if (typeof detail?.message === "string") {
+      const fields = detail.field_errors;
+      const explanations = fields && typeof fields === "object" && !Array.isArray(fields)
+        ? Object.entries(fields).flatMap(([field, messages]) => Array.isArray(messages)
+          ? messages.filter((message): message is string => typeof message === "string").map(message => `${field}: ${message}`) : []) : [];
+      return `${fallback}: ${detail.message}${explanations.length ? ` ${explanations.join("; ")}` : ""}`;
+    }
+  }
+  return fallback;
 }
 
 export function createPortalApi(token?: string | null) {
@@ -52,12 +66,118 @@ export function createPortalApi(token?: string | null) {
   }
 
   return {
+    async getMentorProfilesForAdmin(): Promise<ApiResult<MentorProfileRead[]>> {
+      try {
+        const res = await client.GET("/api/v1/admin/mentors", { cache: "no-store" });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Load failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getOrganizationMentors(orgId: string): Promise<ApiResult<MentorProfileRead[]>> {
+      try {
+        const res = await client.GET("/api/v1/organizations/{org_id}/mentors", { cache: "no-store", params: { path: { org_id: orgId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Load failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getParticipationAssignments(participationId: string): Promise<ApiResult<AssignmentRead[]>> {
+      try {
+        const res = await client.GET("/api/v1/participations/{participation_id}/mentor-assignments", { cache: "no-store", params: { path: { participation_id: participationId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Load failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async endMentorAssignment(assignmentId: string, rowVersion: number, explanation: string): Promise<ApiResult<AssignmentRead>> {
+      try {
+        const res = await client.POST("/api/v1/mentor-assignments/{assignment_id}/end", { params: { path: { assignment_id: assignmentId } }, body: { explanation }, headers: headers(rowVersion) });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Action failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async withdrawParticipation(participationId: string, rowVersion: number, explanation: string): Promise<ApiResult<ParticipationRead>> {
+      try {
+        const res = await client.POST("/api/v1/participations/{participation_id}/withdraw", { params: { path: { participation_id: participationId } }, body: { explanation }, headers: headers(rowVersion) });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Action failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async revokeOffer(offerId: string, rowVersion: number, explanation: string): Promise<ApiResult<OfferRead>> {
+      try {
+        const res = await client.POST("/api/v1/offers/{offer_id}/revoke", { params: { path: { offer_id: offerId } }, body: { explanation }, headers: headers(rowVersion) });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Action failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getApplication(applicationId: string): Promise<ApiResult<ApplicationDetail>> {
+      try {
+        const res = await client.GET("/api/v1/applications/{application_id}", { params: { path: { application_id: applicationId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getOffer(offerId: string): Promise<ApiResult<OfferDetail>> {
+      try {
+        const res = await client.GET("/api/v1/offers/{offer_id}", { params: { path: { offer_id: offerId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getParticipation(participationId: string): Promise<ApiResult<ParticipationDetail>> {
+      try {
+        const res = await client.GET("/api/v1/participations/{participation_id}", { params: { path: { participation_id: participationId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getMentorAssignment(assignmentId: string): Promise<ApiResult<AssignmentRead>> {
+      try {
+        const res = await client.GET("/api/v1/mentor-assignments/{assignment_id}", { params: { path: { assignment_id: assignmentId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getSubmission(submissionId: string): Promise<ApiResult<SubmissionRead>> {
+      try {
+        const res = await client.GET("/api/v1/submissions/{submission_id}", { params: { path: { submission_id: submissionId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getSubmissions(participationId: string): Promise<ApiResult<SubmissionRead[]>> {
+      try {
+        const res = await client.GET("/api/v1/participations/{participation_id}/submissions", { params: { path: { participation_id: participationId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getMentorReviews(submissionId: string): Promise<ApiResult<MentorReviewView[]>> {
+      try {
+        const res = await client.GET("/api/v1/submissions/{submission_id}/mentor-reviews", { params: { path: { submission_id: submissionId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async getOrganizationReviews(submissionId: string): Promise<ApiResult<OrganizationReviewRead[]>> {
+      try {
+        const res = await client.GET("/api/v1/submissions/{submission_id}/organization-reviews", { params: { path: { submission_id: submissionId } } });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Request failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data.items, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+    async updateSubmission(submissionId: string, body: SubmissionPatch, rowVersion: number): Promise<ApiResult<SubmissionRead>> {
+      try {
+        const res = await client.PATCH("/api/v1/submissions/{submission_id}", { params: { path: { submission_id: submissionId } }, body, headers: headers(rowVersion) });
+        if (!res.response.ok || !res.data) return { data: null, error: apiError(res.error, `Update failed (${res.response.status})`), status: res.response.status };
+        return { data: res.data, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+
     // Identity
     async getMe(): Promise<ApiResult<UserSelf>> {
       try {
         const res = await client.GET("/api/v1/me");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch profile (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch profile (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as UserSelf, error: null, status: res.response.status };
       } catch (e) {
@@ -70,7 +190,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/organizations");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch organizations (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch organizations (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: OrganizationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -86,7 +206,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to create organization (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to create organization (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OrganizationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -102,7 +222,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Verification submit failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Verification submit failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OrganizationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -113,12 +233,19 @@ export function createPortalApi(token?: string | null) {
     // Projects
     async getPublishedProjects(): Promise<ApiResult<ProjectRead[]>> {
       try {
-        const res = await client.GET("/api/v1/projects");
-        if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch projects (${res.response.status})`, status: res.response.status };
+        const items = new Map<string, ProjectRead>();
+        let offset = 0;
+        while (true) {
+          const res = await client.GET("/api/v1/projects", { params: { query: { limit: 100, offset } }, cache: "no-store" });
+          if (!res.response.ok || !res.data) {
+            return { data: null, error: apiError(res.error, `Failed to fetch projects (${res.response.status})`), status: res.response.status };
+          }
+          for (const project of res.data.items) items.set(project.id, project);
+          const next = res.data.next_offset;
+          if (next == null) return { data: [...items.values()], error: null, status: res.response.status };
+          if (next <= offset) throw new Error("The project list returned an invalid next page. Refresh to retry.");
+          offset = next;
         }
-        const items = (res.data as { items: ProjectRead[] }).items ?? [];
-        return { data: items, error: null, status: res.response.status };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }
@@ -130,7 +257,7 @@ export function createPortalApi(token?: string | null) {
           params: { path: { project_id: projectId } },
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch project (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch project (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -144,7 +271,7 @@ export function createPortalApi(token?: string | null) {
           params: { path: { org_id: orgId } },
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch org projects (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch org projects (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ProjectRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -153,15 +280,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async createProject(orgId: string, body: ProjectCreate): Promise<ApiResult<ProjectRead>> {
+    async createProject(orgId: string, body: ProjectCreate, rowVersion: number): Promise<ApiResult<ProjectRead>> {
       try {
         const res = await client.POST("/api/v1/organizations/{org_id}/projects", {
           params: { path: { org_id: orgId } },
           body,
-          headers: headers(),
+          headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to create project (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to create project (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -169,15 +296,22 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async createTermsVersion(projectId: string, body: TermsCreate): Promise<ApiResult<TermsRead>> {
+    async updateProject(projectId: string, body: ProjectCreate, rowVersion: number): Promise<ApiResult<ProjectRead>> {
+      const res = await client.PATCH("/api/v1/projects/{project_id}", {
+        params: { path: { project_id: projectId } }, body, headers: headers(rowVersion),
+      });
+      return { data: res.data ?? null, error: res.response.ok ? null : `Draft update failed (${res.response.status})`, status: res.response.status };
+    },
+
+    async createTermsVersion(projectId: string, body: TermsCreate, rowVersion: number): Promise<ApiResult<TermsRead>> {
       try {
         const res = await client.POST("/api/v1/projects/{project_id}/terms-versions", {
           params: { path: { project_id: projectId } },
           body,
-          headers: headers(),
+          headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to create terms (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to create terms (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as TermsRead, error: null, status: res.response.status };
       } catch (e) {
@@ -191,7 +325,7 @@ export function createPortalApi(token?: string | null) {
           params: { path: { project_id: projectId, version_id: versionId } },
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch terms version (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch terms version (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as TermsRead, error: null, status: res.response.status };
       } catch (e) {
@@ -207,7 +341,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to submit review (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to submit review (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -223,7 +357,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to start project (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to start project (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -239,7 +373,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to complete project (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to complete project (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -252,7 +386,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/applications");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch applications (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch applications (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ApplicationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -267,7 +401,7 @@ export function createPortalApi(token?: string | null) {
           params: { path: { project_id: projectId } },
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch project applications (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch project applications (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ApplicationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -276,15 +410,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async submitApplication(projectId: string, body: ApplicationCreate): Promise<ApiResult<ApplicationRead>> {
+    async submitApplication(projectId: string, body: ApplicationCreate, rowVersion: number): Promise<ApiResult<ApplicationRead>> {
       try {
         const res = await client.POST("/api/v1/projects/{project_id}/applications", {
           params: { path: { project_id: projectId } },
           body,
-          headers: headers(),
+          headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Application failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Application failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ApplicationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -300,7 +434,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Shortlist failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Shortlist failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ApplicationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -316,7 +450,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Decline failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Decline failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ApplicationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -332,7 +466,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Withdraw failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Withdraw failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ApplicationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -340,15 +474,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async issueOffer(applicationId: string, termsVersionId: string, expiresAt: string): Promise<ApiResult<OfferRead>> {
+    async issueOffer(applicationId: string, termsVersionId: string, expiresAt: string, rowVersion: number): Promise<ApiResult<OfferRead>> {
       try {
         const res = await client.POST("/api/v1/applications/{application_id}/offer", {
           params: { path: { application_id: applicationId } },
           body: { terms_version_id: termsVersionId, expires_at: expiresAt },
-          headers: headers(),
+          headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Offer failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Offer failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OfferRead, error: null, status: res.response.status };
       } catch (e) {
@@ -360,7 +494,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/offers");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch offers (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch offers (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: OfferRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -382,7 +516,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Accept offer failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Accept offer failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ParticipationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -398,7 +532,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Decline offer failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Decline offer failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OfferRead, error: null, status: res.response.status };
       } catch (e) {
@@ -411,7 +545,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/participations");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch participations (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch participations (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ParticipationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -426,7 +560,7 @@ export function createPortalApi(token?: string | null) {
           params: { path: { project_id: projectId } },
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch participations (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch participations (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ParticipationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -443,7 +577,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Mark ready failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Mark ready failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ParticipationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -459,7 +593,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Finalize failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Finalize failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ParticipationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -472,7 +606,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/mentor-profile");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch mentor profile (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch mentor profile (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as MentorProfileRead, error: null, status: res.response.status };
       } catch (e) {
@@ -487,7 +621,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Save mentor profile failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Save mentor profile failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as MentorProfileRead, error: null, status: res.response.status };
       } catch (e) {
@@ -495,15 +629,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async inviteMentor(participationId: string, mentorUserId: string, context: string, expiresAt: string): Promise<ApiResult<AssignmentRead>> {
+    async inviteMentor(participationId: string, mentorUserId: string, context: string, expiresAt: string, rowVersion: number): Promise<ApiResult<AssignmentRead>> {
       try {
         const res = await client.POST("/api/v1/participations/{participation_id}/mentor-assignments", {
           params: { path: { participation_id: participationId } },
           body: { mentor_user_id: mentorUserId, context, expires_at: expiresAt },
-          headers: headers(),
+          headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Mentor invitation failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Mentor invitation failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as AssignmentRead, error: null, status: res.response.status };
       } catch (e) {
@@ -515,7 +649,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/me/mentor-assignments");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch mentor assignments (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch mentor assignments (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: AssignmentRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -524,15 +658,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async acceptMentorAssignment(assignmentId: string, rowVersion: number): Promise<ApiResult<AssignmentRead>> {
+    async acceptMentorAssignment(assignmentId: string, rowVersion: number, declaration: AssignmentAccept): Promise<ApiResult<AssignmentRead>> {
       try {
         const res = await client.POST("/api/v1/mentor-assignments/{assignment_id}/accept", {
           params: { path: { assignment_id: assignmentId } },
-          body: { conflict_declared: false, confidentiality_acknowledged: true },
+          body: declaration,
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Accept assignment failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Accept assignment failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as AssignmentRead, error: null, status: res.response.status };
       } catch (e) {
@@ -548,7 +682,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Decline assignment failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Decline assignment failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as AssignmentRead, error: null, status: res.response.status };
       } catch (e) {
@@ -557,6 +691,16 @@ export function createPortalApi(token?: string | null) {
     },
 
     // Submissions & Reviews
+    async deleteArtifact(submissionId: string, artifactId: string): Promise<ApiResult<{ deleted: true }>> {
+      try {
+        const res = await client.DELETE("/api/v1/submissions/{submission_id}/external-artifacts/{artifact_id}", {
+          params: { path: { submission_id: submissionId, artifact_id: artifactId } },
+        });
+        if (!res.response.ok) return { data: null, error: apiError(res.error, `Remove evidence failed (${res.response.status})`), status: res.response.status };
+        return { data: { deleted: true }, error: null, status: res.response.status };
+      } catch (e) { return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 }; }
+    },
+
     async createSubmission(participationId: string, rowVersion: number, milestoneIndex: number, summary: string, contributionStatement: string): Promise<ApiResult<SubmissionRead>> {
       try {
         const res = await client.POST("/api/v1/participations/{participation_id}/submissions", {
@@ -565,7 +709,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Create submission failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Create submission failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as SubmissionRead, error: null, status: res.response.status };
       } catch (e) {
@@ -581,7 +725,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Attach artifact failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Attach artifact failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ArtifactRead, error: null, status: res.response.status };
       } catch (e) {
@@ -597,7 +741,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Submit deliverable failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Submit deliverable failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as SubmissionRead, error: null, status: res.response.status };
       } catch (e) {
@@ -618,7 +762,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Mentor review failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Mentor review failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as MentorReviewView, error: null, status: res.response.status };
       } catch (e) {
@@ -634,7 +778,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Organization review failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Organization review failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OrganizationReviewRead, error: null, status: res.response.status };
       } catch (e) {
@@ -647,7 +791,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/admin/organizations/pending");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch pending orgs (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch pending orgs (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: OrganizationRead[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -664,7 +808,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Org decision failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Org decision failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as OrganizationRead, error: null, status: res.response.status };
       } catch (e) {
@@ -676,7 +820,7 @@ export function createPortalApi(token?: string | null) {
       try {
         const res = await client.GET("/api/v1/admin/projects/pending");
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Failed to fetch pending projects (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Failed to fetch pending projects (${res.response.status})`), status: res.response.status };
         }
         const items = (res.data as { items: ProjectReviewItem[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
@@ -685,15 +829,15 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async decideProject(projectId: string, rowVersion: number, decision: "verify" | "reject" | "request_changes", explanation: string): Promise<ApiResult<ProjectRead>> {
+    async decideProject(projectId: string, rowVersion: number, decision: "approve" | "reject" | "request_changes", explanation: string, termsVersionId: string, snapshotHash: string): Promise<ApiResult<ProjectRead>> {
       try {
         const res = await client.POST("/api/v1/admin/projects/{project_id}/decisions", {
           params: { path: { project_id: projectId } },
-          body: { decision, explanation },
+          body: { decision, explanation, terms_version_id: termsVersionId, snapshot_hash: snapshotHash },
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Project decision failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Project decision failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as ProjectRead, error: null, status: res.response.status };
       } catch (e) {
@@ -711,7 +855,7 @@ export function createPortalApi(token?: string | null) {
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
-          return { data: null, error: `Mentor eligibility decision failed (${res.response.status})`, status: res.response.status };
+          return { data: null, error: apiError(res.error, `Mentor eligibility decision failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as MentorProfileRead, error: null, status: res.response.status };
       } catch (e) {
@@ -721,13 +865,29 @@ export function createPortalApi(token?: string | null) {
   };
 }
 
+export interface PortalAuthContextValue {
+  isLoaded: boolean;
+  isSignedIn: boolean;
+  getToken: () => Promise<string | null>;
+}
+
+const defaultPortalAuth: PortalAuthContextValue = {
+  isLoaded: true,
+  isSignedIn: false,
+  getToken: async () => null,
+};
+
+export const PortalAuthContext = createContext<PortalAuthContextValue>(defaultPortalAuth);
+
 export function usePortalApi() {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useContext(PortalAuthContext);
 
   const getApi = useCallback(async () => {
-    const token = isSignedIn ? await getToken() : null;
+    if (!isLoaded || !isSignedIn) throw new Error("Sign in with Clerk before using the live API.");
+    const token = await getToken();
+    if (!token) throw new Error("Clerk did not provide an access token. Sign in again.");
     return createPortalApi(token);
-  }, [getToken, isSignedIn]);
+  }, [getToken, isSignedIn, isLoaded]);
 
-  return { getApi, isSignedIn };
+  return { getApi, isSignedIn, isLoaded };
 }

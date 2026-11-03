@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Response
+from sqlalchemy.orm import Session
 
+from app.database.session import get_db
 from app.identity.dependencies import get_current_user
 from app.identity.models import User
 from app.identity.schemas import UserSelf
@@ -29,8 +31,9 @@ router = APIRouter(tags=["Identity & Authorization"])
 def get_current_user_profile(
     response: Response,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> UserSelf:
     """Return the authenticated user's internal profile and server-computed contexts."""
     response.headers["Cache-Control"] = "no-store, private"
     response.headers["ETag"] = f'"{current_user.row_version}"'
-    return build_user_self_dto(current_user)
+    return build_user_self_dto(current_user, db=db)
