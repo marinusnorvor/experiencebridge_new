@@ -34,6 +34,7 @@ export type MentorDashboardData = {
   }[];
   pendingReviews: {
     id: string;
+    participationId?: string;
     projectTitle: string;
     learnerLabel: string;
     milestone: string;
