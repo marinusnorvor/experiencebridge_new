@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { loadApplications, loadParticipations, loadStudentPassportAndDecisions } from "../lib/api-records";
 import { usePortalApi } from "@/lib/api/portal-api";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import {
   syntheticActiveStudentDashboard,
   syntheticEmptyStudentDashboard,
@@ -12,7 +15,9 @@ import {
 import type {
   StudentApplicationDetails,
   StudentDashboardData,
+  StudentDecisionAudit,
   StudentParticipationSummaryItem,
+  StudentPassportTeaser,
 } from "../lib/types";
 
 const APPLICATIONS_STORAGE_KEY = "experiencebridge_student_applications_list";
@@ -25,134 +30,83 @@ export function StudentDashboardView() {
   const basePath = isDevPreview ? "/dev/student" : "/student";
   const { getApi, isSignedIn } = usePortalApi();
 
+  const preview = isDevPreview || isPortalPresentationMode();
+  const [loadError, setLoadError] = useState("");
   // State to toggle between active mock dashboard and empty state dashboard
   const [dashboardState, setDashboardState] = useState<"active" | "empty">("active");
 
-  // Read student display name from profile localStorage if available
-  const [studentName] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedProfile = localStorage.getItem(PROFILE_STORAGE_KEY);
-        if (storedProfile) {
-          const parsed = JSON.parse(storedProfile);
-          if (parsed.displayName) return parsed.displayName;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return "Stella Appiok";
+  const [studentName, setStudentName] = useState("Student");
+  const [applications, setApplications] = useState<StudentApplicationDetails[]>([]);
+  const [participations, setParticipations] = useState<StudentParticipationSummaryItem[]>([]);
+  const [liveDecisions, setLiveDecisions] = useState<StudentDecisionAudit[]>([]);
+  const [livePassportSummary, setLivePassportSummary] = useState<StudentPassportTeaser>({
+    verifiedClaimsCount: 0,
+    completedProjectsCount: 0,
+    mentorObservationsCount: 0,
   });
+  useEffect(() => {
+    if (!preview) return;
+    // Read browser-only fixtures after hydration, and never in authenticated live mode.
+    const timer = window.setTimeout(() => {
+      try {
+        const profile = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) ?? "null");
+        setStudentName(typeof profile?.displayName === "string" ? profile.displayName : "Stella Appiok");
+        const apps = JSON.parse(localStorage.getItem(APPLICATIONS_STORAGE_KEY) ?? "[]");
+        const parts = JSON.parse(localStorage.getItem(PARTICIPATIONS_STORAGE_KEY) ?? "[]");
+        if (Array.isArray(apps)) setApplications(apps);
+        if (Array.isArray(parts)) setParticipations(parts);
+      } catch { /* Invalid preview backups are ignored. */ }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [preview]);
 
-  // Read applications from localStorage if available
-  const [applications, setApplications] = useState<StudentApplicationDetails[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return [];
-  });
-
-  // Read participations from localStorage if available
-  const [participations, setParticipations] = useState<StudentParticipationSummaryItem[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(PARTICIPATIONS_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return [];
-  });
+  const reloadLiveDashboard = useCallback(async () => {
+    if (preview || !isSignedIn) return;
+    const api = await getApi();
+    const me = await api.getMe();
+    if (!me.data) throw new Error(me.error ?? "Identity unavailable.");
+    setStudentName(me.data.display_name ?? "Student");
+    const [apps, parts, extras] = await Promise.all([
+      loadApplications(api),
+      loadParticipations(api),
+      loadStudentPassportAndDecisions(api),
+    ]);
+    setLoadError("");
+    setApplications(apps);
+    setParticipations(parts);
+    setLiveDecisions(extras.recentDecisions);
+    setLivePassportSummary(extras.passportSummary);
+  }, [preview, isSignedIn, getApi]);
 
   useEffect(() => {
-    async function loadLiveStudentData() {
-      if (!isSignedIn) return;
-      try {
-        const api = await getApi();
-        const appsRes = await api.getMyApplications();
-        const partsRes = await api.getMyParticipations();
-
-        if (appsRes.data && appsRes.data.length > 0) {
-          const liveApps: StudentApplicationDetails[] = appsRes.data.map((a) => ({
-            id: a.id,
-            projectId: a.project_id,
-            projectTitle: `Project Opportunity (${a.project_id.slice(0, 8)})`,
-            organizationName: "Host Organization",
-            organizationVerified: true,
-            status: a.status as StudentApplicationDetails["status"],
-            appliedAt: new Date(a.created_at).toLocaleDateString(),
-            motivationStatement: a.motivation,
-            declaredSkills: a.declared_skills,
-            externalLinks: a.links.map((l) => ({ label: l.label, url: l.url })),
-            observedTermsSnapshot: {
-              termsVersionId: a.seen_terms_version_id,
-              weeklyHours: Math.round(a.weekly_minutes_available / 60),
-              durationWeeks: 8,
-              ipConditions: "Verifiable student demonstration rights",
-              confidentialitySummary: "Protected evidence boundary",
-              snapshotDate: new Date(a.created_at).toLocaleDateString(),
-            },
-            timeline: [
-              {
-                id: `evt-${a.id}`,
-                status: a.status as StudentApplicationDetails["status"],
-                title: `Status: ${a.status}`,
-                description: a.reason || "Application recorded in PostgreSQL",
-                timestamp: new Date(a.created_at).toLocaleDateString(),
-              },
-            ],
-            isSyntheticDemo: false,
-          }));
-          setApplications(liveApps);
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (preview || !isSignedIn) return;
+      void reloadLiveDashboard().catch((e) => {
+        if (active) {
+          setApplications([]);
+          setParticipations([]);
+          setLiveDecisions([]);
+          setLoadError(e instanceof Error ? e.message : "Student records unavailable.");
         }
-
-        if (partsRes.data && partsRes.data.length > 0) {
-          const liveParts: StudentParticipationSummaryItem[] = partsRes.data.map((p) => ({
-            participationId: p.id,
-            projectId: p.project_id,
-            projectTitle: `Project Workspace (${p.project_id.slice(0, 8)})`,
-            organizationName: "Host Organization",
-            organizationVerified: true,
-            mentorName: "Assigned Mentor",
-            mentorStatus: "accepted",
-            status: p.status as StudentParticipationSummaryItem["status"],
-            currentMilestone: "Milestone Deliverable",
-            nextMilestoneDue: "In 14 days",
-            progressPercent: p.status === "completed" ? 100 : 50,
-            completedMilestonesCount: p.status === "completed" ? 2 : 1,
-            totalMilestonesCount: 2,
-            weeklyHours: 10,
-          }));
-          setParticipations(liveParts);
-        }
-      } catch (e) {
-        console.warn("Live student data notice:", e);
-      }
-    }
-    void loadLiveStudentData();
-  }, [isSignedIn, getApi]);
+      });
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [isSignedIn, preview, reloadLiveDashboard]);
+  useVisibleRefresh(reloadLiveDashboard, !preview && isSignedIn);
 
   const activeData: StudentDashboardData = syntheticActiveStudentDashboard;
   const emptyData: StudentDashboardData = syntheticEmptyStudentDashboard;
 
-  const currentData = dashboardState === "active" ? activeData : emptyData;
+  const currentData = preview && dashboardState === "active" ? activeData : emptyData;
+  const displayedApplications = preview ? currentData.applications : applications;
+  const displayedDecisions = preview ? currentData.recentDecisions : liveDecisions;
+  const displayedPassportSummary = preview ? currentData.passportSummary : livePassportSummary;
 
   // Active project calculation
   const activeProject =
     dashboardState === "active"
-      ? participations.find((p) => p.status === "active") || currentData.activeProjects[0]
+      ? participations.find((p) => p.status === "active" || p.status === "under_review") || (preview ? currentData.activeProjects[0] : undefined)
       : null;
 
   // Action items calculation
@@ -164,6 +118,8 @@ export function StudentDashboardView() {
       <StudentPortalHeader studentName={studentName} isSynthetic={true} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {loadError && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4">{loadError}</p>}
+        {!preview && <p className="text-sm text-slate-600">Authenticated records: {applications.length} applications | {participations.length} participations. Development evidence is synthetic; dashboard previews do not imply verified outcomes.</p>}
         {/* Top Header & Fixture Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -183,7 +139,7 @@ export function StudentDashboardView() {
 
           <div className="flex items-center gap-2.5">
             {/* Fixture State Switcher */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs text-xs">
+            {preview && <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs text-xs">
               <button
                 type="button"
                 onClick={() => setDashboardState("active")}
@@ -206,10 +162,10 @@ export function StudentDashboardView() {
               >
                 Empty State
               </button>
-            </div>
+            </div>}
 
             <Link
-              href="/"
+              href={`${basePath}/applications#opportunities`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition"
             >
               <span>Explore Projects</span>
@@ -219,7 +175,7 @@ export function StudentDashboardView() {
         </div>
 
         {/* 1. ACTION REQUIRED ITEMS (§6.1 Outstanding Offer / Submissions / Revisions) */}
-        {dashboardState === "active" && (
+        {((preview && dashboardState === "active") || (!preview && hasPendingOffer)) && (
           <section aria-labelledby="action-required-heading" className="space-y-3">
             <h2 id="action-required-heading" className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Action Required Items
@@ -291,7 +247,7 @@ export function StudentDashboardView() {
               )}
 
               {/* Next Milestone Deliverable Action */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between gap-3">
+              {preview && <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between gap-3">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 text-xs font-bold text-teal-800">
@@ -319,7 +275,7 @@ export function StudentDashboardView() {
                     <span aria-hidden="true">→</span>
                   </Link>
                 </div>
-              </div>
+              </div>}
             </div>
           </section>
         )}
@@ -405,7 +361,7 @@ export function StudentDashboardView() {
                   </p>
                   <div className="pt-1">
                     <Link
-                      href="/"
+                      href={`${basePath}/applications#opportunities`}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-900 transition"
                     >
                       Browse Approved Opportunities
@@ -431,9 +387,9 @@ export function StudentDashboardView() {
                 </span>
               </div>
 
-              {currentData.recentDecisions.length > 0 ? (
+              {displayedDecisions.length > 0 ? (
                 <div className="space-y-3">
-                  {currentData.recentDecisions.map((decision) => {
+                  {displayedDecisions.map((decision) => {
                     const isMentor = decision.authorType === "mentor";
                     return (
                       <div
@@ -492,17 +448,17 @@ export function StudentDashboardView() {
                   href={`${basePath}/applications`}
                   className="text-xs font-semibold text-teal-800 hover:underline"
                 >
-                  View All ({currentData.applications.length}) →
+                  View All ({displayedApplications.length}) →
                 </Link>
               </div>
 
-              {currentData.applications.length > 0 ? (
+              {displayedApplications.length > 0 ? (
                 <div className="space-y-2.5">
-                  {currentData.applications.map((app) => {
+                  {displayedApplications.map((app) => {
                     const statusColor =
                       app.status === "offered"
                         ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-                        : app.status === "shortlisted"
+                        : app.status === "accepted" || app.status === "shortlisted"
                         ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
                         : "bg-slate-100 text-slate-700 border-slate-200";
 
@@ -519,8 +475,14 @@ export function StudentDashboardView() {
                           <span className={`rounded-full px-2 py-0.2 text-[10px] border ${statusColor}`}>
                             {app.status === "offered"
                               ? "Offer Extended"
+                              : app.status === "accepted"
+                              ? "Accepted"
                               : app.status === "shortlisted"
                               ? "Shortlisted"
+                              : app.status === "rejected"
+                              ? "Rejected"
+                              : app.status === "withdrawn"
+                              ? "Withdrawn"
                               : "Under Review"}
                           </span>
                         </div>
@@ -538,7 +500,7 @@ export function StudentDashboardView() {
                 <div className="text-center py-6 space-y-2">
                   <p className="text-xs text-slate-500">No applications on record.</p>
                   <Link
-                    href="/"
+                    href={`${basePath}/applications#opportunities`}
                     className="inline-block text-xs font-semibold text-teal-800 hover:underline"
                   >
                     Browse projects →
@@ -570,21 +532,21 @@ export function StudentDashboardView() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-teal-800 block">
-                    {currentData.passportSummary.verifiedClaimsCount}
+                    {displayedPassportSummary.verifiedClaimsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Verified Skills</span>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-slate-800 block">
-                    {currentData.passportSummary.completedProjectsCount}
+                    {displayedPassportSummary.completedProjectsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Projects Done</span>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-slate-800 block">
-                    {currentData.passportSummary.mentorObservationsCount}
+                    {displayedPassportSummary.mentorObservationsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Observations</span>
                 </div>

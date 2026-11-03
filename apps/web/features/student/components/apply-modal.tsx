@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { usePortalResource, requireData } from "@/lib/api/use-portal-resource";
+import { mapApplication, termsSnapshot, loadOpportunities } from "../lib/api-records";
+
 import type { StudentApplicationDetails } from "../lib/types";
 
 interface ApplyModalProps {
   isOpen: boolean;
+  initialProjectId?: string;
+  preview?: boolean;
   onClose: () => void;
   onApplicationCreated: (application: StudentApplicationDetails) => void;
   existingApplications?: StudentApplicationDetails[];
@@ -32,23 +37,28 @@ function getApplicantInfo() {
 
 export function ApplyModal({
   isOpen,
+  initialProjectId,
   onClose,
   onApplicationCreated,
   existingApplications = [],
+  preview = false,
 }: ApplyModalProps) {
-  const [projectChoice, setProjectChoice] = useState("proj-smartgrid");
+  const [projectChoice, setProjectChoice] = useState(initialProjectId ?? "proj-smartgrid");
   const [motivation, setMotivation] = useState("");
-  const [skills, setSkills] = useState("React 19, TypeScript, Next.js");
-  const [githubUrl, setGithubUrl] = useState("https://github.com/stellaappiok");
-  const [portfolioUrl, setPortfolioUrl] = useState("https://stellaappiok.dev");
+  const [skills, setSkills] = useState(preview ? "React 19, TypeScript, Next.js" : "");
+  const [githubUrl, setGithubUrl] = useState(preview ? "https://github.com/stellaappiok" : "");
+  const [portfolioUrl, setPortfolioUrl] = useState(preview ? "https://stellaappiok.dev" : "");
   const [hasAcknowledgedTerms, setHasAcknowledgedTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const applicant = getApplicantInfo();
+  const live = usePortalResource(loadOpportunities, isOpen && !preview);
+  const [error, setError] = useState("");
+  const [weeklyHours, setWeeklyHours] = useState(1);
+  const saving = useRef(false);
+  const savedId = useRef<string | null>(null);
+  const applicant = preview ? getApplicantInfo() : { name: live.data?.me.display_name ?? "Signed-in student", email: live.data?.me.email ?? "" };
 
-  if (!isOpen) return null;
-
-  const projectOptions: Record<
+  const sampleOptions: Record<
     string,
     {
       title: string;
@@ -89,14 +99,17 @@ export function ApplyModal({
     },
   };
 
-  const selectedProject = projectOptions[projectChoice] ?? projectOptions["proj-smartgrid"];
+  const projectOptions = preview ? sampleOptions : live.data?.opportunities ?? {};
+  const choice = preview ? projectChoice : (initialProjectId || projectChoice in projectOptions ? projectChoice : Object.keys(projectOptions)[0] ?? "");
+  const selectedProject = projectOptions[choice] ?? { title: "No available projects", org: "", termsVersion: "", weeklyHours: 0, durationWeeks: 0, ipTerms: "", confidentiality: "" };
+  if (!isOpen) return null;
 
   // Duplicate Application Guard (§5.4 ALREADY_APPLIED error contract)
   const isAlreadyApplied = existingApplications.some(
-    (a) => a.projectId === projectChoice && a.status !== "withdrawn"
+    (a) => a.projectId === choice && (!preview || a.status !== "withdrawn")
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isAlreadyApplied) {
       alert("You have already submitted an active application for this project opportunity.");
@@ -113,6 +126,28 @@ export function ApplyModal({
       return;
     }
 
+    if (!preview) {
+      if (saving.current) return;
+      saving.current = true; setIsSubmitting(true); setError("");
+      try {
+        const opportunity = live.data?.opportunities[choice];
+        if (!opportunity) throw new Error("Select an available published project.");
+        const api = await live.getApi();
+        if (!savedId.current) {
+          const created = requireData(await api.submitApplication(choice, {
+            seen_terms_version_id: opportunity.terms.id, motivation: motivation.trim(),
+            declared_skills: skills.split(",").map(s => s.trim()).filter(Boolean),
+            links: [{ label: "GitHub", url: githubUrl.trim() }, { label: "Portfolio", url: portfolioUrl.trim() }].filter(l => l.url),
+            weekly_minutes_available: Math.round(weeklyHours * 60),
+          }, opportunity.project.row_version));
+          savedId.current = created.id;
+        }
+        const recorded = requireData(await api.getApplication(savedId.current));
+        onApplicationCreated(mapApplication(recorded)); savedId.current = null; onClose();
+      } catch (e) { setError(e instanceof Error ? e.message : "Could not confirm the application. Refresh records before retrying."); }
+      finally { saving.current = false; setIsSubmitting(false); }
+      return;
+    }
     setIsSubmitting(true);
 
     setTimeout(() => {
@@ -200,7 +235,7 @@ export function ApplyModal({
           <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
             <span>{applicant.email}</span>
             <span className="rounded bg-teal-50 text-teal-800 px-1.5 py-0.2 text-[10px] font-semibold border border-teal-200">
-              Verified
+              {preview ? "Synthetic profile" : "Signed in"}
             </span>
           </div>
         </div>
@@ -219,24 +254,28 @@ export function ApplyModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {(error || (!preview && live.error)) && <p role="alert" className="text-red-700">{error || live.error}</p>}
+          {!preview && live.loading && <p role="status">Loading published projects and terms...</p>}
+          {!preview && <label className="block text-xs font-semibold text-slate-700">Your weekly availability (hours)<input type="number" required min="1" max="168" value={weeklyHours} onChange={e => setWeeklyHours(Number(e.target.value))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2" /></label>}
           {/* Project Choice */}
           <div>
             <label className="block text-xs font-semibold text-slate-700">
               Select Approved Project Opportunity *
             </label>
             <select
-              value={projectChoice}
-              onChange={(e) => setProjectChoice(e.target.value)}
+              value={choice}
+              onChange={(e) => { setProjectChoice(e.target.value); setHasAcknowledgedTerms(false); savedId.current = null; }}
               className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
             >
               {Object.entries(projectOptions).map(([key, opt]) => (
                 <option key={key} value={key}>
-                  {opt.title} — {opt.org} ({opt.weeklyHours} hrs/week)
+                  {opt.title} — {opt.org} {preview ? `(${opt.weeklyHours} hrs/week)` : ""}
                 </option>
               ))}
             </select>
           </div>
 
+          {!preview && live.data?.opportunities[choice] && <div className="text-xs text-slate-700"><p>{termsSnapshot(live.data.opportunities[choice].terms).scope.scope_in}</p><p>Compensation: {termsSnapshot(live.data.opportunities[choice].terms).terms.currency} {termsSnapshot(live.data.opportunities[choice].terms).terms.fee_amount} ? {termsSnapshot(live.data.opportunities[choice].terms).terms.payment_terms}</p><p>Confidentiality: {selectedProject.confidentiality}</p><p>Mentorship: {termsSnapshot(live.data.opportunities[choice].terms).terms.mentor_plan}</p></div>}
           {/* REQUIRED PRE-SUBMIT TERMS DISCLOSURE (§5.4) */}
           <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-4 space-y-2.5">
             <div className="flex items-center justify-between border-b border-teal-100 pb-2">
@@ -256,7 +295,7 @@ export function ApplyModal({
               <div>
                 <span className="text-[10px] text-slate-400 font-semibold uppercase">Expected Time Commitment</span>
                 <p className="font-bold text-slate-800">
-                  {selectedProject.weeklyHours} hours/week over {selectedProject.durationWeeks} weeks
+                  {preview ? selectedProject.weeklyHours : weeklyHours} hours/week available over {selectedProject.durationWeeks} weeks
                 </p>
               </div>
               <div className="col-span-2">
@@ -296,6 +335,7 @@ export function ApplyModal({
             </div>
             <textarea
               rows={3}
+              minLength={20}
               maxLength={600}
               value={motivation}
               onChange={(e) => setMotivation(e.target.value)}
@@ -360,7 +400,7 @@ export function ApplyModal({
 
             <button
               type="submit"
-              disabled={isSubmitting || !hasAcknowledgedTerms || isAlreadyApplied || !motivation.trim()}
+              disabled={(!preview && (live.loading || !choice || Boolean(live.error))) || isSubmitting || !hasAcknowledgedTerms || isAlreadyApplied || !motivation.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (

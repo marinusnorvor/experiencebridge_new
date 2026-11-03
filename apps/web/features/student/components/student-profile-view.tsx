@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { usePortalApi } from "@/lib/api/portal-api";
+import { loadStudentPassportAndDecisions } from "../lib/api-records";
 import { syntheticStudentProfile } from "../lib/mock-data";
 import type { SelfReportedSkill, StudentProfileDetails, TopProjectItem } from "../lib/types";
 import { StudentPortalHeader } from "./student-portal-header";
@@ -43,7 +47,54 @@ function getInitialTimestamp(): string | null {
 }
 
 export function StudentProfileView() {
-  const [profile, setProfile] = useState<StudentProfileDetails>(getInitialProfile);
+  const pathname = usePathname();
+  const preview = Boolean(pathname?.startsWith("/dev/student")) || isPortalPresentationMode();
+  const { getApi, isSignedIn } = usePortalApi();
+  const [unavailable, setUnavailable] = useState("");
+  function requireProfileApi() {
+    if (preview) return true;
+    setUnavailable("Profile saving and uploads have no backend endpoint yet. Nothing was saved to the database.");
+    return false;
+  }
+  const [profile, setProfile] = useState<StudentProfileDetails>(() => preview ? getInitialProfile() : ({
+    id: "", displayName: "Student", headline: "Authenticated ExperienceBridge Student", bio: "", institution: "", programOfStudy: "", graduationYear: "", email: "",
+    weeklyHoursAvailable: 0, preferredDomains: [], portfolioUrl: "", githubUrl: "", linkedinUrl: "",
+    verificationBadge: { isVerified: false, provider: "", verifiedAt: "" }, assessedSkills: [], selfReportedSkills: [], topProjects: [], isSyntheticDemo: true,
+  }));
+  useEffect(() => {
+    let active = true;
+    async function loadLiveProfile() {
+      if (preview || !isSignedIn) return;
+      try {
+        const api = await getApi();
+        const { passport } = await loadStudentPassportAndDecisions(api);
+        if (!active) return;
+        setProfile((current) => ({
+          ...current,
+          id: passport.student.id,
+          displayName: passport.student.displayName || "Student",
+          email: passport.student.email,
+          assessedSkills: passport.assessedSkills,
+          selfReportedSkills: passport.selfReportedSkills,
+          topProjects: passport.projectAssertions.map((assertion) => ({
+            id: assertion.id,
+            title: assertion.projectTitle,
+            role: assertion.evidenceTiers.deliverableAccepted ? "Accepted Participant" : "Project Participant",
+            organization: assertion.organizationName,
+            isVerifiedOrgProject: assertion.organizationVerified,
+            timeframe: assertion.timeframe,
+            summary: assertion.contributionStatement,
+            technologies: assertion.deliverables,
+            participationId: assertion.participationId,
+          })),
+        }));
+      } catch (e) {
+        if (active) setUnavailable(e instanceof Error ? e.message : "Unable to load authenticated student profile.");
+      }
+    }
+    void loadLiveProfile();
+    return () => { active = false; };
+  }, [preview, isSignedIn, getApi]);
   const [viewMode, setViewMode] = useState<"view" | "edit">("view");
 
   // Modals for Photo and Cover Photo
@@ -72,11 +123,12 @@ export function StudentProfileView() {
   // Saving / Loading Animation State
   const [isSaving, setIsSaving] = useState(false);
   const [isSavedFeedback, setIsSavedFeedback] = useState(false);
-  const [lastSavedTime, setLastSavedTime] = useState<string | null>(getInitialTimestamp);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(() => preview ? getInitialTimestamp() : null);
 
   // Save changes to localStorage and transition directly to LinkedIn-style view
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireProfileApi()) return;
     setIsSaving(true);
 
     setTimeout(() => {
@@ -102,6 +154,7 @@ export function StudentProfileView() {
 
   // Profile photo crop complete
   const handlePhotoCropComplete = (croppedDataUrl: string) => {
+    if (!requireProfileApi()) return;
     const updatedProfile = { ...profile, avatarUrl: croppedDataUrl };
     setProfile(updatedProfile);
     try {
@@ -113,6 +166,7 @@ export function StudentProfileView() {
 
   // Cover photo apply
   const handleCoverApply = (newCoverUrl: string | undefined) => {
+    if (!requireProfileApi()) return;
     const updatedProfile = { ...profile, coverUrl: newCoverUrl };
     setProfile(updatedProfile);
     try {
@@ -125,6 +179,7 @@ export function StudentProfileView() {
   // Add detailed self-reported skill
   const handleAddDetailedSkill = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireProfileApi()) return;
     const trimmed = skillName.trim();
     if (!trimmed) return;
 
@@ -160,6 +215,7 @@ export function StudentProfileView() {
 
   // Remove self-reported skill
   const handleRemoveSkill = (id: string) => {
+    if (!requireProfileApi()) return;
     const updatedSkills = (profile?.selfReportedSkills ?? []).filter((s) => s.id !== id);
     const updatedProfile = { ...profile, selfReportedSkills: updatedSkills };
     setProfile(updatedProfile);
@@ -173,6 +229,7 @@ export function StudentProfileView() {
   // Add Top / Featured Project
   const handleAddTopProject = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireProfileApi()) return;
     if (!projectTitle.trim() || !projectRole.trim() || !projectSummary.trim()) {
       alert("Please provide at least a project title, role, and summary.");
       return;
@@ -220,6 +277,7 @@ export function StudentProfileView() {
 
   // Remove Top / Featured Project
   const handleRemoveTopProject = (id: string) => {
+    if (!requireProfileApi()) return;
     const updatedProjects = (profile?.topProjects ?? []).filter((p) => p.id !== id);
     const updatedProfile = { ...profile, topProjects: updatedProjects };
     setProfile(updatedProfile);
@@ -241,6 +299,8 @@ export function StudentProfileView() {
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
       {/* Sub-navigation & Header */}
+      {!preview && <p role="status" className="mx-auto max-w-6xl p-4 text-xs text-slate-600">Authenticated student identity, mentor-assessed competencies, and project assertions loaded from the API. Extended profile fields are read-only until a student profile mutation endpoint is added.</p>}
+      {unavailable && <p role="alert" className="mx-auto max-w-6xl p-4 text-red-700">{unavailable}</p>}
       <StudentPortalHeader
         studentName={profile?.displayName}
         isSynthetic={profile?.isSyntheticDemo}

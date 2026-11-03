@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { emptyBrief } from "../data/portal-fixtures";
 import { useOrganizationDemo } from "../hooks/organization-demo-context";
@@ -19,9 +19,10 @@ export function OrganizationProjectWizard({ id }: { id?: string }) {
   const { state, update, announce, orgId, refetch, preview, loading } = useOrganizationDemo();
   const { getApi } = usePortalApi();
   const existing = state.projects.find((project) => project.id === id);
-  const [brief, setBrief] = useState<Brief>(existing ?? emptyBrief);
+  const [draftBrief, setBrief] = useState<Brief>(existing ?? emptyBrief);
   const [step, setStep] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const brief = !dirty && existing ? existing : draftBrief;
   const [errors, setErrors] = useState<Partial<Record<keyof Brief, string>>>({});
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -30,15 +31,10 @@ export function OrganizationProjectWizard({ id }: { id?: string }) {
   const savedId = useRef(id);
   const router = useRouter();
   useUnsavedChanges(dirty);
-  useEffect(() => {
-    if (existing && !dirty) {
-      setBrief(existing);
-    }
-  }, [existing, dirty]);
   const storageKey = `experiencebridge:synthetic-brief:${id ?? "new"}`;
   if (id && !preview && loading && !existing) return <PortalPage title="Loading project brief..." description="Retrieving draft from the API."><p role="status" className={s.muted}>Loading project brief...</p></PortalPage>;
   if (id && (!existing || (existing.status !== "Draft" && existing.status !== "Needs revision"))) return <PortalPage title="Draft unavailable" description="Only draft or revision-requested projects can be edited."><Empty title="This draft cannot be edited" action={<ActionLink href="/organization/projects">My projects</ActionLink>}>Submitted project terms are locked. A missing local project may have reset on refresh.</Empty></PortalPage>;
-  function change(key: keyof Brief, value: string | number) { setBrief((current) => ({ ...current, [key]: value })); setDirty(true); setErrors((current) => ({ ...current, [key]: undefined })); setError(""); }
+  function change(key: keyof Brief, value: string | number) { setBrief((current) => ({ ...(!dirty && existing ? existing : current), [key]: value })); setDirty(true); setErrors((current) => ({ ...current, [key]: undefined })); setError(""); }
   function restore() {
     try {
       const raw = sessionStorage.getItem(storageKey);

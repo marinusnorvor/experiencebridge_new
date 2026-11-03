@@ -21,6 +21,8 @@ export type OfferStatus =
   | "expired";
 
 export type ParticipationStatus =
+  | "partially_completed"
+  | "cancelled"
   | "active"
   | "submitted"
   | "under_review"
@@ -114,6 +116,7 @@ export interface ApplicationTimelineEvent {
 }
 
 export interface StudentApplicationDetails {
+  offerStatus?: string;
   id: string;
   projectId: string;
   projectTitle: string;
@@ -204,7 +207,7 @@ export interface SubmissionReview {
   id: string;
   reviewerType: "mentor" | "organization";
   reviewerName: string;
-  status: "approved" | "changes_requested" | "under_review";
+  status: "approved" | "changes_requested" | "under_review" | "reviewed" | "revision_requested" | "unable_to_assess" | "accepted" | "revisions_requested" | "rejected";
   feedback: string;
   reviewedAt: string;
 }
@@ -217,7 +220,7 @@ export interface MilestoneSubmission {
   summary: string;
   contributionStatement: string;
   links: { label: string; url: string }[];
-  status: "draft" | "submitted" | "revision_requested" | "accepted";
+  status: "draft" | "submitted" | "revision_requested" | "accepted" | "withdrawn";
   submittedAt?: string;
   mentorReview?: SubmissionReview;
   organizationDecision?: SubmissionReview;
@@ -235,6 +238,8 @@ export interface AgreedTermsSnapshot {
 }
 
 export interface ParticipationWorkspaceDetails {
+  rowVersion?: number;
+  canSubmit?: boolean;
   participationId: string;
   projectId: string;
   projectTitle: string;

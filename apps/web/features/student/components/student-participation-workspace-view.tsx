@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { usePortalResource } from "@/lib/api/use-portal-resource";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { emptyWorkspace, loadWorkspace, saveEvidence } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { StudentParticipationActions } from "./student-participation-actions";
 import { StudentPortalHeader } from "./student-portal-header";
 import {
   syntheticParticipationDetails,
@@ -85,11 +89,17 @@ function getInitialWorkspace(participationId: string): ParticipationWorkspaceDet
 export function StudentParticipationWorkspaceView({ participationId }: WorkspaceProps) {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
+  const preview = isDevPreview || isPortalPresentationMode();
+  const live = usePortalResource(useCallback(api => loadWorkspace(api, participationId), [participationId]), !preview);
+  const [actionError, setActionError] = useState("");
+  const saving = useRef(false);
+  const savedSubmission = useRef<string | undefined>(undefined);
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
-  const [workspace, setWorkspace] = useState<ParticipationWorkspaceDetails>(() =>
-    getInitialWorkspace(participationId)
+  const [previewWorkspace, setWorkspace] = useState<ParticipationWorkspaceDetails>(() =>
+    preview ? getInitialWorkspace(participationId) : emptyWorkspace(participationId)
   );
+  const workspace = preview ? previewWorkspace : live.data ?? emptyWorkspace(participationId);
 
   const [activeTab, setActiveTab] = useState<
     "overview" | "milestones" | "submissions" | "terms" | "support"
@@ -116,6 +126,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
   // Reset to initial synthetic state
   const handleResetWorkspace = () => {
+    if (!preview) { void live.reload().catch(() => {}); return; }
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(`experiencebridge_workspace_${participationId}`);
@@ -139,8 +150,26 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
   };
 
   // Submit Evidence Live (STU-08)
-  const handleSubmitEvidence = (e: React.FormEvent) => {
+  const handleSubmitEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!preview) {
+      if (saving.current) return;
+      saving.current = true; setIsSubmitting(true); setActionError("");
+      try {
+        if (!workspace.canSubmit) throw new Error("Evidence can be submitted after the organization starts this project, while your participation is active.");
+        const milestone = selectedMilestoneId || workspace.currentMilestoneId;
+        if (!workspace.milestones.some(m => m.id === milestone)) throw new Error("Select a milestone.");
+        const api = await live.getApi();
+        await saveEvidence(api, participationId, Number(milestone), workSummary.trim(), contributionStatement.trim(),
+          [{label:"Repository evidence",url:githubPrUrl.trim()},{label:"Document evidence",url:demoOrDocUrl.trim()}].filter(l => l.url),
+          savedSubmission.current, id => { savedSubmission.current = id; });
+        await live.reload(); savedSubmission.current = undefined;
+        setIsSubmitModalOpen(false); setWorkSummary(""); setContributionStatement(""); setGithubPrUrl(""); setDemoOrDocUrl("");
+        setActiveTab("submissions"); setSubmissionSuccessFeedback("Evidence submission confirmed by the API. Mentor assessment and organization acceptance remain separate.");
+      } catch (e) { setActionError(e instanceof Error ? e.message : "Evidence could not be confirmed. Your draft can be retried."); }
+      finally { saving.current = false; setIsSubmitting(false); }
+      return;
+    }
     if (!workSummary.trim() || !contributionStatement.trim()) {
       alert("Please provide both a work summary and personal contribution statement.");
       return;
@@ -267,19 +296,23 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
   // Submit Confidential Report (STU-12)
   const handleSubmitReport = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!preview) { setActionError("Reporting is not connected to a backend endpoint. No report was sent or recorded."); return; }
     const ticketId = `REP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     setActiveReportTicket(ticketId);
     setIsReportModalOpen(false);
     setReportDetails("");
   };
 
+  if (!preview && (live.loading || live.error)) return <main className="mx-auto max-w-6xl p-6"><p role={live.error ? "alert" : "status"}>{live.error || "Loading workspace records..."}</p><button onClick={() => void live.reload().catch(() => {})}>Refresh records</button></main>;
+
   const currentMilestone = workspace.milestones.find((m) => m.id === workspace.currentMilestoneId);
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName="Stella Appiok" isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
         {/* Breadcrumb & Navigation Back */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
@@ -368,10 +401,12 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               </p>
             </div>
 
+            {!preview && <StudentParticipationActions workspace={workspace} getApi={live.getApi} reload={live.reload} />}
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <button
                 type="button"
+                disabled={!preview && !workspace.canSubmit}
                 onClick={() => setIsSubmitModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition focus-visible:outline-2 focus-visible:outline-teal-800"
               >
@@ -628,6 +663,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
               <button
                 type="button"
+                disabled={!preview && !workspace.canSubmit}
                 onClick={() => setIsSubmitModalOpen(true)}
                 className="inline-flex items-center gap-1.5 self-start rounded-lg bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition"
               >
@@ -775,6 +811,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
               <button
                 type="button"
+                disabled={!preview && !workspace.canSubmit}
                 onClick={() => setIsSubmitModalOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition shrink-0"
               >
@@ -787,7 +824,8 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <p className="text-xs text-slate-500">No submissions recorded yet.</p>
                 <button
                   type="button"
-                  onClick={() => setIsSubmitModalOpen(true)}
+                  disabled={!preview && !workspace.canSubmit}
+                onClick={() => setIsSubmitModalOpen(true)}
                   className="text-xs font-semibold text-teal-800 underline"
                 >
                   Submit your first milestone evidence
@@ -873,7 +911,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                             1. Mentor Technical Assessment
                           </span>
                           <span className="text-[10px] font-semibold text-teal-800 bg-white px-2 py-0.5 rounded border border-teal-200">
-                            {sub.mentorReview?.status === "approved" ? "✓ Approved" : "Under Review"}
+                            {sub.mentorReview ? sub.mentorReview.status.replaceAll("_", " ") : "Not assessed"}
                           </span>
                         </div>
 
@@ -897,7 +935,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                             2. Organization Milestone Decision
                           </span>
                           <span className="text-[10px] font-semibold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
-                            {sub.organizationDecision?.status === "approved" ? "✓ Accepted" : "Under Review"}
+                            {sub.organizationDecision ? sub.organizationDecision.status.replaceAll("_", " ") : "No decision"}
                           </span>
                         </div>
 
@@ -973,7 +1011,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                     Expected Work Commitment
                   </span>
                   <div className="text-xs font-bold text-slate-900">
-                    {workspace.agreedTerms.weeklyHours} hours/week
+                    {workspace.agreedTerms.weeklyHours ? `${workspace.agreedTerms.weeklyHours} hours/week` : "Not supplied"}
                   </div>
                 </div>
 
@@ -1127,12 +1165,13 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
             {/* Submission Form */}
             <form onSubmit={handleSubmitEvidence} className="space-y-4">
+              {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
                   Assigned Milestone *
                 </label>
                 <select
-                  value={selectedMilestoneId}
+                  value={selectedMilestoneId || workspace.currentMilestoneId}
                   onChange={(e) => setSelectedMilestoneId(e.target.value)}
                   className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
                 >
@@ -1212,7 +1251,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || (!preview && (!workspace.milestones.length || !workspace.canSubmit))}
                   className="inline-flex items-center gap-2 rounded-lg bg-teal-800 px-5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition disabled:opacity-70"
                 >
                   {isSubmitting ? (
@@ -1256,6 +1295,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
             </div>
 
             <form onSubmit={handleSubmitReport} className="space-y-3 text-xs">
+              {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
               <div>
                 <label className="block font-semibold text-slate-700">Issue Category</label>
                 <select

@@ -1,5 +1,5 @@
 /** Local presentation model only. Not API DTOs, identity, or an authorization contract. */
-export type ProjectStatus = "Draft" | "In review" | "Published" | "Recruiting" | "Active" | "Completed" | "Closed";
+export type ProjectStatus = "Draft" | "Needs revision" | "In review" | "Published" | "Recruiting" | "Active" | "Completed" | "Closed";
 export interface Brief {
   title: string; problem: string; audience: string; outcome: string;
   skills: string; difficulty: string; seats: number; hours: number; eligibility: string;
