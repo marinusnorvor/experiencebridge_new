@@ -1,10 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import {
+  loadApplications,
+  loadOpportunities,
+  loadParticipations,
+  loadStudentPassportAndDecisions,
+} from "../lib/api-records";
 import { usePortalApi } from "@/lib/api/portal-api";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import {
   syntheticActiveStudentDashboard,
   syntheticEmptyStudentDashboard,
@@ -12,12 +20,20 @@ import {
 import type {
   StudentApplicationDetails,
   StudentDashboardData,
+  StudentDecisionAudit,
   StudentParticipationSummaryItem,
+  StudentPassportTeaser,
 } from "../lib/types";
 
 const APPLICATIONS_STORAGE_KEY = "experiencebridge_student_applications_list";
 const PARTICIPATIONS_STORAGE_KEY = "experiencebridge_student_participations_list";
 const PROFILE_STORAGE_KEY = "experiencebridge_student_profile_data";
+
+const EMPTY_PASSPORT_SUMMARY: StudentPassportTeaser = {
+  verifiedClaimsCount: 0,
+  completedProjectsCount: 0,
+  mentorObservationsCount: 0,
+};
 
 export function StudentDashboardView() {
   const pathname = usePathname();
@@ -25,145 +41,163 @@ export function StudentDashboardView() {
   const basePath = isDevPreview ? "/dev/student" : "/student";
   const { getApi, isSignedIn } = usePortalApi();
 
+  const preview = isDevPreview || isPortalPresentationMode();
+  const [loadError, setLoadError] = useState("");
   // State to toggle between active mock dashboard and empty state dashboard
   const [dashboardState, setDashboardState] = useState<"active" | "empty">("active");
 
-  // Read student display name from profile localStorage if available
-  const [studentName] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedProfile = localStorage.getItem(PROFILE_STORAGE_KEY);
-        if (storedProfile) {
-          const parsed = JSON.parse(storedProfile);
-          if (parsed.displayName) return parsed.displayName;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return "Stella Appiok";
-  });
-
-  // Read applications from localStorage if available
-  const [applications, setApplications] = useState<StudentApplicationDetails[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return [];
-  });
-
-  // Read participations from localStorage if available
-  const [participations, setParticipations] = useState<StudentParticipationSummaryItem[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(PARTICIPATIONS_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-    return [];
-  });
+  const [studentName, setStudentName] = useState("Student");
+  const [applications, setApplications] = useState<StudentApplicationDetails[]>([]);
+  const [participations, setParticipations] = useState<StudentParticipationSummaryItem[]>([]);
+  const [liveDecisions, setLiveDecisions] = useState<StudentDecisionAudit[]>([]);
+  const [livePassportSummary, setLivePassportSummary] = useState<StudentPassportTeaser>(
+    EMPTY_PASSPORT_SUMMARY
+  );
+  const [availableProjectsCount, setAvailableProjectsCount] = useState<number>(0);
+  const [pendingSubmissionsCount, setPendingSubmissionsCount] = useState<number>(0);
 
   useEffect(() => {
-    async function loadLiveStudentData() {
-      if (!isSignedIn) return;
+    if (!preview) return;
+    // Read browser-only fixtures after hydration, and never in authenticated live mode.
+    const timer = window.setTimeout(() => {
       try {
-        const api = await getApi();
-        const appsRes = await api.getMyApplications();
-        const partsRes = await api.getMyParticipations();
-
-        if (appsRes.data && appsRes.data.length > 0) {
-          const liveApps: StudentApplicationDetails[] = appsRes.data.map((a) => ({
-            id: a.id,
-            projectId: a.project_id,
-            projectTitle: `Project Opportunity (${a.project_id.slice(0, 8)})`,
-            organizationName: "Host Organization",
-            organizationVerified: true,
-            status: a.status as StudentApplicationDetails["status"],
-            appliedAt: new Date(a.created_at).toLocaleDateString(),
-            motivationStatement: a.motivation,
-            declaredSkills: a.declared_skills,
-            externalLinks: a.links.map((l) => ({ label: l.label, url: l.url })),
-            observedTermsSnapshot: {
-              termsVersionId: a.seen_terms_version_id,
-              weeklyHours: Math.round(a.weekly_minutes_available / 60),
-              durationWeeks: 8,
-              ipConditions: "Verifiable student demonstration rights",
-              confidentialitySummary: "Protected evidence boundary",
-              snapshotDate: new Date(a.created_at).toLocaleDateString(),
-            },
-            timeline: [
-              {
-                id: `evt-${a.id}`,
-                status: a.status as StudentApplicationDetails["status"],
-                title: `Status: ${a.status}`,
-                description: a.reason || "Application recorded in PostgreSQL",
-                timestamp: new Date(a.created_at).toLocaleDateString(),
-              },
-            ],
-            isSyntheticDemo: false,
-          }));
-          setApplications(liveApps);
-        }
-
-        if (partsRes.data && partsRes.data.length > 0) {
-          const liveParts: StudentParticipationSummaryItem[] = partsRes.data.map((p) => ({
-            participationId: p.id,
-            projectId: p.project_id,
-            projectTitle: `Project Workspace (${p.project_id.slice(0, 8)})`,
-            organizationName: "Host Organization",
-            organizationVerified: true,
-            mentorName: "Assigned Mentor",
-            mentorStatus: "accepted",
-            status: p.status as StudentParticipationSummaryItem["status"],
-            currentMilestone: "Milestone Deliverable",
-            nextMilestoneDue: "In 14 days",
-            progressPercent: p.status === "completed" ? 100 : 50,
-            completedMilestonesCount: p.status === "completed" ? 2 : 1,
-            totalMilestonesCount: 2,
-            weeklyHours: 10,
-          }));
-          setParticipations(liveParts);
-        }
-      } catch (e) {
-        console.warn("Live student data notice:", e);
+        const profile = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) ?? "null");
+        setStudentName(typeof profile?.displayName === "string" ? profile.displayName : "Stella Appiok");
+        const apps = JSON.parse(localStorage.getItem(APPLICATIONS_STORAGE_KEY) ?? "[]");
+        const parts = JSON.parse(localStorage.getItem(PARTICIPATIONS_STORAGE_KEY) ?? "[]");
+        if (Array.isArray(apps)) setApplications(apps);
+        if (Array.isArray(parts)) setParticipations(parts);
+      } catch {
+        /* Invalid preview backups are ignored. */
       }
-    }
-    void loadLiveStudentData();
-  }, [isSignedIn, getApi]);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [preview]);
+
+  const reloadLiveDashboard = useCallback(async () => {
+    if (preview || !isSignedIn) return;
+    const api = await getApi();
+    const me = await api.getMe();
+    if (!me.data) throw new Error(me.error ?? "Identity unavailable.");
+    setStudentName(me.data.display_name ?? "Student");
+    const [apps, parts, extras, discovery] = await Promise.all([
+      loadApplications(api),
+      loadParticipations(api),
+      loadStudentPassportAndDecisions(api),
+      loadOpportunities(api),
+    ]);
+    setLoadError("");
+    setApplications(apps);
+    setParticipations(parts);
+    setLiveDecisions(extras.recentDecisions);
+    setLivePassportSummary(extras.passportSummary);
+    setAvailableProjectsCount(Object.keys(discovery.opportunities).length);
+    setPendingSubmissionsCount(extras.pendingSubmissionsCount);
+  }, [preview, isSignedIn, getApi]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (preview) return;
+      if (!isSignedIn) {
+        if (active) {
+          setStudentName("Student");
+          setApplications([]);
+          setParticipations([]);
+          setLiveDecisions([]);
+          setLivePassportSummary(EMPTY_PASSPORT_SUMMARY);
+          setAvailableProjectsCount(0);
+          setPendingSubmissionsCount(0);
+          setLoadError("");
+        }
+        return;
+      }
+      void reloadLiveDashboard().catch((e) => {
+        if (active) {
+          setApplications([]);
+          setParticipations([]);
+          setLiveDecisions([]);
+          setLivePassportSummary(EMPTY_PASSPORT_SUMMARY);
+          setAvailableProjectsCount(0);
+          setPendingSubmissionsCount(0);
+          setLoadError(e instanceof Error ? e.message : "Student records unavailable.");
+        }
+      });
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isSignedIn, preview, reloadLiveDashboard]);
+  useVisibleRefresh(reloadLiveDashboard, !preview && isSignedIn);
 
   const activeData: StudentDashboardData = syntheticActiveStudentDashboard;
   const emptyData: StudentDashboardData = syntheticEmptyStudentDashboard;
 
-  const currentData = dashboardState === "active" ? activeData : emptyData;
+  const currentData = preview && dashboardState === "active" ? activeData : emptyData;
+  const displayedApplications = preview ? currentData.applications : applications;
+  const displayedParticipations = preview
+    ? dashboardState === "active"
+      ? currentData.activeProjects
+      : []
+    : participations;
+  const displayedDecisions = preview ? currentData.recentDecisions : liveDecisions;
+  const displayedPassportSummary = preview ? currentData.passportSummary : livePassportSummary;
+
+  const displayedAvailableProjectsCount = preview
+    ? 3
+    : availableProjectsCount;
+  const applicationsUnderReviewCount = displayedApplications.filter(
+    (a) => a.status === "submitted" || a.status === "shortlisted"
+  ).length;
+  const offersReceivedCount = displayedApplications.filter(
+    (a) =>
+      a.status === "offered" ||
+      a.status === "accepted" ||
+      a.offerStatus === "offered" ||
+      a.offerStatus === "accepted" ||
+      a.offerStatus === "declined"
+  ).length;
+  const acceptedOffersCount = displayedApplications.filter(
+    (a) => a.status === "accepted" || a.offerStatus === "accepted"
+  ).length;
+  const activeParticipationsCount = displayedParticipations.filter(
+    (p) => p.status === "active" || p.status === "under_review"
+  ).length;
+  const displayedPendingSubmissionsCount = preview
+    ? dashboardState === "active"
+      ? 1
+      : 0
+    : pendingSubmissionsCount;
 
   // Active project calculation
   const activeProject =
-    dashboardState === "active"
-      ? participations.find((p) => p.status === "active") || currentData.activeProjects[0]
+    !preview || dashboardState === "active"
+      ? participations.find((p) => p.status === "active" || p.status === "under_review") ||
+        (preview ? currentData.activeProjects[0] : undefined)
       : null;
 
   // Action items calculation
-  const pendingOffers = applications.filter((a) => a.status === "offered");
+  const pendingOffers = displayedApplications.filter((a) => a.status === "offered");
   const hasPendingOffer = pendingOffers.length > 0;
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={studentName} isSynthetic={true} />
+      <StudentPortalHeader studentName={studentName} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {loadError && (
+          <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4">
+            {loadError}
+          </p>
+        )}
+        {!preview && (
+          <p className="text-sm text-slate-600">
+            Authenticated records: {applications.length} applications | {participations.length}{" "}
+            participations. Development evidence is synthetic; dashboard previews do not imply
+            verified outcomes.
+          </p>
+        )}
         {/* Top Header & Fixture Toggle */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -177,39 +211,42 @@ export function StudentDashboardView() {
               Welcome back, {studentName}
             </h1>
             <p className="mt-0.5 text-xs text-slate-500 max-w-2xl">
-              Monitor active project milestones, review pending offers, and track verified competencies.
+              Monitor active project milestones, review pending offers, and track verified
+              competencies.
             </p>
           </div>
 
           <div className="flex items-center gap-2.5">
             {/* Fixture State Switcher */}
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs text-xs">
-              <button
-                type="button"
-                onClick={() => setDashboardState("active")}
-                className={`rounded-md px-3 py-1 font-semibold transition ${
-                  dashboardState === "active"
-                    ? "bg-teal-800 text-white shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Active State
-              </button>
-              <button
-                type="button"
-                onClick={() => setDashboardState("empty")}
-                className={`rounded-md px-3 py-1 font-semibold transition ${
-                  dashboardState === "empty"
-                    ? "bg-teal-800 text-white shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Empty State
-              </button>
-            </div>
+            {preview && (
+              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs text-xs">
+                <button
+                  type="button"
+                  onClick={() => setDashboardState("active")}
+                  className={`rounded-md px-3 py-1 font-semibold transition ${
+                    dashboardState === "active"
+                      ? "bg-teal-800 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Active State
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDashboardState("empty")}
+                  className={`rounded-md px-3 py-1 font-semibold transition ${
+                    dashboardState === "empty"
+                      ? "bg-teal-800 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Empty State
+                </button>
+              </div>
+            )}
 
             <Link
-              href="/"
+              href={`${basePath}/applications#opportunities`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition"
             >
               <span>Explore Projects</span>
@@ -218,10 +255,61 @@ export function StudentDashboardView() {
           </div>
         </div>
 
+        {/* DYNAMIC STUDENT DASHBOARD METRICS (§3) */}
+        <section
+          aria-label="Student dashboard summary metrics"
+          className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+        >
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Published Projects
+            </span>
+            <span className="mt-1 text-lg font-bold text-slate-900 block">
+              {displayedAvailableProjectsCount}
+            </span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Applications Sent
+            </span>
+            <span className="mt-1 text-lg font-bold text-slate-900 block">
+              {displayedApplications.length}
+            </span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Under Review
+            </span>
+            <span className="mt-1 text-lg font-bold text-teal-800 block">
+              {applicationsUnderReviewCount}
+            </span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Offers (Received / Accepted)
+            </span>
+            <span className="mt-1 text-lg font-bold text-amber-800 block">
+              {offersReceivedCount} / {acceptedOffersCount}
+            </span>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Active / Completed
+            </span>
+            <span className="mt-1 text-lg font-bold text-emerald-800 block">
+              {activeParticipationsCount} / {displayedPassportSummary.completedProjectsCount}
+            </span>
+          </div>
+        </section>
+
         {/* 1. ACTION REQUIRED ITEMS (§6.1 Outstanding Offer / Submissions / Revisions) */}
-        {dashboardState === "active" && (
+        {((preview && dashboardState === "active") ||
+          (!preview && (hasPendingOffer || Boolean(activeProject)))) && (
           <section aria-labelledby="action-required-heading" className="space-y-3">
-            <h2 id="action-required-heading" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <h2
+              id="action-required-heading"
+              className="text-xs font-bold uppercase tracking-wider text-slate-500"
+            >
               Action Required Items
             </h2>
 
@@ -243,7 +331,8 @@ export function StudentDashboardView() {
                       {pendingOffers[0].projectTitle}
                     </h3>
                     <p className="text-xs text-amber-900">
-                      {pendingOffers[0].organizationName} extended an official project offer. Affirmative acceptance binds observed terms (§6.4).
+                      {pendingOffers[0].organizationName} extended an official project offer.
+                      Affirmative acceptance binds observed terms (§6.4).
                     </p>
                   </div>
 
@@ -258,68 +347,75 @@ export function StudentDashboardView() {
                   </div>
                 </div>
               ) : (
-                /* Static fixture offer if no dynamic offer */
-                <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 shadow-2xs flex flex-col justify-between gap-3">
+                preview && (
+                  /* Static fixture offer if no dynamic offer in preview mode */
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 shadow-2xs flex flex-col justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                          <span className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
+                          Offer Extended
+                        </span>
+                        <span className="rounded bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                          Expires in 36 hours
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Solar Microgrid Telemetry
+                      </h3>
+                      <p className="text-xs text-amber-900">
+                        SunPower Labs has reviewed your profile and extended an offer. Confirm
+                        terms acknowledgment within 36 hours.
+                      </p>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end">
+                      <Link
+                        href={`${basePath}/applications/app-101`}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-900 transition"
+                      >
+                        <span>Review Offer Terms</span>
+                        <span aria-hidden="true">→</span>
+                      </Link>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Next Milestone Deliverable Action */}
+              {activeProject && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between gap-3">
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                        <span className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
-                        Offer Extended
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-teal-800">
+                        <span className="h-2 w-2 rounded-full bg-teal-600" />
+                        Milestone In Progress
                       </span>
-                      <span className="rounded bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                        Expires in 36 hours
+                      <span className="rounded bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-semibold text-teal-800">
+                        Due {activeProject.nextMilestoneDue}
                       </span>
                     </div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      Solar Microgrid Telemetry
+                      {activeProject.projectTitle}
                     </h3>
-                    <p className="text-xs text-amber-900">
-                      SunPower Labs has reviewed your profile and extended an offer. Confirm terms acknowledgment within 36 hours.
+                    <p className="text-xs text-slate-600">
+                      {activeProject.currentMilestone} is currently active ({displayedPendingSubmissionsCount}{" "}
+                      pending submission{displayedPendingSubmissionsCount === 1 ? "" : "s"}). Submit
+                      contribution statement and artifact evidence before the deadline.
                     </p>
                   </div>
 
                   <div className="pt-2 flex items-center justify-end">
                     <Link
-                      href={`${basePath}/applications/app-101`}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-900 transition"
+                      href={`${basePath}/projects/${activeProject.participationId || "part-101"}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                     >
-                      <span>Review Offer Terms</span>
+                      <span>Open Project Workspace</span>
                       <span aria-hidden="true">→</span>
                     </Link>
                   </div>
                 </div>
               )}
-
-              {/* Next Milestone Deliverable Action */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-teal-800">
-                      <span className="h-2 w-2 rounded-full bg-teal-600" />
-                      Milestone In Progress
-                    </span>
-                    <span className="rounded bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-semibold text-teal-800">
-                      Due Nov 15, 2026
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Community Health Tracker
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    Milestone 2: Offline-First Sync Layer is currently in progress. Submit contribution statement and pull request evidence before deadline.
-                  </p>
-                </div>
-
-                <div className="pt-2 flex items-center justify-end">
-                  <Link
-                    href={`${basePath}/projects/part-101`}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                  >
-                    <span>Open Project Workspace</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
-                </div>
-              </div>
             </div>
           </section>
         )}
@@ -358,7 +454,8 @@ export function StudentDashboardView() {
                         {activeProject.projectTitle}
                       </h3>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Assigned Mentor: <strong className="text-slate-700">{activeProject.mentorName}</strong>
+                        Assigned Mentor:{" "}
+                        <strong className="text-slate-700">{activeProject.mentorName}</strong>
                       </p>
                     </div>
 
@@ -375,7 +472,9 @@ export function StudentDashboardView() {
                   <div className="space-y-1.5 rounded-xl bg-slate-50 p-3.5 border border-slate-100">
                     <div className="flex items-center justify-between text-xs font-semibold">
                       <span className="text-slate-700">{activeProject.currentMilestone}</span>
-                      <span className="text-teal-800 font-bold">{activeProject.progressPercent}% Completed</span>
+                      <span className="text-teal-800 font-bold">
+                        {activeProject.progressPercent}% Completed
+                      </span>
                     </div>
                     <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
                       <div
@@ -384,8 +483,12 @@ export function StudentDashboardView() {
                       />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                      <span>Next Due: <strong>{activeProject.nextMilestoneDue}</strong></span>
-                      <span>Weekly Commitment: <strong>15 hrs/week</strong></span>
+                      <span>
+                        Next Due: <strong>{activeProject.nextMilestoneDue}</strong>
+                      </span>
+                      <span>
+                        Weekly Commitment: <strong>{activeProject.weeklyHours || 15} hrs/week</strong>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -394,18 +497,24 @@ export function StudentDashboardView() {
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center space-y-3">
                   <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                      />
                     </svg>
                   </div>
                   <h3 className="text-sm font-bold text-slate-900">
                     You don&apos;t have an active project yet.
                   </h3>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Browse approved organization opportunities to submit an application and get matched with a faculty mentor.
+                    Browse approved organization opportunities to submit an application and get
+                    matched with a faculty mentor.
                   </p>
                   <div className="pt-1">
                     <Link
-                      href="/"
+                      href={`${basePath}/applications#opportunities`}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-900 transition"
                     >
                       Browse Approved Opportunities
@@ -431,9 +540,9 @@ export function StudentDashboardView() {
                 </span>
               </div>
 
-              {currentData.recentDecisions.length > 0 ? (
+              {displayedDecisions.length > 0 ? (
                 <div className="space-y-3">
-                  {currentData.recentDecisions.map((decision) => {
+                  {displayedDecisions.map((decision) => {
                     const isMentor = decision.authorType === "mentor";
                     return (
                       <div
@@ -462,7 +571,10 @@ export function StudentDashboardView() {
 
                         <div>
                           <h4 className="text-xs font-bold text-slate-900">
-                            {decision.actionText} · <span className="text-slate-500 font-normal">{decision.projectTitle}</span>
+                            {decision.actionText} ·{" "}
+                            <span className="text-slate-500 font-normal">
+                              {decision.projectTitle}
+                            </span>
                           </h4>
                           <p className="mt-1 text-xs text-slate-600 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-100">
                             &quot;{decision.excerpt}&quot;
@@ -485,26 +597,24 @@ export function StudentDashboardView() {
             {/* APPLICATIONS SNAPSHOT (§6.1 / §6.3) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">
-                  Applications Overview
-                </h3>
+                <h3 className="text-sm font-bold text-slate-900">Applications Overview</h3>
                 <Link
                   href={`${basePath}/applications`}
                   className="text-xs font-semibold text-teal-800 hover:underline"
                 >
-                  View All ({currentData.applications.length}) →
+                  View All ({displayedApplications.length}) →
                 </Link>
               </div>
 
-              {currentData.applications.length > 0 ? (
+              {displayedApplications.length > 0 ? (
                 <div className="space-y-2.5">
-                  {currentData.applications.map((app) => {
+                  {displayedApplications.map((app) => {
                     const statusColor =
                       app.status === "offered"
                         ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-                        : app.status === "shortlisted"
-                        ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
-                        : "bg-slate-100 text-slate-700 border-slate-200";
+                        : app.status === "accepted" || app.status === "shortlisted"
+                          ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
+                          : "bg-slate-100 text-slate-700 border-slate-200";
 
                     return (
                       <Link
@@ -516,12 +626,20 @@ export function StudentDashboardView() {
                           <span className="text-[10px] font-bold text-slate-500 truncate">
                             {app.organizationName}
                           </span>
-                          <span className={`rounded-full px-2 py-0.2 text-[10px] border ${statusColor}`}>
+                          <span
+                            className={`rounded-full px-2 py-0.2 text-[10px] border ${statusColor}`}
+                          >
                             {app.status === "offered"
                               ? "Offer Extended"
-                              : app.status === "shortlisted"
-                              ? "Shortlisted"
-                              : "Under Review"}
+                              : app.status === "accepted"
+                                ? "Accepted"
+                                : app.status === "shortlisted"
+                                  ? "Shortlisted"
+                                  : app.status === "rejected"
+                                    ? "Rejected"
+                                    : app.status === "withdrawn"
+                                      ? "Withdrawn"
+                                      : "Under Review"}
                           </span>
                         </div>
                         <h4 className="text-xs font-bold text-slate-900 truncate">
@@ -538,7 +656,7 @@ export function StudentDashboardView() {
                 <div className="text-center py-6 space-y-2">
                   <p className="text-xs text-slate-500">No applications on record.</p>
                   <Link
-                    href="/"
+                    href={`${basePath}/applications#opportunities`}
                     className="inline-block text-xs font-semibold text-teal-800 hover:underline"
                   >
                     Browse projects →
@@ -554,13 +672,9 @@ export function StudentDashboardView() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                     §6.8 Private Passport
                   </span>
-                  <span className="text-[10px] font-mono text-slate-400">
-                    Preview
-                  </span>
+                  <span className="text-[10px] font-mono text-slate-400">Preview</span>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-2">
-                  Experience Passport
-                </h3>
+                <h3 className="text-sm font-bold text-slate-900 mt-2">Experience Passport</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Combines student self-reported coursework with verifiable mentor reviews.
                 </p>
@@ -570,30 +684,33 @@ export function StudentDashboardView() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-teal-800 block">
-                    {currentData.passportSummary.verifiedClaimsCount}
+                    {displayedPassportSummary.verifiedClaimsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Verified Skills</span>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-slate-800 block">
-                    {currentData.passportSummary.completedProjectsCount}
+                    {displayedPassportSummary.completedProjectsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Projects Done</span>
                 </div>
 
                 <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
                   <span className="text-base font-bold text-slate-800 block">
-                    {currentData.passportSummary.mentorObservationsCount}
+                    {displayedPassportSummary.mentorObservationsCount}
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium">Observations</span>
                 </div>
               </div>
 
               <div className="rounded-xl bg-teal-50/40 border border-teal-100 p-3 text-xs text-teal-950 space-y-1">
-                <span className="font-bold text-[11px] block">Cryptographic Verification Guarantee</span>
+                <span className="font-bold text-[11px] block">
+                  Cryptographic Verification Guarantee
+                </span>
                 <p className="text-[11px] text-teal-900 leading-relaxed">
-                  Assertions require independent mentor sign-off before being credited to your permanent transcript.
+                  Assertions require independent mentor sign-off before being credited to your
+                  permanent transcript.
                 </p>
               </div>
 

@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { usePortalResource } from "@/lib/api/use-portal-resource";
+import { loadApplications } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
+import { StudentOpportunities } from "./student-opportunities";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { ApplyModal } from "./apply-modal";
 import { syntheticApplicationsList } from "../lib/mock-data";
 import type { ApplicationStatus, StudentApplicationDetails } from "../lib/types";
@@ -30,9 +35,14 @@ function getInitialApplications(): StudentApplicationDetails[] {
 export function StudentApplicationsView() {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
+  const preview = isDevPreview || isPortalPresentationMode();
+  const live = usePortalResource(loadApplications, !preview);
+  useVisibleRefresh(live.reload, !preview);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>();
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
-  const [applications, setApplications] = useState<StudentApplicationDetails[]>(getInitialApplications);
+  const [previewApplications, setApplications] = useState<StudentApplicationDetails[]>(() => preview ? getInitialApplications() : []);
+  const applications = preview ? previewApplications : live.data ?? [];
   const [filter, setFilter] = useState<"all" | ApplicationStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -40,6 +50,7 @@ export function StudentApplicationsView() {
 
   // Reset defaults handler
   const handleResetDefaults = () => {
+    if (!preview) { void live.reload().catch(() => {}); return; }
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(STORAGE_KEY);
@@ -54,6 +65,7 @@ export function StudentApplicationsView() {
 
   // Add new application from ApplyModal
   const handleApplicationCreated = (newApp: StudentApplicationDetails) => {
+    if (!preview) { setFeedbackMessage("Application saved by the API."); void live.reload().catch(() => {}); return; }
     const updated = [newApp, ...applications];
     setApplications(updated);
     try {
@@ -85,9 +97,11 @@ export function StudentApplicationsView() {
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName="Stella Appiok" isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {!preview && live.loading && <p role="status">Loading database records...</p>}
+        {!preview && live.error && <p role="alert" className="text-red-700">{live.error}</p>}
         {/* Page Title & Context */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -127,12 +141,12 @@ export function StudentApplicationsView() {
               <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>Reset Defaults</span>
+              <span>{preview ? "Reset Defaults" : "Refresh records"}</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setIsApplyModalOpen(true)}
+              onClick={() => { setSelectedProjectId(undefined); setIsApplyModalOpen(true); }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition focus-visible:outline-2 focus-visible:outline-teal-800"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -142,6 +156,8 @@ export function StudentApplicationsView() {
             </button>
           </div>
         </div>
+
+        {!preview && <StudentOpportunities applications={applicationsList} basePath={basePath} onApply={id => { setSelectedProjectId(id); setIsApplyModalOpen(true); }} />}
 
         {/* Feedback Alert Banner */}
         {feedbackMessage && (
@@ -288,10 +304,14 @@ export function StudentApplicationsView() {
               const statusBadgeColor =
                 app.status === "offered"
                   ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
+                  : app.status === "accepted"
+                  ? "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold"
                   : app.status === "shortlisted"
                   ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
                   : app.status === "under_review"
                   ? "bg-blue-50 text-blue-900 border-blue-200"
+                  : app.status === "rejected"
+                  ? "bg-red-50 text-red-900 border-red-200 font-semibold"
                   : app.status === "withdrawn"
                   ? "bg-slate-100 text-slate-600 border-slate-200"
                   : "bg-slate-100 text-slate-800 border-slate-200";
@@ -299,10 +319,14 @@ export function StudentApplicationsView() {
               const statusLabel =
                 app.status === "offered"
                   ? "Offer Extended • Action Required"
+                  : app.status === "accepted"
+                  ? "Offer Accepted • Active Placement"
                   : app.status === "shortlisted"
                   ? "Shortlisted for Final Placement"
                   : app.status === "under_review"
                   ? "Under Technical Review"
+                  : app.status === "rejected"
+                  ? "Not Selected"
                   : app.status === "withdrawn"
                   ? "Withdrawn"
                   : "Submitted • In Queue";
@@ -414,7 +438,7 @@ export function StudentApplicationsView() {
       </main>
 
       {/* Apply Modal */}
-      <ApplyModal
+      <ApplyModal key={selectedProjectId ?? "all-projects"} initialProjectId={selectedProjectId} preview={preview}
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         onApplicationCreated={handleApplicationCreated}

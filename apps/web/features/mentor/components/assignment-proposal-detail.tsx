@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { requireData } from "@/lib/api/use-portal-resource";
 import Link from "next/link";
 import { usePortalApi } from "@/lib/api/portal-api";
 import type { MentorDashboardData } from "../lib/sample-dashboard-data";
 
 type AssignmentProposal = MentorDashboardData["proposals"][number];
 
-export function ProposalDecisionButtons({ assignmentId }: { assignmentId?: string }) {
+export function ProposalDecisionButtons({ assignmentId, onChanged }: { assignmentId?: string; onChanged?: () => void }) {
   const { getApi, isSignedIn } = usePortalApi();
   const [loading, setLoading] = useState(false);
+  const acting = useRef(false);
+  const [declaration, setDeclaration] = useState(false);
+  const [reason, setReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,43 +22,31 @@ export function ProposalDecisionButtons({ assignmentId }: { assignmentId?: strin
   );
 
   const handleDecision = async (decision: "accept" | "decline") => {
-    if (!assignmentId) return;
-    setLoading(true);
-    setError(null);
-    setMessage(null);
+    if (acting.current) return;
+    acting.current = true; setLoading(true); setError(null); setMessage(null);
     try {
-      if (isRealUuid && isSignedIn) {
-        const api = await getApi();
-        if (decision === "accept") {
-          const res = await api.acceptMentorAssignment(assignmentId, 1);
-          if (res.error) {
-            setError(res.error);
-            setLoading(false);
-            return;
-          }
-        } else {
-          const res = await api.declineMentorAssignment(
-            assignmentId,
-            1,
-            "Declined due to scheduling or scope alignment."
-          );
-          if (res.error) {
-            setError(res.error);
-            setLoading(false);
-            return;
-          }
-        }
+      if (!assignmentId || !isRealUuid || !isSignedIn) throw new Error("This is a preview or you are signed out. No assignment was changed.");
+      const api = await getApi();
+      const current = requireData(await api.getMentorAssignment(assignmentId));
+      if (current.status !== "proposed") throw new Error(`This assignment is already ${current.status}. Refresh the dashboard.`);
+      if (decision === "accept") {
+        if (!declaration) throw new Error("Confirm independence and confidentiality before accepting.");
+        requireData(await api.acceptMentorAssignment(assignmentId, current.row_version, { conflict_declared: false, confidentiality_acknowledged: true }));
+      } else {
+        if (reason.trim().length < 10) throw new Error("Enter a decline reason of at least 10 characters.");
+        requireData(await api.declineMentorAssignment(assignmentId, current.row_version, reason.trim()));
       }
-      setMessage(`Mentorship proposal successfully ${decision === "accept" ? "accepted" : "declined"}.`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Action failed.");
-    } finally {
-      setLoading(false);
-    }
+      const recorded = requireData(await api.getMentorAssignment(assignmentId));
+      if (recorded.status !== (decision === "accept" ? "accepted" : "declined")) throw new Error("The server did not confirm this decision.");
+      setMessage(`Assignment ${recorded.status}, confirmed by the API.`); onChanged?.();
+    } catch (e) { setError(e instanceof Error ? e.message : "Decision could not be confirmed."); }
+    finally { acting.current = false; setLoading(false); }
   };
 
   return (
     <div>
+      <label className="mb-3 flex gap-2 text-sm"><input type="checkbox" checked={declaration} onChange={e => setDeclaration(e.target.checked)} />I confirm I have no conflict of interest and acknowledge the confidentiality requirements.</label>
+      <label className="mb-3 block text-sm">Reason if declining<textarea value={reason} onChange={e => setReason(e.target.value)} minLength={10} maxLength={2000} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>
       {message && (
         <div role="status" className="mb-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm font-medium text-emerald-950">
           ✓ {message}
@@ -94,8 +86,10 @@ export function ProposalDecisionButtons({ assignmentId }: { assignmentId?: strin
 
 export function AssignmentProposalDetail({
   proposal,
+  onChanged,
 }: {
   proposal: AssignmentProposal;
+  onChanged?: () => void;
 }) {
   return (
     <main className="mx-auto min-h-screen w-full max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
@@ -167,7 +161,7 @@ export function AssignmentProposalDetail({
         </section>
 
         <section className="mt-8 border-t border-slate-100 pt-6">
-          <ProposalDecisionButtons assignmentId={proposal.id} />
+          <ProposalDecisionButtons assignmentId={proposal.id} onChanged={onChanged} />
         </section>
       </article>
     </main>

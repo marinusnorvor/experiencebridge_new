@@ -21,6 +21,8 @@ export type OfferStatus =
   | "expired";
 
 export type ParticipationStatus =
+  | "partially_completed"
+  | "cancelled"
   | "active"
   | "submitted"
   | "under_review"
@@ -90,19 +92,27 @@ export interface StudentProfileDetails {
   selfReportedSkills: SelfReportedSkill[];
   topProjects?: TopProjectItem[];
   isSyntheticDemo: boolean;
+  profileCompletionPercentage?: number;
+  userId?: string;
 }
+
+export type StudentProfile = StudentProfileDetails;
 
 export interface StudentActionRequiredItem {
   id: string;
   type: "offer_pending" | "submission_due" | "revision_requested";
   title: string;
-  description: string;
-  projectTitle: string;
+  description?: string;
+  projectTitle?: string;
   organizationName: string;
-  actionLabel: string;
-  actionHref: string;
+  actionLabel?: string;
+  actionHref?: string;
   deadlineText?: string;
-  urgency: "high" | "medium";
+  urgency?: "high" | "medium";
+  deadline?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  priority?: "urgent" | "normal";
 }
 
 export interface ApplicationTimelineEvent {
@@ -114,6 +124,7 @@ export interface ApplicationTimelineEvent {
 }
 
 export interface StudentApplicationDetails {
+  offerStatus?: string;
   id: string;
   projectId: string;
   projectTitle: string;
@@ -148,6 +159,8 @@ export interface StudentApplicationSummary {
   status: ApplicationStatus;
   appliedAt: string;
   termsVersionViewed: string;
+  offerStatus?: string;
+  offerDeadline?: string;
 }
 
 export interface StudentActiveProject {
@@ -160,6 +173,7 @@ export interface StudentActiveProject {
   currentMilestone: string;
   nextMilestoneDue: string;
   progressPercent: number;
+  weeklyHours?: number;
 }
 
 export interface StudentDecisionAudit {
@@ -204,7 +218,7 @@ export interface SubmissionReview {
   id: string;
   reviewerType: "mentor" | "organization";
   reviewerName: string;
-  status: "approved" | "changes_requested" | "under_review";
+  status: "approved" | "changes_requested" | "under_review" | "reviewed" | "revision_requested" | "unable_to_assess" | "accepted" | "revisions_requested" | "rejected";
   feedback: string;
   reviewedAt: string;
 }
@@ -217,7 +231,7 @@ export interface MilestoneSubmission {
   summary: string;
   contributionStatement: string;
   links: { label: string; url: string }[];
-  status: "draft" | "submitted" | "revision_requested" | "accepted";
+  status: "draft" | "submitted" | "revision_requested" | "accepted" | "withdrawn";
   submittedAt?: string;
   mentorReview?: SubmissionReview;
   organizationDecision?: SubmissionReview;
@@ -235,6 +249,8 @@ export interface AgreedTermsSnapshot {
 }
 
 export interface ParticipationWorkspaceDetails {
+  rowVersion?: number;
+  canSubmit?: boolean;
   participationId: string;
   projectId: string;
   projectTitle: string;

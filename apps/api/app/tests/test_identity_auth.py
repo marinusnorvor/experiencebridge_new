@@ -479,3 +479,54 @@ def test_non_boolean_email_verified_claim_is_not_trusted() -> None:
         response = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["email_verified_at"] is None
+
+
+def test_effective_contexts_include_active_organization_membership_and_mentor_profile() -> None:
+    from app.mentorship.models import MentorProfile
+    from app.organizations.models import Organization, OrganizationMembership
+
+    app, session_factory = _build_test_app_and_session_factory()
+    token = _mint_jwt(
+        sub="user_multi_context_001",
+        extra_claims={"email": "multi@example.org", "email_verified": True},
+    )
+    with TestClient(app) as client:
+        initial = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+        assert initial.status_code == 200
+        assert initial.json()["effective_contexts"] == []
+
+        with session_factory() as db:
+            user = db.query(User).filter_by(identity_subject="user_multi_context_001").one()
+            org = Organization(
+                display_name="Accra Civic Tech Hub",
+                description="Community civic tech organization.",
+                created_by_user_id=user.id,
+                verification_status="submitted",
+            )
+            db.add(org)
+            db.flush()
+            db.add(
+                OrganizationMembership(
+                    organization_id=org.id,
+                    user_id=user.id,
+                    role="owner",
+                    status="active",
+                )
+            )
+            db.add(
+                MentorProfile(
+                    user_id=user.id,
+                    bio="Experienced full-stack mentor.",
+                    skills=["Python", "TypeScript"],
+                    availability_text="4 hours/week",
+                    weekly_review_capacity=3,
+                    directory_opt_in=True,
+                    eligibility_status="approved",
+                )
+            )
+            db.commit()
+
+        after = client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+        assert after.status_code == 200
+        assert after.json()["effective_contexts"] == ["mentor", "organization"]
+

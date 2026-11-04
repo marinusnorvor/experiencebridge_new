@@ -23,7 +23,7 @@ export function useDemoAction() {
           try {
             const api = await getApi();
             await sync(api);
-            void refetch();
+            await refetch();
           } catch (e) {
             console.warn("Backend sync notice:", e);
           }

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { usePortalResource } from "@/lib/api/use-portal-resource";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
+import { loadParticipations } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
@@ -29,14 +33,19 @@ function getInitialProjects(): StudentParticipationSummaryItem[] {
 export function StudentProjectsView() {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
+  const preview = isDevPreview || isPortalPresentationMode();
+  const live = usePortalResource(loadParticipations, !preview);
+  useVisibleRefresh(live.reload, !preview);
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
   const [filter, setFilter] = useState<"all" | ParticipationStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [projects, setProjects] = useState<StudentParticipationSummaryItem[]>(getInitialProjects);
+  const [previewProjects, setProjects] = useState<StudentParticipationSummaryItem[]>(() => preview ? getInitialProjects() : []);
+  const projects = preview ? previewProjects : live.data ?? [];
 
   // Sync projects with localStorage on refresh / reset
   const handleResetDefaults = () => {
+    if (!preview) { void live.reload().catch(() => {}); return; }
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(STORAGE_KEY);
@@ -63,12 +72,17 @@ export function StudentProjectsView() {
   const activeCount = projectsList.filter((p) => p.status === "active").length;
   const underReviewCount = projectsList.filter((p) => p.status === "under_review").length;
   const completedCount = projectsList.filter((p) => p.status === "completed").length;
+  const totalWeeklyHours = projectsList
+    .filter((p) => p.status === "active" || p.status === "under_review")
+    .reduce((sum, p) => sum + (p.weeklyHours || 0), 0);
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName="Stella Appiok" isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {!preview && live.loading && <p role="status">Loading database records...</p>}
+        {!preview && live.error && <p role="alert" className="text-red-700">{live.error}</p>}
         {/* Page Title & Context */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -98,7 +112,7 @@ export function StudentProjectsView() {
               <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>Reset Defaults</span>
+              <span>{preview ? "Reset Defaults" : "Refresh records"}</span>
             </button>
 
             <Link
@@ -122,7 +136,7 @@ export function StudentProjectsView() {
             </Link>
 
             <Link
-              href="/"
+              href={`${basePath}/applications#opportunities`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -162,7 +176,7 @@ export function StudentProjectsView() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <span className="text-xs font-medium text-slate-500">Weekly Commitment</span>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">15</span>
+              <span className="text-2xl font-bold text-slate-900">{totalWeeklyHours}</span>
               <span className="text-[11px] text-slate-500">hours/week allocated</span>
             </div>
           </div>
@@ -368,7 +382,7 @@ export function StudentProjectsView() {
                     <div className="flex items-center sm:justify-end gap-2">
                       <div className="text-right">
                         <div className="text-[10px] text-slate-400">Weekly Commitment</div>
-                        <div className="font-semibold text-slate-800">{item.weeklyHours} hours/week</div>
+                        <div className="font-semibold text-slate-800">{item.weeklyHours ? `${item.weeklyHours} hours/week` : "Not supplied"}</div>
                       </div>
                     </div>
                   </div>
@@ -390,7 +404,7 @@ export function StudentProjectsView() {
           </div>
 
           <Link
-            href="/"
+            href={`${basePath}/applications#opportunities`}
             className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm hover:bg-teal-50 transition shrink-0"
           >
             Explore Open Projects

@@ -8,9 +8,11 @@ type DashboardState = "loading" | "error" | "ready";
 type MentorDashboardProps = {
   data: MentorDashboardData;
   state: DashboardState;
+  onChanged?: () => void;
 };
 
 function formatDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "Not scheduled";
   return new Intl.DateTimeFormat("en-GH", {
     day: "numeric",
     month: "short",
@@ -87,7 +89,7 @@ function SectionHeading({
   );
 }
 
-function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
+function MentorDashboardContent({ data, onChanged }: { data: MentorDashboardData; onChanged?: () => void }) {
   const isOverCapacity =
     data.reviewCapacity.expectedReviewsThisWeek > data.reviewCapacity.weeklyReviewCapacity;
 
@@ -110,10 +112,10 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
         aria-label="Sample data notice"
         className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
       >
-        <p className="font-semibold">Temporary sample dashboard</p>
+        <p className="font-semibold">Development workspace</p>
         <p>
-          All organizations, learners, assignments, reviews, dates, and capacity figures below
-          are synthetic examples. They do not describe real people, projects, or outcomes.
+          This development workspace uses synthetic records. Recorded assessments and
+          organization acceptance are separate decisions.
         </p>
       </aside>
 
@@ -125,17 +127,17 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 id="capacity-warning-title" className="font-semibold text-amber-950">
-                Sample capacity warning
+                Review capacity
               </h2>
               <p className="mt-1 text-sm leading-6 text-amber-900">
-                The sample workload lists {data.reviewCapacity.expectedReviewsThisWeek} reviews
-                this week against a sample capacity of{" "}
+                The current workload lists {data.reviewCapacity.expectedReviewsThisWeek} reviews
+                pending against a weekly capacity of{" "}
                 {data.reviewCapacity.weeklyReviewCapacity}. Review commitments before taking on
                 more work.
               </p>
             </div>
             <span className="w-fit rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-950">
-              Example only
+              Development records
             </span>
           </div>
         </section>
@@ -206,7 +208,7 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
                       >
                         View proposal details
                       </Link>
-                      <ProposalDecisionButtons />
+                      <ProposalDecisionButtons assignmentId={proposal.id} onChanged={onChanged} />
                     </div>
                   </article>
                 </li>
@@ -320,6 +322,7 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
                     <p className="mt-3 text-sm font-medium text-violet-950">
                       Status: Pending. No assessment has been recorded.
                     </p>
+                    {review.participationId && <Link className="mt-3 inline-block font-medium text-teal-900 underline" href={`/mentor/participations/${review.participationId}`}>Review submitted evidence</Link>}
                   </article>
                 </li>
               ))}
@@ -338,7 +341,7 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
             count={data.upcomingDeadlines.length}
           />
           {data.upcomingDeadlines.length === 0 ? (
-            <EmptyState>There are no upcoming deadlines in this sample view.</EmptyState>
+            <EmptyState>There are no upcoming deadlines in this view.</EmptyState>
           ) : (
             <ul className="divide-y divide-slate-200">
               {data.upcomingDeadlines.map((deadline) => (
@@ -361,14 +364,14 @@ function MentorDashboardContent({ data }: { data: MentorDashboardData }) {
       </div>
 
       <p className="mt-8 text-sm leading-6 text-slate-500">
-        This sample dashboard is for layout demonstration only. It does not provide live
-        assignments, student records, assessments, or project outcomes.
+        Assignments and assessments are loaded from the API in authenticated mode.
+        Presentation mode uses separate synthetic fixtures.
       </p>
     </main>
   );
 }
 
-export function MentorDashboard({ data, state }: MentorDashboardProps) {
+export function MentorDashboard({ data, state, onChanged }: MentorDashboardProps) {
   if (state === "loading") {
     return <LoadingState />;
   }
@@ -377,5 +380,5 @@ export function MentorDashboard({ data, state }: MentorDashboardProps) {
     return <ErrorState />;
   }
 
-  return <MentorDashboardContent data={data} />;
+  return <MentorDashboardContent data={data} onChanged={onChanged} />;
 }

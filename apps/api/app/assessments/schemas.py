@@ -85,7 +85,7 @@ class SubmissionPage(Input):
 
 
 class MentorObservation(Input):
-    criterion_text: Annotated[str, Field(min_length=2, max_length=200)]
+    criterion_text: Annotated[str, Field(min_length=2, max_length=1000)]
     score: int | None = Field(default=None, ge=1, le=5)
     observation: Annotated[str, Field(min_length=5, max_length=2000)]
 
@@ -116,7 +116,7 @@ class MentorReviewPage(Input):
 
 
 class OrganizationCriterionResult(Input):
-    criterion_text: Annotated[str, Field(min_length=2, max_length=200)]
+    criterion_text: Annotated[str, Field(min_length=2, max_length=1000)]
     met: bool
     explanation: Annotated[str, Field(min_length=5, max_length=2000)]
 

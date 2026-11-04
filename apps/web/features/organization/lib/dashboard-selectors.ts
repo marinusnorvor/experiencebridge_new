@@ -42,5 +42,8 @@ export function dashboardHref(view: DashboardCategory, recordId?: string) {
 }
 
 export function formatDashboardDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+  const datePart = (value || "").slice(0, 10);
+  const parsed = new Date(`${datePart}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return value || "Not scheduled";
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" }).format(parsed);
 }

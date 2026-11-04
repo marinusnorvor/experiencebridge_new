@@ -2,8 +2,7 @@ import type { DemoState } from "../types/portal";
 import type { DashboardRecord, DashboardSnapshot } from "../types/dashboard";
 
 /** One local read model keeps dashboard counts consistent with demo decisions. */
-export function portalDashboard(state: DemoState): DashboardSnapshot {
-  const asOf = "2026-10-31";
+export function portalDashboard(state: DemoState, asOf = "2026-10-31"): DashboardSnapshot {
   const projects: DashboardSnapshot["projects"] = state.projects.filter((project) => project.status === "Active" || project.status === "Recruiting").map((project) => ({
     id: project.id, title: project.title, summary: project.problem, discipline: project.skills,
     state: project.status as "Active" | "Recruiting", completedMilestones: project.milestones.filter((item) => item.done).length,

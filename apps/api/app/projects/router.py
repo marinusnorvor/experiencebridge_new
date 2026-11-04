@@ -18,6 +18,8 @@ from app.projects.models import ModerationDecision, Project, TermsVersion
 from app.projects.schemas import (
     DecisionInput, Empty, OrganizationCreate, ProjectCreate, RequiredReason, SubmitProject, TermsCreate,
     OrganizationRead, OrganizationPage, ProjectRead, ProjectPage, TermsRead, ProjectReviewPage,
+    AdminStats, AuditLogPage, AdminUserOversightPage, AdminApplicationOversightPage, AdminParticipationOversightPage,
+    AdminProjectPage, OrganizationStatus, ProjectStatus, ApplicationStatus, ParticipationStatus, GlobalRole,
 )
 
 
@@ -141,7 +143,7 @@ def submit_organization(org_id: UUID, body: Empty, request: Request, response: R
 def organization_queue(response: Response, db: DB, user: Actor):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    return page(db.scalars(select(Organization).where(Organization.verification_status == "submitted")).all())
+    return page(db.scalars(select(Organization).where(Organization.verification_status == "submitted").order_by(Organization.created_at, Organization.id)).all())
 
 
 @router.post("/admin/organizations/{org_id}/decisions", response_model=OrganizationRead)
@@ -162,6 +164,217 @@ def organization_decision(org_id: UUID, body: DecisionInput, request: Request, r
         audit(db, user, request, "organization.verification_decided", org, decision=body.decision)
         return serialize(org)
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
+
+
+@router.get("/admin/stats", response_model=AdminStats)
+def admin_stats(response: Response, db: DB, user: Actor):
+    """Live aggregate counts read directly from the database (no cached or synthetic values)."""
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+
+    from app.applications.models import Application, Offer, Participation
+    from app.assessments.models import Submission
+    from app.core.commands import AuditEvent
+    from app.identity.models import UserRoleGrant
+    from app.mentorship.models import MentorProfile
+
+    def breakdown(column, id_column):
+        counts = {status: count for status, count in db.execute(select(column, func.count(id_column)).group_by(column)).all()}
+        counts["total"] = sum(counts.values())
+        return counts
+
+    users = {role: count for role, count in db.execute(
+        select(UserRoleGrant.role, func.count(UserRoleGrant.user_id.distinct()))
+        .where(UserRoleGrant.revoked_at.is_(None)).group_by(UserRoleGrant.role)
+    ).all()}
+    users["total"] = db.scalar(select(func.count(User.id))) or 0
+
+    return {
+        "organizations": breakdown(Organization.verification_status, Organization.id),
+        "projects": breakdown(Project.status, Project.id),
+        "mentors": breakdown(MentorProfile.eligibility_status, MentorProfile.id),
+        "applications": breakdown(Application.status, Application.id),
+        "offers": breakdown(Offer.status, Offer.id),
+        "participations": breakdown(Participation.status, Participation.id),
+        "submissions": breakdown(Submission.status, Submission.id),
+        "users": users,
+        "total_audit_events": db.scalar(select(func.count(AuditEvent.id))) or 0,
+    }
+
+
+@router.get("/admin/audit-logs", response_model=AuditLogPage)
+def admin_audit_logs(
+    response: Response,
+    db: DB,
+    user: Actor,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    event_type: str | None = Query(None, max_length=80),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.core.commands import AuditEvent
+
+    filters = [AuditEvent.event_type == event_type] if event_type else []
+    total = db.scalar(select(func.count(AuditEvent.id)).where(*filters)) or 0
+    rows = db.execute(
+        select(AuditEvent, User.email, User.display_name)
+        .outerjoin(User, AuditEvent.actor_user_id == User.id)
+        .where(*filters)
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id)
+        .offset(offset).limit(limit)
+    ).all()
+    items = [{
+        "id": event.id, "actor_user_id": event.actor_user_id, "actor_email": email, "actor_name": name,
+        "event_type": event.event_type, "entity_id": event.entity_id, "request_id": event.request_id,
+        "details": event.details or {}, "created_at": event.created_at, "row_version": event.row_version,
+    } for event, email, name in rows]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/admin/organizations", response_model=OrganizationPage)
+def admin_all_organizations(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: OrganizationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    query = select(Organization)
+    if status:
+        query = query.where(Organization.verification_status == status)
+    records = db.scalars(query.order_by(Organization.created_at.desc(), Organization.id).offset(offset).limit(limit)).all()
+    return {"items": [serialize(r) for r in records], "next_cursor": None}
+
+
+@router.get("/admin/projects", response_model=AdminProjectPage)
+def admin_all_projects(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: ProjectStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Every project across lifecycle states. Drafts carry no terms; none are invented."""
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    query = select(Project, Organization.display_name, Organization.verification_status).join(
+        Organization, Organization.id == Project.organization_id)
+    if status:
+        query = query.where(Project.status == status)
+    total = db.scalar(select(func.count(Project.id)).where(*( [Project.status == status] if status else []))) or 0
+    rows = db.execute(query.order_by(Project.created_at.desc(), Project.id).offset(offset).limit(limit)).all()
+    items = []
+    for project, org_name, org_status in rows:
+        version = project.submitted_terms_version or project.published_terms_version
+        terms = db.scalar(select(TermsVersion).where(
+            TermsVersion.project_id == project.id, TermsVersion.version_no == version)) if version else None
+        data = serialize(project)
+        add_published_terms_ids(db, [data], include_submitted=True)
+        items.append({"project": data, "terms": serialize(terms) if terms else None,
+                      "organization_name": org_name, "organization_verification_status": org_status})
+    return {"items": items, "total": total}
+
+
+@router.get("/admin/oversight/users", response_model=AdminUserOversightPage)
+def admin_oversight_users(
+    response: Response,
+    db: DB,
+    user: Actor,
+    role: GlobalRole | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.identity.models import UserRoleGrant
+
+    users_query = select(User)
+    if role:
+        users_query = users_query.where(User.id.in_(select(UserRoleGrant.user_id).where(
+            UserRoleGrant.role == role, UserRoleGrant.revoked_at.is_(None))))
+    total = db.scalar(select(func.count()).select_from(users_query.subquery())) or 0
+    users = db.scalars(users_query.order_by(User.created_at.desc(), User.id).offset(offset).limit(limit)).all()
+    items = [{
+        "id": u.id, "email": u.email, "display_name": u.display_name, "account_status": u.account_status,
+        "roles": [g.role for g in u.role_grants if g.revoked_at is None], "created_at": u.created_at,
+    } for u in users]
+    return {"items": items, "total": total}
+
+
+@router.get("/admin/oversight/applications", response_model=AdminApplicationOversightPage)
+def admin_oversight_applications(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: ApplicationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Selection metadata only; motivation text and links stay with the organization review."""
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.applications.models import Application, Offer
+
+    filters = [Application.status == status] if status else []
+    total = db.scalar(select(func.count(Application.id)).where(*filters)) or 0
+    latest_offer = (select(Offer.status).where(Offer.application_id == Application.id)
+                    .order_by(Offer.created_at.desc()).limit(1).correlate(Application).scalar_subquery())
+    rows = db.execute(
+        select(Application, Project.title, User.email, User.display_name, latest_offer.label("offer_status"))
+        .join(Project, Application.project_id == Project.id)
+        .join(User, Application.student_user_id == User.id)
+        .where(*filters).order_by(Application.created_at.desc(), Application.id).offset(offset).limit(limit)
+    ).all()
+    items = [{
+        "id": a.id, "project_id": a.project_id, "project_title": title, "student_user_id": a.student_user_id,
+        "student_email": email, "student_name": name, "status": a.status, "offer_status": offer_status,
+        "weekly_minutes_available": a.weekly_minutes_available, "created_at": a.created_at, "row_version": a.row_version,
+    } for a, title, email, name, offer_status in rows]
+    return {"items": items, "total": total}
+
+
+@router.get("/admin/oversight/participations", response_model=AdminParticipationOversightPage)
+def admin_oversight_participations(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: ParticipationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Progress metadata only: submission counts by status, never evidence contents."""
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.applications.models import Participation
+    from app.assessments.models import Submission
+
+    filters = [Participation.status == status] if status else []
+    total = db.scalar(select(func.count(Participation.id)).where(*filters)) or 0
+    rows = db.execute(
+        select(Participation, Project.title, User.email, User.display_name)
+        .join(Project, Participation.project_id == Project.id)
+        .join(User, Participation.student_user_id == User.id)
+        .where(*filters).order_by(Participation.created_at.desc(), Participation.id).offset(offset).limit(limit)
+    ).all()
+    ids = [part.id for part, *_ in rows]
+    counts: dict = {}
+    if ids:
+        for pid, sub_status, count in db.execute(
+            select(Submission.participation_id, Submission.status, func.count(Submission.id))
+            .where(Submission.participation_id.in_(ids)).group_by(Submission.participation_id, Submission.status)
+        ).all():
+            counts.setdefault(pid, {})[sub_status] = count
+    items = [{
+        "id": part.id, "project_id": part.project_id, "project_title": title, "student_user_id": part.student_user_id,
+        "student_email": email, "student_name": name, "status": part.status, "started_at": part.started_at,
+        "submission_counts": counts.get(part.id, {}), "created_at": part.created_at, "row_version": part.row_version,
+    } for part, title, email, name in rows]
+    return {"items": items, "total": total}
 
 
 def project_values(body):
@@ -221,7 +434,9 @@ def edit_project(project_id: UUID, body: ProjectCreate, request: Request, respon
 def organization_projects(org_id: UUID, response: Response, db: DB, user: Actor):
     require_member(db, org_id, user)
     response.headers["Cache-Control"] = "no-store, private"
-    return page(db.scalars(select(Project).where(Project.organization_id == org_id).order_by(Project.created_at.desc())).all())
+    result = page(db.scalars(select(Project).where(Project.organization_id == org_id).order_by(Project.created_at.desc())).all())
+    add_published_terms_ids(db, result["items"], include_submitted=True)
+    return result
 
 
 @router.get("/projects", response_model=ProjectPage, response_model_exclude_none=True)
@@ -230,8 +445,32 @@ def discover_projects(db: DB, q: str = Query(default="", max_length=100), limit:
     if q:
         query = query.where(Project.title.icontains(q, autoescape=True))
     records = db.scalars(query.order_by(Project.created_at.desc(), Project.id).limit(limit + 1).offset(offset)).all()
-    return {"items": [public_project(p) for p in records[:limit]],
+    items = [public_project(p) for p in records[:limit]]
+    add_published_terms_ids(db, items)
+    return {"items": items,
             "next_offset": offset + limit if len(records) > limit else None}
+
+
+def add_published_terms_ids(db, items, include_submitted=False):
+    """Expose the identifier of already-disclosed published terms (and submitted terms for org members)."""
+    if not items:
+        return
+    ids = [UUID(str(item["id"])) for item in items]
+    rows = db.execute(select(TermsVersion.project_id, TermsVersion.id).join(
+        Project, (Project.id == TermsVersion.project_id) &
+        (Project.published_terms_version == TermsVersion.version_no)
+    ).where(Project.id.in_(ids))).all()
+    terms = {str(project_id): str(version_id) for project_id, version_id in rows}
+    for item in items:
+        item["published_terms_version_id"] = terms.get(str(item["id"]))
+    if include_submitted:
+        sub_rows = db.execute(select(TermsVersion.project_id, TermsVersion.id).join(
+            Project, (Project.id == TermsVersion.project_id) &
+            (Project.submitted_terms_version == TermsVersion.version_no)
+        ).where(Project.id.in_(ids))).all()
+        sub_terms = {str(project_id): str(version_id) for project_id, version_id in sub_rows}
+        for item in items:
+            item["submitted_terms_version_id"] = sub_terms.get(str(item["id"]))
 
 
 def public_project(project):
@@ -242,12 +481,14 @@ def public_project(project):
 def get_project(project_id: UUID, response: Response, db: DB, user: Actor):
     project = read_record(db, Project, project_id)
     org = read_record(db, Organization, project.organization_id)
-    if membership(db, org.id, user.id):
+    is_org_member = bool(membership(db, org.id, user.id))
+    if is_org_member:
         result = serialize(project)
     elif project.status == "open" and org.verification_status == "verified":
         result = public_project(project)
     else:
         fail("NOT_FOUND", "Project unavailable.", 404)
+    add_published_terms_ids(db, [result], include_submitted=is_org_member)
     headers(response, project)
     return result
 
@@ -312,7 +553,9 @@ def submit_project(project_id: UUID, body: SubmitProject, request: Request, resp
         project.status = "pending_review"
         project.row_version += 1
         audit(db, user, request, "project.review_submitted", project, terms_version_id=str(terms.id))
-        return serialize(project)
+        result = serialize(project)
+        add_published_terms_ids(db, [result], include_submitted=True)
+        return result
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
 
 
@@ -320,10 +563,12 @@ def submit_project(project_id: UUID, body: SubmitProject, request: Request, resp
 def project_queue(response: Response, db: DB, user: Actor):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    records = db.scalars(select(Project).where(Project.status == "pending_review")).all()
-    return {"items": [{"project": serialize(p), "terms": serialize(db.scalar(select(TermsVersion).where(
+    rows = db.execute(select(Project, Organization.display_name).join(
+        Organization, Organization.id == Project.organization_id
+    ).where(Project.status == "pending_review").order_by(Project.created_at, Project.id)).all()
+    return {"items": [{"project": serialize(p), "organization_name": org_name, "terms": serialize(db.scalar(select(TermsVersion).where(
         TermsVersion.project_id == p.id, TermsVersion.version_no == p.submitted_terms_version
-    )))} for p in records], "next_cursor": None}
+    )))} for p, org_name in rows], "next_cursor": None}
 
 
 @router.post("/admin/projects/{project_id}/decisions", response_model=ProjectRead)
@@ -351,7 +596,9 @@ def project_decision(project_id: UUID, body: DecisionInput, request: Request, re
         db.add(ModerationDecision(project_id=project_id, terms_version_id=terms.id, admin_user_id=user.id,
                                  decision=body.decision, explanation=body.explanation))
         audit(db, user, request, "project.moderation_decided", project, decision=body.decision, terms_version_id=str(terms.id))
-        return serialize(project)
+        result = serialize(project)
+        add_published_terms_ids(db, [result], include_submitted=True)
+        return result
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
 
 
@@ -403,6 +650,8 @@ def start_project(project_id: UUID, body: Empty, request: Request, response: Res
             )
             if not accepted_assignment:
                 fail("MENTOR_REQUIRED", f"Participant does not have an accepted mentor assignment.")
+            from app.mentorship.router import require_eligible_mentor
+            require_eligible_mentor(db, project, part.student_user_id, accepted_assignment.mentor_user_id)
             part.started_at = now
             part.row_version += 1
 

@@ -64,8 +64,8 @@ def require_workspace(db: Session, part: Participation, user: User) -> tuple[Pro
     )
     is_student = part.student_user_id == user.id
     is_mentor = assignment and assignment.mentor_user_id == user.id
-    is_manager = project.project_manager_user_id == user.id
-    is_reviewer = project.org_reviewer_user_id == user.id
+    is_manager = project.project_manager_user_id == user.id and bool(membership(db, project.organization_id, user.id, ["owner", "project_manager"]))
+    is_reviewer = project.org_reviewer_user_id == user.id and bool(membership(db, project.organization_id, user.id, ["owner", "project_manager", "reviewer"]))
     is_owner = bool(membership(db, project.organization_id, user.id, ["owner"]))
 
     if not (is_student or is_mentor or is_manager or is_reviewer or is_owner):
@@ -188,8 +188,8 @@ def patch_submission(
     if body.contribution_statement is not None:
         sub.contribution_statement = body.contribution_statement
     sub.row_version += 1
-    db.commit()
     audit(db, user, request, "submission.draft_updated", sub)
+    db.commit()
     headers(response, sub)
     return serialize_submission(db, sub)
 
@@ -247,6 +247,7 @@ def delete_artifact(
     artifact = read_record(db, Artifact, artifact_id)
     if artifact.submission_id != sub.id:
         fail("NOT_FOUND", "Artifact does not belong to this submission.", 404)
+    audit(db, user, request, "artifact.removed", artifact)
     db.delete(artifact)
     db.commit()
     return Response(status_code=204)
@@ -309,6 +310,8 @@ def create_mentor_review(
         )
         if not assignment or assignment.mentor_user_id != user.id:
             fail("FORBIDDEN", "Only the accepted mentor for this participation can submit mentor reviews.", 403)
+        from app.mentorship.router import require_eligible_mentor
+        require_eligible_mentor(db, read_record(db, Project, part.project_id), part.student_user_id, user.id)
 
     def action():
         sub = read_record(db, Submission, submission_id, lock=True)
@@ -380,6 +383,7 @@ def create_organization_review(
         sub = read_record(db, Submission, submission_id)
         part = read_record(db, Participation, sub.participation_id)
         project = read_record(db, Project, part.project_id)
+        require_member(db, project.organization_id, user, ["owner", "project_manager", "reviewer"])
         if project.org_reviewer_user_id != user.id:
             fail("FORBIDDEN", "Only the assigned organization reviewer can review deliverables.", 403)
 
