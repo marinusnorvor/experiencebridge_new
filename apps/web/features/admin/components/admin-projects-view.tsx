@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { termsSnapshot } from "../../student/lib/api-records";
-import { usePortalApi } from "@/lib/api/portal-api";
-import type { ProjectReviewItem } from "@experiencebridge/api-client";
+import { usePortalApi, type AdminProjectItem, type AdminProjectReviewItem } from "@/lib/api/portal-api";
 
 export function AdminProjectsView() {
   const { getApi, isSignedIn } = usePortalApi();
-  const [pendingProjects, setPendingProjects] = useState<ProjectReviewItem[]>([]);
-  const [allProjects, setAllProjects] = useState<ProjectReviewItem[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<AdminProjectReviewItem[]>([]);
+  const [allProjects, setAllProjects] = useState<AdminProjectItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [decisionReasons, setDecisionReasons] = useState<Record<string, string>>({});
@@ -47,7 +46,7 @@ export function AdminProjectsView() {
   }, [getApi, isSignedIn, statusFilter, refreshTrigger]);
 
   const handleDecision = async (
-    item: ProjectReviewItem,
+    item: AdminProjectReviewItem,
     decision: "approve" | "reject" | "request_changes"
   ) => {
     const reason = decisionReasons[item.project.id]?.trim() ?? "";
@@ -65,8 +64,8 @@ export function AdminProjectsView() {
         item.project.row_version,
         decision,
         reason,
-        item.terms.id,
-        item.terms.content_hash
+        item.terms?.id,
+        item.terms?.content_hash
       );
       if (res.error) {
         setNotification({ type: "error", message: res.error });
@@ -138,11 +137,16 @@ export function AdminProjectsView() {
         ) : (
           <div className="space-y-6">
             {pendingProjects.map((item) => {
-              const snapshot = termsSnapshot(item.terms);
+              const snapshot = item.terms ? termsSnapshot(item.terms) : null;
               return (
                 <div key={item.project.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div>
+                      {item.organization_name && (
+                        <div className="text-[11px] font-semibold text-indigo-400 mb-0.5">
+                          {item.organization_name}
+                        </div>
+                      )}
                       <h4 className="font-semibold text-white text-base">{item.project.title}</h4>
                       <p className="text-xs text-slate-400 mt-1">{item.project.description}</p>
                     </div>
@@ -151,58 +155,64 @@ export function AdminProjectsView() {
                         Capacity: {item.project.capacity}
                       </span>
                       <span className="rounded bg-slate-800 text-slate-400 text-[10px] font-mono px-2 py-0.5">
-                        v{item.terms.version_no}
+                        {item.terms ? `v${item.terms.version_no}` : "v-"}
                       </span>
                     </div>
                   </div>
 
                   {/* Terms Snapshot Inspection Details */}
-                  <details className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
-                    <summary className="cursor-pointer font-semibold text-indigo-400 hover:text-indigo-300">
-                      Inspect Complete Terms & Milestones ({snapshot.scope?.milestones?.length ?? 0} milestones)
-                    </summary>
-                    <div className="mt-3 space-y-3 pt-3 border-t border-slate-800 text-xs">
-                      <div>
-                        <strong className="text-white">Included Scope:</strong> {snapshot.scope?.scope_in}
-                      </div>
-                      <div>
-                        <strong className="text-white">Excluded Scope:</strong> {snapshot.scope?.scope_out}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/40 p-2.5 rounded">
+                  {snapshot ? (
+                    <details className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
+                      <summary className="cursor-pointer font-semibold text-indigo-400 hover:text-indigo-300">
+                        Inspect Complete Terms & Milestones ({snapshot.scope?.milestones?.length ?? 0} milestones)
+                      </summary>
+                      <div className="mt-3 space-y-3 pt-3 border-t border-slate-800 text-xs">
                         <div>
-                          <strong className="text-slate-200">Compensation:</strong>{" "}
-                          {snapshot.terms?.currency} {snapshot.terms?.fee_amount} ({snapshot.terms?.payment_terms})
+                          <strong className="text-white">Included Scope:</strong> {snapshot.scope?.scope_in}
                         </div>
                         <div>
-                          <strong className="text-slate-200">Timeline:</strong> {snapshot.scope?.start_on} to {snapshot.scope?.due_on}
+                          <strong className="text-white">Excluded Scope:</strong> {snapshot.scope?.scope_out}
                         </div>
-                        <div>
-                          <strong className="text-slate-200">IP Terms:</strong> {snapshot.terms?.ip_ownership_terms}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/40 p-2.5 rounded">
+                          <div>
+                            <strong className="text-slate-200">Compensation:</strong>{" "}
+                            {snapshot.terms?.currency} {snapshot.terms?.fee_amount} ({snapshot.terms?.payment_terms})
+                          </div>
+                          <div>
+                            <strong className="text-slate-200">Timeline:</strong> {snapshot.scope?.start_on} to {snapshot.scope?.due_on}
+                          </div>
+                          <div>
+                            <strong className="text-slate-200">IP Terms:</strong> {snapshot.terms?.ip_ownership_terms}
+                          </div>
+                          <div>
+                            <strong className="text-slate-200">Confidentiality:</strong> {snapshot.terms?.confidentiality_terms}
+                          </div>
                         </div>
-                        <div>
-                          <strong className="text-slate-200">Confidentiality:</strong> {snapshot.terms?.confidentiality_terms}
-                        </div>
-                      </div>
 
-                      {snapshot.scope?.milestones && snapshot.scope.milestones.length > 0 && (
-                        <div className="space-y-2">
-                          <strong className="text-white">Milestones:</strong>
-                          {(snapshot.scope.milestones as Array<{ title: string; due_on: string; acceptance_criteria?: string[] }>).map((m, idx: number) => (
-                            <div key={idx} className="rounded bg-slate-900 p-2 text-[11px] border border-slate-800">
-                              <div className="font-semibold text-slate-200">
-                                {idx + 1}. {m.title} (Due: {m.due_on})
+                        {snapshot.scope?.milestones && snapshot.scope.milestones.length > 0 && (
+                          <div className="space-y-2">
+                            <strong className="text-white">Milestones:</strong>
+                            {(snapshot.scope.milestones as Array<{ title: string; due_on: string; acceptance_criteria?: string[] }>).map((m, idx: number) => (
+                              <div key={idx} className="rounded bg-slate-900 p-2 text-[11px] border border-slate-800">
+                                <div className="font-semibold text-slate-200">
+                                  {idx + 1}. {m.title} (Due: {m.due_on})
+                                </div>
+                                <ul className="mt-1 list-disc list-inside text-slate-400 space-y-0.5">
+                                  {m.acceptance_criteria?.map((crit: string, cIdx: number) => (
+                                    <li key={cIdx}>{crit}</li>
+                                  ))}
+                                </ul>
                               </div>
-                              <ul className="mt-1 list-disc list-inside text-slate-400 space-y-0.5">
-                                {m.acceptance_criteria?.map((crit: string, cIdx: number) => (
-                                  <li key={cIdx}>{crit}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  ) : (
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400 italic">
+                      No terms snapshot attached to this submission.
                     </div>
-                  </details>
+                  )}
 
                   {/* Decision rationale */}
                   <div className="space-y-1.5 pt-2 border-t border-slate-800">
@@ -294,6 +304,7 @@ export function AdminProjectsView() {
             <thead className="border-b border-slate-800 text-slate-400">
               <tr>
                 <th className="py-2.5 px-3">Title</th>
+                <th className="py-2.5 px-3">Organization</th>
                 <th className="py-2.5 px-3">Status</th>
                 <th className="py-2.5 px-3">Capacity</th>
                 <th className="py-2.5 px-3">Terms Version</th>
@@ -304,7 +315,7 @@ export function AdminProjectsView() {
             <tbody className="divide-y divide-slate-850 text-slate-300">
               {filteredProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                  <td colSpan={7} className="py-8 text-center text-slate-400">
                     No projects match the selected criteria.
                   </td>
                 </tr>
@@ -312,6 +323,9 @@ export function AdminProjectsView() {
                 filteredProjects.map((item) => (
                   <tr key={item.project.id} className="hover:bg-slate-900/50">
                     <td className="py-2.5 px-3 font-medium text-white">{item.project.title}</td>
+                    <td className="py-2.5 px-3 font-medium text-indigo-300">
+                      {item.organization_name || item.project.organization_id.slice(0, 8)}
+                    </td>
                     <td className="py-2.5 px-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
@@ -335,7 +349,7 @@ export function AdminProjectsView() {
                     </td>
                     <td className="py-2.5 px-3">{item.project.capacity}</td>
                     <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
-                      v{item.project.published_terms_version ?? item.project.submitted_terms_version ?? 1}
+                      v{item.project.published_terms_version ?? item.project.submitted_terms_version ?? (item.terms?.version_no ?? "-")}
                     </td>
                     <td className="py-2.5 px-3 text-slate-400">
                       {new Date(item.project.created_at).toLocaleDateString()}

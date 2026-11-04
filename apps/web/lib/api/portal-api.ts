@@ -84,9 +84,24 @@ export interface AdminDashboardStats {
   projects: Record<string, number>;
   mentors: Record<string, number>;
   applications: Record<string, number>;
+  offers?: Record<string, number>;
   participations: Record<string, number>;
+  submissions?: Record<string, number>;
   users: Record<string, number>;
   total_audit_events: number;
+}
+
+export interface AdminProjectItem {
+  project: ProjectRead;
+  terms?: TermsRead | null;
+  organization_name?: string | null;
+  organization_verification_status?: string | null;
+}
+
+export interface AdminProjectReviewItem {
+  project: ProjectRead;
+  terms?: TermsRead | null;
+  organization_name?: string | null;
 }
 
 export interface AdminAuditLogItem {
@@ -106,6 +121,7 @@ export interface AdminUserOversightItem {
   id: string;
   email?: string | null;
   display_name: string;
+  account_status?: string;
   roles: string[];
   created_at: string;
 }
@@ -118,6 +134,7 @@ export interface AdminApplicationOversightItem {
   student_email?: string | null;
   student_name?: string | null;
   status: string;
+  offer_status?: string | null;
   weekly_minutes_available: number;
   created_at: string;
   row_version: number;
@@ -132,6 +149,7 @@ export interface AdminParticipationOversightItem {
   student_name?: string | null;
   status: string;
   started_at?: string | null;
+  submission_counts?: Record<string, number>;
   created_at: string;
   row_version: number;
 }
@@ -945,24 +963,24 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async getPendingProjects(): Promise<ApiResult<ProjectReviewItem[]>> {
+    async getPendingProjects(): Promise<ApiResult<AdminProjectReviewItem[]>> {
       try {
         const res = await client.GET("/api/v1/admin/projects/pending");
         if (!res.response.ok || !res.data) {
           return { data: null, error: apiError(res.error, `Failed to fetch pending projects (${res.response.status})`), status: res.response.status };
         }
-        const items = (res.data as { items: ProjectReviewItem[] }).items ?? [];
+        const items = (res.data as { items: AdminProjectReviewItem[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }
     },
 
-    async decideProject(projectId: string, rowVersion: number, decision: "approve" | "reject" | "request_changes", explanation: string, termsVersionId: string, snapshotHash: string): Promise<ApiResult<ProjectRead>> {
+    async decideProject(projectId: string, rowVersion: number, decision: "approve" | "reject" | "request_changes", explanation: string, termsVersionId?: string | null, snapshotHash?: string | null): Promise<ApiResult<ProjectRead>> {
       try {
         const res = await client.POST("/api/v1/admin/projects/{project_id}/decisions", {
           params: { path: { project_id: projectId } },
-          body: { decision, explanation, terms_version_id: termsVersionId, snapshot_hash: snapshotHash },
+          body: { decision, explanation, terms_version_id: termsVersionId ?? "", snapshot_hash: snapshotHash ?? "" },
           headers: headers(rowVersion),
         });
         if (!res.response.ok || !res.data) {
@@ -1032,14 +1050,14 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
-    async getAllProjects(status?: string): Promise<ApiResult<ProjectReviewItem[]>> {
+    async getAllProjects(status?: string): Promise<ApiResult<AdminProjectItem[]>> {
       try {
         const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
         const res = await raw.GET("/api/v1/admin/projects", { params: { query: status ? { status } : undefined }, cache: "no-store" });
         if (!res.response.ok || !res.data) {
           return { data: null, error: apiError(res.error, `Failed to fetch admin projects (${res.response.status})`), status: res.response.status };
         }
-        const items = (res.data as { items: ProjectReviewItem[] }).items ?? [];
+        const items = (res.data as { items: AdminProjectItem[] }).items ?? [];
         return { data: items, error: null, status: res.response.status };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };

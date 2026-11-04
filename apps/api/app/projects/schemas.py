@@ -137,9 +137,17 @@ class ProjectPage(BaseModel):
     next_offset: int | None = None
 
 
+OrganizationStatus = Literal["draft", "submitted", "verified", "changes_requested", "rejected"]
+ProjectStatus = Literal["draft", "pending_review", "changes_requested", "rejected", "open", "in_progress", "completed", "cancelled"]
+ApplicationStatus = Literal["submitted", "under_review", "shortlisted", "rejected", "offered", "withdrawn"]
+ParticipationStatus = Literal["active", "under_review", "completed", "partially_completed", "withdrawn", "cancelled"]
+GlobalRole = Literal["student", "mentor_candidate", "platform_admin"]
+
+
 class ProjectReviewItem(BaseModel):
     project: ProjectRead
-    terms: TermsRead
+    terms: TermsRead | None = None
+    organization_name: str | None = None
 
 
 class ProjectReviewPage(BaseModel):
@@ -147,12 +155,26 @@ class ProjectReviewPage(BaseModel):
     next_cursor: str | None = None
 
 
+class AdminProjectItem(BaseModel):
+    project: ProjectRead
+    terms: TermsRead | None = None
+    organization_name: str | None = None
+    organization_verification_status: str | None = None
+
+
+class AdminProjectPage(BaseModel):
+    items: list[AdminProjectItem]
+    total: int
+
+
 class AdminStats(BaseModel):
     organizations: dict[str, int]
     projects: dict[str, int]
     mentors: dict[str, int]
     applications: dict[str, int]
+    offers: dict[str, int] = {}
     participations: dict[str, int]
+    submissions: dict[str, int] = {}
     users: dict[str, int]
     total_audit_events: int
 
@@ -181,6 +203,7 @@ class AdminUserOversight(BaseModel):
     id: UUID
     email: str | None = None
     display_name: str
+    account_status: str = "active"
     roles: list[str]
     created_at: datetime
 
@@ -198,6 +221,7 @@ class AdminApplicationOversight(BaseModel):
     student_email: str | None = None
     student_name: str | None = None
     status: str
+    offer_status: str | None = None
     weekly_minutes_available: int
     created_at: datetime
     row_version: int
@@ -217,6 +241,7 @@ class AdminParticipationOversight(BaseModel):
     student_name: str | None = None
     status: str
     started_at: datetime | None = None
+    submission_counts: dict[str, int] = {}
     created_at: datetime
     row_version: int
 

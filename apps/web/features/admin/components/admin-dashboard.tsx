@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { termsSnapshot } from "../../student/lib/api-records";
-import { usePortalApi } from "@/lib/api/portal-api";
-import type { OrganizationRead, ProjectReviewItem, MentorProfileRead } from "@experiencebridge/api-client";
+import { usePortalApi, type AdminProjectReviewItem } from "@/lib/api/portal-api";
+import type { OrganizationRead, MentorProfileRead } from "@experiencebridge/api-client";
 
 export function AdminDashboard() {
   const { getApi, isSignedIn } = usePortalApi();
@@ -11,7 +11,7 @@ export function AdminDashboard() {
   const [busy, setBusy] = useState(false);
   const acting = useRef(false);
   const [pendingOrgs, setPendingOrgs] = useState<OrganizationRead[]>([]);
-  const [pendingProjects, setPendingProjects] = useState<ProjectReviewItem[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<AdminProjectReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export function AdminDashboard() {
     } finally { acting.current = false; setBusy(false); }
   };
 
-  const handleProjectDecision = async (item: ProjectReviewItem, decision: "approve" | "reject") => {
+  const handleProjectDecision = async (item: AdminProjectReviewItem, decision: "approve" | "reject") => {
     if (acting.current) return;
     acting.current = true; setBusy(true);
     setActionError(null);
@@ -110,7 +110,8 @@ export function AdminDashboard() {
         item.project.row_version,
         decision,
         decisionReasons[item.project.id]?.trim() ?? "",
-        item.terms.id, item.terms.content_hash
+        item.terms?.id,
+        item.terms?.content_hash
       );
       if (res.error) {
         setActionError(res.error);
@@ -254,16 +255,18 @@ export function AdminDashboard() {
                   <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
                     <span>Capacity: {item.project.capacity}</span>
                     <span>•</span>
-                    <span className="font-mono text-[11px]">Hash: {item.terms.content_hash.slice(0, 8)}...</span>
+                    <span className="font-mono text-[11px]">Hash: {item.terms ? item.terms.content_hash.slice(0, 8) : "N/A"}...</span>
                   </div>
-                  <details className="mt-3 space-y-2 text-xs"><summary>Review complete scope and terms</summary>
-                    <p>Scope: {termsSnapshot(item.terms).scope.scope_in}</p><p>Excluded: {termsSnapshot(item.terms).scope.scope_out}</p>
-                    <p>Dates: {termsSnapshot(item.terms).scope.start_on} to {termsSnapshot(item.terms).scope.due_on}</p>
-                    <p>Compensation: {termsSnapshot(item.terms).terms.currency} {termsSnapshot(item.terms).terms.fee_amount}. {termsSnapshot(item.terms).terms.payment_terms}</p>
-                    <p>IP: {termsSnapshot(item.terms).terms.ip_ownership_terms}</p><p>Confidentiality: {termsSnapshot(item.terms).terms.confidentiality_terms}</p>
-                    <p>Mentor plan: {termsSnapshot(item.terms).terms.mentor_plan}</p>
-                    {termsSnapshot(item.terms).scope.milestones.map((m,i)=><div key={i}><strong>{m.title} - {m.due_on}</strong><ul>{m.acceptance_criteria.map((c,j)=><li key={j}>{c}</li>)}</ul></div>)}
-                  </details>
+                  {item.terms && (
+                    <details className="mt-3 space-y-2 text-xs"><summary>Review complete scope and terms</summary>
+                      <p>Scope: {termsSnapshot(item.terms).scope.scope_in}</p><p>Excluded: {termsSnapshot(item.terms).scope.scope_out}</p>
+                      <p>Dates: {termsSnapshot(item.terms).scope.start_on} to {termsSnapshot(item.terms).scope.due_on}</p>
+                      <p>Compensation: {termsSnapshot(item.terms).terms.currency} {termsSnapshot(item.terms).terms.fee_amount}. {termsSnapshot(item.terms).terms.payment_terms}</p>
+                      <p>IP: {termsSnapshot(item.terms).terms.ip_ownership_terms}</p><p>Confidentiality: {termsSnapshot(item.terms).terms.confidentiality_terms}</p>
+                      <p>Mentor plan: {termsSnapshot(item.terms).terms.mentor_plan}</p>
+                      {termsSnapshot(item.terms).scope.milestones.map((m,i)=><div key={i}><strong>{m.title} - {m.due_on}</strong><ul>{m.acceptance_criteria.map((c,j)=><li key={j}>{c}</li>)}</ul></div>)}
+                    </details>
+                  )}
                   <label className="mt-3 block text-xs">Decision rationale<textarea minLength={10} maxLength={2000} value={decisionReasons[item.project.id] ?? ""} onChange={e => setDecisionReasons({...decisionReasons,[item.project.id]:e.target.value})} className="mt-1 block w-full rounded border p-2" /></label>
                   <div className="mt-4 flex gap-2">
                     <button

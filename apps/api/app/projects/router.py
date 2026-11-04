@@ -18,8 +18,8 @@ from app.projects.models import ModerationDecision, Project, TermsVersion
 from app.projects.schemas import (
     DecisionInput, Empty, OrganizationCreate, ProjectCreate, RequiredReason, SubmitProject, TermsCreate,
     OrganizationRead, OrganizationPage, ProjectRead, ProjectPage, TermsRead, ProjectReviewPage,
-    AdminStats, AuditLogItem, AuditLogPage, AdminUserOversight, AdminUserOversightPage,
-    AdminApplicationOversight, AdminApplicationOversightPage, AdminParticipationOversight, AdminParticipationOversightPage,
+    AdminStats, AuditLogPage, AdminUserOversightPage, AdminApplicationOversightPage, AdminParticipationOversightPage,
+    AdminProjectPage, OrganizationStatus, ProjectStatus, ApplicationStatus, ParticipationStatus, GlobalRole,
 )
 
 
@@ -143,7 +143,7 @@ def submit_organization(org_id: UUID, body: Empty, request: Request, response: R
 def organization_queue(response: Response, db: DB, user: Actor):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    return page(db.scalars(select(Organization).where(Organization.verification_status == "submitted")).all())
+    return page(db.scalars(select(Organization).where(Organization.verification_status == "submitted").order_by(Organization.created_at, Organization.id)).all())
 
 
 @router.post("/admin/organizations/{org_id}/decisions", response_model=OrganizationRead)
@@ -168,62 +168,37 @@ def organization_decision(org_id: UUID, body: DecisionInput, request: Request, r
 
 @router.get("/admin/stats", response_model=AdminStats)
 def admin_stats(response: Response, db: DB, user: Actor):
+    """Live aggregate counts read directly from the database (no cached or synthetic values)."""
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
 
-    from app.organizations.models import Organization
-    from app.projects.models import Project
-    from app.mentorship.models import MentorProfile
-    from app.applications.models import Application, Participation
-    from app.identity.models import User, UserRoleGrant
+    from app.applications.models import Application, Offer, Participation
+    from app.assessments.models import Submission
     from app.core.commands import AuditEvent
+    from app.identity.models import UserRoleGrant
+    from app.mentorship.models import MentorProfile
 
-    # Organizations breakdown
-    org_rows = db.execute(select(Organization.verification_status, func.count(Organization.id)).group_by(Organization.verification_status)).all()
-    org_counts = {status: count for status, count in org_rows}
-    org_counts["total"] = sum(org_counts.values())
+    def breakdown(column, id_column):
+        counts = {status: count for status, count in db.execute(select(column, func.count(id_column)).group_by(column)).all()}
+        counts["total"] = sum(counts.values())
+        return counts
 
-    # Projects breakdown
-    proj_rows = db.execute(select(Project.status, func.count(Project.id)).group_by(Project.status)).all()
-    proj_counts = {status: count for status, count in proj_rows}
-    proj_counts["total"] = sum(proj_counts.values())
-
-    # Mentors breakdown
-    mentor_rows = db.execute(select(MentorProfile.eligibility_status, func.count(MentorProfile.id)).group_by(MentorProfile.eligibility_status)).all()
-    mentor_counts = {status: count for status, count in mentor_rows}
-    mentor_counts["total"] = sum(mentor_counts.values())
-
-    # Applications breakdown
-    app_rows = db.execute(select(Application.status, func.count(Application.id)).group_by(Application.status)).all()
-    app_counts = {status: count for status, count in app_rows}
-    app_counts["total"] = sum(app_counts.values())
-
-    # Participations breakdown
-    part_rows = db.execute(select(Participation.status, func.count(Participation.id)).group_by(Participation.status)).all()
-    part_counts = {status: count for status, count in part_rows}
-    part_counts["total"] = sum(part_counts.values())
-
-    # Users breakdown
-    total_users = db.scalar(select(func.count(User.id))) or 0
-    role_rows = db.execute(
+    users = {role: count for role, count in db.execute(
         select(UserRoleGrant.role, func.count(UserRoleGrant.user_id.distinct()))
-        .where(UserRoleGrant.revoked_at.is_(None))
-        .group_by(UserRoleGrant.role)
-    ).all()
-    user_counts = {role: count for role, count in role_rows}
-    user_counts["total"] = total_users
-
-    # Audit events
-    total_audit_events = db.scalar(select(func.count(AuditEvent.id))) or 0
+        .where(UserRoleGrant.revoked_at.is_(None)).group_by(UserRoleGrant.role)
+    ).all()}
+    users["total"] = db.scalar(select(func.count(User.id))) or 0
 
     return {
-        "organizations": org_counts,
-        "projects": proj_counts,
-        "mentors": mentor_counts,
-        "applications": app_counts,
-        "participations": part_counts,
-        "users": user_counts,
-        "total_audit_events": total_audit_events,
+        "organizations": breakdown(Organization.verification_status, Organization.id),
+        "projects": breakdown(Project.status, Project.id),
+        "mentors": breakdown(MentorProfile.eligibility_status, MentorProfile.id),
+        "applications": breakdown(Application.status, Application.id),
+        "offers": breakdown(Offer.status, Offer.id),
+        "participations": breakdown(Participation.status, Participation.id),
+        "submissions": breakdown(Submission.status, Submission.id),
+        "users": users,
+        "total_audit_events": db.scalar(select(func.count(AuditEvent.id))) or 0,
     }
 
 
@@ -234,38 +209,26 @@ def admin_audit_logs(
     user: Actor,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    event_type: str | None = Query(None),
+    event_type: str | None = Query(None, max_length=80),
 ):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-
     from app.core.commands import AuditEvent
-    from app.identity.models import User
 
-    query = select(AuditEvent, User.email, User.display_name).outerjoin(User, AuditEvent.actor_user_id == User.id)
-    if event_type:
-        query = query.where(AuditEvent.event_type == event_type)
-
-    total = db.scalar(select(func.count(AuditEvent.id))) or 0
+    filters = [AuditEvent.event_type == event_type] if event_type else []
+    total = db.scalar(select(func.count(AuditEvent.id)).where(*filters)) or 0
     rows = db.execute(
-        query.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit)
+        select(AuditEvent, User.email, User.display_name)
+        .outerjoin(User, AuditEvent.actor_user_id == User.id)
+        .where(*filters)
+        .order_by(AuditEvent.created_at.desc(), AuditEvent.id)
+        .offset(offset).limit(limit)
     ).all()
-
-    items = [
-        {
-            "id": event.id,
-            "actor_user_id": event.actor_user_id,
-            "actor_email": email,
-            "actor_name": display_name,
-            "event_type": event.event_type,
-            "entity_id": event.entity_id,
-            "request_id": event.request_id,
-            "details": event.details or {},
-            "created_at": event.created_at,
-            "row_version": event.row_version,
-        }
-        for event, email, display_name in rows
-    ]
+    items = [{
+        "id": event.id, "actor_user_id": event.actor_user_id, "actor_email": email, "actor_name": name,
+        "event_type": event.event_type, "entity_id": event.entity_id, "request_id": event.request_id,
+        "details": event.details or {}, "created_at": event.created_at, "row_version": event.row_version,
+    } for event, email, name in rows]
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
@@ -274,8 +237,8 @@ def admin_all_organizations(
     response: Response,
     db: DB,
     user: Actor,
-    status: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    status: OrganizationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     require_admin(user)
@@ -283,48 +246,38 @@ def admin_all_organizations(
     query = select(Organization)
     if status:
         query = query.where(Organization.verification_status == status)
-    records = db.scalars(query.order_by(Organization.created_at.desc()).offset(offset).limit(limit)).all()
+    records = db.scalars(query.order_by(Organization.created_at.desc(), Organization.id).offset(offset).limit(limit)).all()
     return {"items": [serialize(r) for r in records], "next_cursor": None}
 
 
-@router.get("/admin/projects", response_model=ProjectReviewPage)
+@router.get("/admin/projects", response_model=AdminProjectPage)
 def admin_all_projects(
     response: Response,
     db: DB,
     user: Actor,
-    status: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    status: ProjectStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
+    """Every project across lifecycle states. Drafts carry no terms; none are invented."""
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    query = select(Project)
+    query = select(Project, Organization.display_name, Organization.verification_status).join(
+        Organization, Organization.id == Project.organization_id)
     if status:
         query = query.where(Project.status == status)
-    records = db.scalars(query.order_by(Project.created_at.desc()).offset(offset).limit(limit)).all()
+    total = db.scalar(select(func.count(Project.id)).where(*( [Project.status == status] if status else []))) or 0
+    rows = db.execute(query.order_by(Project.created_at.desc(), Project.id).offset(offset).limit(limit)).all()
     items = []
-    for p in records:
-        terms_ver = p.submitted_terms_version or p.published_terms_version or 1
+    for project, org_name, org_status in rows:
+        version = project.submitted_terms_version or project.published_terms_version
         terms = db.scalar(select(TermsVersion).where(
-            TermsVersion.project_id == p.id,
-            TermsVersion.version_no == terms_ver,
-        ))
-        p_data = serialize(p)
-        add_published_terms_ids(db, [p_data], include_submitted=True)
-        items.append({
-            "project": p_data,
-            "terms": serialize(terms) if terms else {
-                "id": p.id,
-                "project_id": p.id,
-                "version_no": terms_ver,
-                "snapshot": p.scope or {},
-                "content_hash": "synthetic",
-                "created_by_user_id": user.id,
-                "created_at": p.created_at,
-                "row_version": 1,
-            },
-        })
-    return {"items": items, "next_cursor": None}
+            TermsVersion.project_id == project.id, TermsVersion.version_no == version)) if version else None
+        data = serialize(project)
+        add_published_terms_ids(db, [data], include_submitted=True)
+        items.append({"project": data, "terms": serialize(terms) if terms else None,
+                      "organization_name": org_name, "organization_verification_status": org_status})
+    return {"items": items, "total": total}
 
 
 @router.get("/admin/oversight/users", response_model=AdminUserOversightPage)
@@ -332,36 +285,24 @@ def admin_oversight_users(
     response: Response,
     db: DB,
     user: Actor,
-    role: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    role: GlobalRole | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    from app.identity.models import User, UserRoleGrant
+    from app.identity.models import UserRoleGrant
 
-    users_query = select(User).order_by(User.created_at.desc())
+    users_query = select(User)
     if role:
-        users_query = users_query.where(
-            User.id.in_(
-                select(UserRoleGrant.user_id).where(
-                    UserRoleGrant.role == role,
-                    UserRoleGrant.revoked_at.is_(None),
-                )
-            )
-        )
+        users_query = users_query.where(User.id.in_(select(UserRoleGrant.user_id).where(
+            UserRoleGrant.role == role, UserRoleGrant.revoked_at.is_(None))))
     total = db.scalar(select(func.count()).select_from(users_query.subquery())) or 0
-    users = db.scalars(users_query.offset(offset).limit(limit)).all()
-    items = []
-    for u in users:
-        active_roles = [rg.role for rg in u.role_grants if rg.revoked_at is None]
-        items.append({
-            "id": u.id,
-            "email": u.email,
-            "display_name": u.display_name,
-            "roles": active_roles,
-            "created_at": u.created_at,
-        })
+    users = db.scalars(users_query.order_by(User.created_at.desc(), User.id).offset(offset).limit(limit)).all()
+    items = [{
+        "id": u.id, "email": u.email, "display_name": u.display_name, "account_status": u.account_status,
+        "roles": [g.role for g in u.role_grants if g.revoked_at is None], "created_at": u.created_at,
+    } for u in users]
     return {"items": items, "total": total}
 
 
@@ -370,40 +311,30 @@ def admin_oversight_applications(
     response: Response,
     db: DB,
     user: Actor,
-    status: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    status: ApplicationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
+    """Selection metadata only; motivation text and links stay with the organization review."""
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    from app.applications.models import Application
-    from app.projects.models import Project
-    from app.identity.models import User
+    from app.applications.models import Application, Offer
 
-    query = (
-        select(Application, Project.title, User.email, User.display_name)
+    filters = [Application.status == status] if status else []
+    total = db.scalar(select(func.count(Application.id)).where(*filters)) or 0
+    latest_offer = (select(Offer.status).where(Offer.application_id == Application.id)
+                    .order_by(Offer.created_at.desc()).limit(1).correlate(Application).scalar_subquery())
+    rows = db.execute(
+        select(Application, Project.title, User.email, User.display_name, latest_offer.label("offer_status"))
         .join(Project, Application.project_id == Project.id)
         .join(User, Application.student_user_id == User.id)
-    )
-    if status:
-        query = query.where(Application.status == status)
-    total = db.scalar(select(func.count(Application.id))) or 0
-    rows = db.execute(query.order_by(Application.created_at.desc()).offset(offset).limit(limit)).all()
-    items = [
-        {
-            "id": app_record.id,
-            "project_id": app_record.project_id,
-            "project_title": proj_title,
-            "student_user_id": app_record.student_user_id,
-            "student_email": student_email,
-            "student_name": student_name,
-            "status": app_record.status,
-            "weekly_minutes_available": app_record.weekly_minutes_available,
-            "created_at": app_record.created_at,
-            "row_version": app_record.row_version,
-        }
-        for app_record, proj_title, student_email, student_name in rows
-    ]
+        .where(*filters).order_by(Application.created_at.desc(), Application.id).offset(offset).limit(limit)
+    ).all()
+    items = [{
+        "id": a.id, "project_id": a.project_id, "project_title": title, "student_user_id": a.student_user_id,
+        "student_email": email, "student_name": name, "status": a.status, "offer_status": offer_status,
+        "weekly_minutes_available": a.weekly_minutes_available, "created_at": a.created_at, "row_version": a.row_version,
+    } for a, title, email, name, offer_status in rows]
     return {"items": items, "total": total}
 
 
@@ -412,42 +343,38 @@ def admin_oversight_participations(
     response: Response,
     db: DB,
     user: Actor,
-    status: str | None = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    status: ParticipationStatus | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
+    """Progress metadata only: submission counts by status, never evidence contents."""
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
     from app.applications.models import Participation
-    from app.projects.models import Project
-    from app.identity.models import User
+    from app.assessments.models import Submission
 
-    query = (
+    filters = [Participation.status == status] if status else []
+    total = db.scalar(select(func.count(Participation.id)).where(*filters)) or 0
+    rows = db.execute(
         select(Participation, Project.title, User.email, User.display_name)
         .join(Project, Participation.project_id == Project.id)
         .join(User, Participation.student_user_id == User.id)
-    )
-    if status:
-        query = query.where(Participation.status == status)
-    total = db.scalar(select(func.count(Participation.id))) or 0
-    rows = db.execute(query.order_by(Participation.created_at.desc()).offset(offset).limit(limit)).all()
-    items = [
-        {
-            "id": part.id,
-            "project_id": part.project_id,
-            "project_title": proj_title,
-            "student_user_id": part.student_user_id,
-            "student_email": student_email,
-            "student_name": student_name,
-            "status": part.status,
-            "started_at": part.started_at,
-            "created_at": part.created_at,
-            "row_version": part.row_version,
-        }
-        for part, proj_title, student_email, student_name in rows
-    ]
+        .where(*filters).order_by(Participation.created_at.desc(), Participation.id).offset(offset).limit(limit)
+    ).all()
+    ids = [part.id for part, *_ in rows]
+    counts: dict = {}
+    if ids:
+        for pid, sub_status, count in db.execute(
+            select(Submission.participation_id, Submission.status, func.count(Submission.id))
+            .where(Submission.participation_id.in_(ids)).group_by(Submission.participation_id, Submission.status)
+        ).all():
+            counts.setdefault(pid, {})[sub_status] = count
+    items = [{
+        "id": part.id, "project_id": part.project_id, "project_title": title, "student_user_id": part.student_user_id,
+        "student_email": email, "student_name": name, "status": part.status, "started_at": part.started_at,
+        "submission_counts": counts.get(part.id, {}), "created_at": part.created_at, "row_version": part.row_version,
+    } for part, title, email, name in rows]
     return {"items": items, "total": total}
-
 
 
 def project_values(body):
@@ -636,10 +563,12 @@ def submit_project(project_id: UUID, body: SubmitProject, request: Request, resp
 def project_queue(response: Response, db: DB, user: Actor):
     require_admin(user)
     response.headers["Cache-Control"] = "no-store, private"
-    records = db.scalars(select(Project).where(Project.status == "pending_review")).all()
-    return {"items": [{"project": serialize(p), "terms": serialize(db.scalar(select(TermsVersion).where(
+    rows = db.execute(select(Project, Organization.display_name).join(
+        Organization, Organization.id == Project.organization_id
+    ).where(Project.status == "pending_review").order_by(Project.created_at, Project.id)).all()
+    return {"items": [{"project": serialize(p), "organization_name": org_name, "terms": serialize(db.scalar(select(TermsVersion).where(
         TermsVersion.project_id == p.id, TermsVersion.version_no == p.submitted_terms_version
-    )))} for p in records], "next_cursor": None}
+    )))} for p, org_name in rows], "next_cursor": None}
 
 
 @router.post("/admin/projects/{project_id}/decisions", response_model=ProjectRead)
