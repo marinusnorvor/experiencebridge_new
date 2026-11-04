@@ -79,6 +79,63 @@ export interface StudentProfileDTO extends StudentProfileUpsertInput {
   row_version: number;
 }
 
+export interface AdminDashboardStats {
+  organizations: Record<string, number>;
+  projects: Record<string, number>;
+  mentors: Record<string, number>;
+  applications: Record<string, number>;
+  participations: Record<string, number>;
+  users: Record<string, number>;
+  total_audit_events: number;
+}
+
+export interface AdminAuditLogItem {
+  id: string;
+  actor_user_id: string;
+  actor_email?: string | null;
+  actor_name?: string | null;
+  event_type: string;
+  entity_id: string;
+  request_id: string;
+  details: Record<string, unknown>;
+  created_at: string;
+  row_version: number;
+}
+
+export interface AdminUserOversightItem {
+  id: string;
+  email?: string | null;
+  display_name: string;
+  roles: string[];
+  created_at: string;
+}
+
+export interface AdminApplicationOversightItem {
+  id: string;
+  project_id: string;
+  project_title?: string | null;
+  student_user_id: string;
+  student_email?: string | null;
+  student_name?: string | null;
+  status: string;
+  weekly_minutes_available: number;
+  created_at: string;
+  row_version: number;
+}
+
+export interface AdminParticipationOversightItem {
+  id: string;
+  project_id: string;
+  project_title?: string | null;
+  student_user_id: string;
+  student_email?: string | null;
+  student_name?: string | null;
+  status: string;
+  started_at?: string | null;
+  created_at: string;
+  row_version: number;
+}
+
 function apiError(payload: unknown, fallback: string): string {
   if (payload && typeof payload === "object" && "error" in payload) {
     const detail = (payload as { error?: { message?: unknown; field_errors?: unknown } }).error;
@@ -687,7 +744,6 @@ export function createPortalApi(token?: string | null) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }
     },
-
     async upsertMentorProfile(body: MentorProfileWrite, rowVersion?: number): Promise<ApiResult<MentorProfileRead>> {
       try {
         const res = await client.PUT("/api/v1/me/mentor-profile", {
@@ -702,7 +758,6 @@ export function createPortalApi(token?: string | null) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }
     },
-
     async inviteMentor(participationId: string, mentorUserId: string, context: string, expiresAt: string, rowVersion: number): Promise<ApiResult<AssignmentRead>> {
       try {
         const res = await client.POST("/api/v1/participations/{participation_id}/mentor-assignments", {
@@ -932,6 +987,102 @@ export function createPortalApi(token?: string | null) {
           return { data: null, error: apiError(res.error, `Mentor eligibility decision failed (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as MentorProfileRead, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAdminStats(): Promise<ApiResult<AdminDashboardStats>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/stats", { cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch admin stats (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as AdminDashboardStats, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAdminAuditLogs(options?: { limit?: number; offset?: number; event_type?: string }): Promise<ApiResult<{ items: AdminAuditLogItem[]; total: number }>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/audit-logs", { params: { query: options }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch audit logs (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as { items: AdminAuditLogItem[]; total: number }, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAllOrganizations(status?: string): Promise<ApiResult<OrganizationRead[]>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/organizations", { params: { query: status ? { status } : undefined }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch organizations (${res.response.status})`), status: res.response.status };
+        }
+        const items = (res.data as { items: OrganizationRead[] }).items ?? [];
+        return { data: items, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAllProjects(status?: string): Promise<ApiResult<ProjectReviewItem[]>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/projects", { params: { query: status ? { status } : undefined }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch admin projects (${res.response.status})`), status: res.response.status };
+        }
+        const items = (res.data as { items: ProjectReviewItem[] }).items ?? [];
+        return { data: items, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAdminOversightUsers(role?: string): Promise<ApiResult<AdminUserOversightItem[]>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/oversight/users", { params: { query: role ? { role } : undefined }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch user oversight (${res.response.status})`), status: res.response.status };
+        }
+        const items = (res.data as { items: AdminUserOversightItem[] }).items ?? [];
+        return { data: items, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAdminOversightApplications(status?: string): Promise<ApiResult<AdminApplicationOversightItem[]>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/oversight/applications", { params: { query: status ? { status } : undefined }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch application oversight (${res.response.status})`), status: res.response.status };
+        }
+        const items = (res.data as { items: AdminApplicationOversightItem[] }).items ?? [];
+        return { data: items, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getAdminOversightParticipations(status?: string): Promise<ApiResult<AdminParticipationOversightItem[]>> {
+      try {
+        const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.GET("/api/v1/admin/oversight/participations", { params: { query: status ? { status } : undefined }, cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch participation oversight (${res.response.status})`), status: res.response.status };
+        }
+        const items = (res.data as { items: AdminParticipationOversightItem[] }).items ?? [];
+        return { data: items, error: null, status: res.response.status };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }

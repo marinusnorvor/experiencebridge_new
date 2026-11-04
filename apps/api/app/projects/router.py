@@ -18,6 +18,8 @@ from app.projects.models import ModerationDecision, Project, TermsVersion
 from app.projects.schemas import (
     DecisionInput, Empty, OrganizationCreate, ProjectCreate, RequiredReason, SubmitProject, TermsCreate,
     OrganizationRead, OrganizationPage, ProjectRead, ProjectPage, TermsRead, ProjectReviewPage,
+    AdminStats, AuditLogItem, AuditLogPage, AdminUserOversight, AdminUserOversightPage,
+    AdminApplicationOversight, AdminApplicationOversightPage, AdminParticipationOversight, AdminParticipationOversightPage,
 )
 
 
@@ -162,6 +164,290 @@ def organization_decision(org_id: UUID, body: DecisionInput, request: Request, r
         audit(db, user, request, "organization.verification_decided", org, decision=body.decision)
         return serialize(org)
     return command_response(response, execute(db, user, request, body.model_dump(mode="json"), authorize, action))
+
+
+@router.get("/admin/stats", response_model=AdminStats)
+def admin_stats(response: Response, db: DB, user: Actor):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+
+    from app.organizations.models import Organization
+    from app.projects.models import Project
+    from app.mentorship.models import MentorProfile
+    from app.applications.models import Application, Participation
+    from app.identity.models import User, UserRoleGrant
+    from app.core.commands import AuditEvent
+
+    # Organizations breakdown
+    org_rows = db.execute(select(Organization.verification_status, func.count(Organization.id)).group_by(Organization.verification_status)).all()
+    org_counts = {status: count for status, count in org_rows}
+    org_counts["total"] = sum(org_counts.values())
+
+    # Projects breakdown
+    proj_rows = db.execute(select(Project.status, func.count(Project.id)).group_by(Project.status)).all()
+    proj_counts = {status: count for status, count in proj_rows}
+    proj_counts["total"] = sum(proj_counts.values())
+
+    # Mentors breakdown
+    mentor_rows = db.execute(select(MentorProfile.eligibility_status, func.count(MentorProfile.id)).group_by(MentorProfile.eligibility_status)).all()
+    mentor_counts = {status: count for status, count in mentor_rows}
+    mentor_counts["total"] = sum(mentor_counts.values())
+
+    # Applications breakdown
+    app_rows = db.execute(select(Application.status, func.count(Application.id)).group_by(Application.status)).all()
+    app_counts = {status: count for status, count in app_rows}
+    app_counts["total"] = sum(app_counts.values())
+
+    # Participations breakdown
+    part_rows = db.execute(select(Participation.status, func.count(Participation.id)).group_by(Participation.status)).all()
+    part_counts = {status: count for status, count in part_rows}
+    part_counts["total"] = sum(part_counts.values())
+
+    # Users breakdown
+    total_users = db.scalar(select(func.count(User.id))) or 0
+    role_rows = db.execute(
+        select(UserRoleGrant.role, func.count(UserRoleGrant.user_id.distinct()))
+        .where(UserRoleGrant.revoked_at.is_(None))
+        .group_by(UserRoleGrant.role)
+    ).all()
+    user_counts = {role: count for role, count in role_rows}
+    user_counts["total"] = total_users
+
+    # Audit events
+    total_audit_events = db.scalar(select(func.count(AuditEvent.id))) or 0
+
+    return {
+        "organizations": org_counts,
+        "projects": proj_counts,
+        "mentors": mentor_counts,
+        "applications": app_counts,
+        "participations": part_counts,
+        "users": user_counts,
+        "total_audit_events": total_audit_events,
+    }
+
+
+@router.get("/admin/audit-logs", response_model=AuditLogPage)
+def admin_audit_logs(
+    response: Response,
+    db: DB,
+    user: Actor,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    event_type: str | None = Query(None),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+
+    from app.core.commands import AuditEvent
+    from app.identity.models import User
+
+    query = select(AuditEvent, User.email, User.display_name).outerjoin(User, AuditEvent.actor_user_id == User.id)
+    if event_type:
+        query = query.where(AuditEvent.event_type == event_type)
+
+    total = db.scalar(select(func.count(AuditEvent.id))) or 0
+    rows = db.execute(
+        query.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit)
+    ).all()
+
+    items = [
+        {
+            "id": event.id,
+            "actor_user_id": event.actor_user_id,
+            "actor_email": email,
+            "actor_name": display_name,
+            "event_type": event.event_type,
+            "entity_id": event.entity_id,
+            "request_id": event.request_id,
+            "details": event.details or {},
+            "created_at": event.created_at,
+            "row_version": event.row_version,
+        }
+        for event, email, display_name in rows
+    ]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/admin/organizations", response_model=OrganizationPage)
+def admin_all_organizations(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    query = select(Organization)
+    if status:
+        query = query.where(Organization.verification_status == status)
+    records = db.scalars(query.order_by(Organization.created_at.desc()).offset(offset).limit(limit)).all()
+    return {"items": [serialize(r) for r in records], "next_cursor": None}
+
+
+@router.get("/admin/projects", response_model=ProjectReviewPage)
+def admin_all_projects(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    query = select(Project)
+    if status:
+        query = query.where(Project.status == status)
+    records = db.scalars(query.order_by(Project.created_at.desc()).offset(offset).limit(limit)).all()
+    items = []
+    for p in records:
+        terms_ver = p.submitted_terms_version or p.published_terms_version or 1
+        terms = db.scalar(select(TermsVersion).where(
+            TermsVersion.project_id == p.id,
+            TermsVersion.version_no == terms_ver,
+        ))
+        p_data = serialize(p)
+        add_published_terms_ids(db, [p_data], include_submitted=True)
+        items.append({
+            "project": p_data,
+            "terms": serialize(terms) if terms else {
+                "id": p.id,
+                "project_id": p.id,
+                "version_no": terms_ver,
+                "snapshot": p.scope or {},
+                "content_hash": "synthetic",
+                "created_by_user_id": user.id,
+                "created_at": p.created_at,
+                "row_version": 1,
+            },
+        })
+    return {"items": items, "next_cursor": None}
+
+
+@router.get("/admin/oversight/users", response_model=AdminUserOversightPage)
+def admin_oversight_users(
+    response: Response,
+    db: DB,
+    user: Actor,
+    role: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.identity.models import User, UserRoleGrant
+
+    users_query = select(User).order_by(User.created_at.desc())
+    if role:
+        users_query = users_query.where(
+            User.id.in_(
+                select(UserRoleGrant.user_id).where(
+                    UserRoleGrant.role == role,
+                    UserRoleGrant.revoked_at.is_(None),
+                )
+            )
+        )
+    total = db.scalar(select(func.count()).select_from(users_query.subquery())) or 0
+    users = db.scalars(users_query.offset(offset).limit(limit)).all()
+    items = []
+    for u in users:
+        active_roles = [rg.role for rg in u.role_grants if rg.revoked_at is None]
+        items.append({
+            "id": u.id,
+            "email": u.email,
+            "display_name": u.display_name,
+            "roles": active_roles,
+            "created_at": u.created_at,
+        })
+    return {"items": items, "total": total}
+
+
+@router.get("/admin/oversight/applications", response_model=AdminApplicationOversightPage)
+def admin_oversight_applications(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.applications.models import Application
+    from app.projects.models import Project
+    from app.identity.models import User
+
+    query = (
+        select(Application, Project.title, User.email, User.display_name)
+        .join(Project, Application.project_id == Project.id)
+        .join(User, Application.student_user_id == User.id)
+    )
+    if status:
+        query = query.where(Application.status == status)
+    total = db.scalar(select(func.count(Application.id))) or 0
+    rows = db.execute(query.order_by(Application.created_at.desc()).offset(offset).limit(limit)).all()
+    items = [
+        {
+            "id": app_record.id,
+            "project_id": app_record.project_id,
+            "project_title": proj_title,
+            "student_user_id": app_record.student_user_id,
+            "student_email": student_email,
+            "student_name": student_name,
+            "status": app_record.status,
+            "weekly_minutes_available": app_record.weekly_minutes_available,
+            "created_at": app_record.created_at,
+            "row_version": app_record.row_version,
+        }
+        for app_record, proj_title, student_email, student_name in rows
+    ]
+    return {"items": items, "total": total}
+
+
+@router.get("/admin/oversight/participations", response_model=AdminParticipationOversightPage)
+def admin_oversight_participations(
+    response: Response,
+    db: DB,
+    user: Actor,
+    status: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    from app.applications.models import Participation
+    from app.projects.models import Project
+    from app.identity.models import User
+
+    query = (
+        select(Participation, Project.title, User.email, User.display_name)
+        .join(Project, Participation.project_id == Project.id)
+        .join(User, Participation.student_user_id == User.id)
+    )
+    if status:
+        query = query.where(Participation.status == status)
+    total = db.scalar(select(func.count(Participation.id))) or 0
+    rows = db.execute(query.order_by(Participation.created_at.desc()).offset(offset).limit(limit)).all()
+    items = [
+        {
+            "id": part.id,
+            "project_id": part.project_id,
+            "project_title": proj_title,
+            "student_user_id": part.student_user_id,
+            "student_email": student_email,
+            "student_name": student_name,
+            "status": part.status,
+            "started_at": part.started_at,
+            "created_at": part.created_at,
+            "row_version": part.row_version,
+        }
+        for part, proj_title, student_email, student_name in rows
+    ]
+    return {"items": items, "total": total}
+
 
 
 def project_values(body):

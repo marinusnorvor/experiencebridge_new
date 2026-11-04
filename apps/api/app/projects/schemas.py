@@ -145,3 +145,83 @@ class ProjectReviewItem(BaseModel):
 class ProjectReviewPage(BaseModel):
     items: list[ProjectReviewItem]
     next_cursor: str | None = None
+
+
+class AdminStats(BaseModel):
+    organizations: dict[str, int]
+    projects: dict[str, int]
+    mentors: dict[str, int]
+    applications: dict[str, int]
+    participations: dict[str, int]
+    users: dict[str, int]
+    total_audit_events: int
+
+
+class AuditLogItem(BaseModel):
+    id: UUID
+    actor_user_id: UUID
+    actor_email: str | None = None
+    actor_name: str | None = None
+    event_type: str
+    entity_id: UUID
+    request_id: str
+    details: dict
+    created_at: datetime
+    row_version: int
+
+
+class AuditLogPage(BaseModel):
+    items: list[AuditLogItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminUserOversight(BaseModel):
+    id: UUID
+    email: str | None = None
+    display_name: str
+    roles: list[str]
+    created_at: datetime
+
+
+class AdminUserOversightPage(BaseModel):
+    items: list[AdminUserOversight]
+    total: int
+
+
+class AdminApplicationOversight(BaseModel):
+    id: UUID
+    project_id: UUID
+    project_title: str | None = None
+    student_user_id: UUID
+    student_email: str | None = None
+    student_name: str | None = None
+    status: str
+    weekly_minutes_available: int
+    created_at: datetime
+    row_version: int
+
+
+class AdminApplicationOversightPage(BaseModel):
+    items: list[AdminApplicationOversight]
+    total: int
+
+
+class AdminParticipationOversight(BaseModel):
+    id: UUID
+    project_id: UUID
+    project_title: str | None = None
+    student_user_id: UUID
+    student_email: str | None = None
+    student_name: str | None = None
+    status: str
+    started_at: datetime | None = None
+    created_at: datetime
+    row_version: int
+
+
+class AdminParticipationOversightPage(BaseModel):
+    items: list[AdminParticipationOversight]
+    total: int
+
