@@ -17,7 +17,7 @@ export function mapProjectReadToDemo(p: ProjectRead): DemoProject {
     deliverables: scope.scope_in ?? "", exclusions: scope.scope_out ?? "",
     criteria: scope.milestones?.flatMap(m => m.acceptance_criteria).join("\n") ?? "",
     milestonePlan: scope.milestones?.map(m => m.title).join("\n") ?? "",
-    reviewer: p.org_reviewer_user_id ?? "", status: mapBackendStatusToDemo(p.status),
+    reviewer: p.org_reviewer_user_id ?? "", status: mapBackendStatusToDemo(p.status), backendStatus: p.status,
     termsVersion: p.published_terms_version ?? p.submitted_terms_version ?? 0,
     members: [], milestones: (scope.milestones ?? []).map((m, i) => ({
       id: (m as typeof m & { id?: string }).id ?? `${p.id}-${i}`, title: m.title, due: m.due_on, done: false, blocker: "",

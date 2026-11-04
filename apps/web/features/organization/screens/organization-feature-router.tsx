@@ -18,7 +18,7 @@ export function OrganizationFeatureRouter({ slug }: { slug: string[] }) {
   const router = useRouter();
   const preview = isPortalPresentationMode();
   const route = slug.join("/");
-  const integrated = route === "applications" || route === "reviews" || route === "settings" || route === "projects" || route === "projects/new" || (slug[0] === "projects" && (slug.length === 2 || (slug.length === 3 && ["edit", "team", "workspace"].includes(slug[2]))));
+  const integrated = route === "applications" || route === "reviews" || route === "settings" || route === "messages" || route === "notifications" || route === "projects" || route === "projects/new" || (slug[0] === "projects" && (slug.length === 2 || (slug.length === 3 && ["edit", "team", "workspace"].includes(slug[2]))));
   if (!preview && !integrated) return <PortalPage title="Integration pending" description="This section is not connected to the live API yet."><Empty title="No simulated changes in live mode" action={<ActionLink href="/organization/projects">My projects</ActionLink>}>Use projects and settings for the authenticated moderation workflow. The synthetic preview remains separate.</Empty></PortalPage>;
   if (preview && params.get("sample") === "loading") return <><ActionLink href={`/organization/${slug.join("/")}`}>Exit synthetic loading preview</ActionLink><PortalLoading /></>;
   if (preview && params.get("sample") === "error") return <><p className="p-4 text-sm">Synthetic error preview</p><PortalError reset={() => router.replace(`/organization/${slug.join("/")}`)} /></>;

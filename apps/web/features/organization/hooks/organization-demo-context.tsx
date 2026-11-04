@@ -31,7 +31,10 @@ export function OrganizationDemoProvider({ children }: { children: ReactNode }) 
   const current = useRef(state);
   const [notice, announce] = useState("");
   const [organizations, setOrganizations] = useState<OrganizationRead[]>([]);
-  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(() => {
+    if (preview || typeof window === "undefined") return null;
+    try { return window.sessionStorage.getItem("experiencebridge:selected-org-id"); } catch { return null; }
+  });
   const [organization, setOrganization] = useState<OrganizationRead | null>(null);
   const [loading, setLoading] = useState(!preview);
   const [error, setError] = useState("");
@@ -56,7 +59,13 @@ export function OrganizationDemoProvider({ children }: { children: ReactNode }) 
       if (projects && !projects.data) throw new Error(projects.error ?? "Projects unavailable.");
       const records = await loadOrganizationRecords(api, projects?.data ?? []);
       const projectViews = await Promise.all((projects?.data ?? []).map(async project => {
-        const view = { ...mapProjectReadToDemo(project), members: records.participants[project.id] ?? [] };
+        const baseView = mapProjectReadToDemo(project);
+        const acceptedSet = new Set(records.acceptedMilestones[project.id] ?? []);
+        const view = {
+          ...baseView,
+          members: records.participants[project.id] ?? [],
+          milestones: baseView.milestones.map((m, idx) => ({ ...m, done: acceptedSet.has(idx) })),
+        };
         let versionId = project.published_terms_version_id ?? project.submitted_terms_version_id;
         if (!versionId && (project.published_terms_version || project.submitted_terms_version)) {
           const detail = requireData(await api.getProject(project.id));
@@ -75,6 +84,9 @@ export function OrganizationDemoProvider({ children }: { children: ReactNode }) 
       next.projects = projectViews;
       next.applications = records.applications;
       next.submissions = records.submissions;
+      next.invitations = records.invitations;
+      next.mentors = records.mentors;
+      next.events = records.events;
       current.current = next; setState(next);
     } catch (e) {
       if (run === generation.current) { setOrganization(null); setState(emptyLiveState()); setError(e instanceof Error ? e.message : "API connection failed."); }
@@ -87,7 +99,7 @@ export function OrganizationDemoProvider({ children }: { children: ReactNode }) 
     return () => { window.clearTimeout(timer); requestGeneration.current++; };
   }, [preview, isLoaded, isSignedIn, loadData]);
   useVisibleRefresh(loadData, !preview && isLoaded && isSignedIn && ["/organization/applications", "/organization/reviews", "/organization/dashboard", "/organization/projects"].includes(pathname));
-  return <DemoContext.Provider value={{ organizations, selectOrganization: id => { if (organizations.some(o => o.id === id)) { setLoading(true); setSelectedOrgId(id); } }, state, update, notice, announce, refetch: loadData, orgId: organization?.id ?? null, organization, preview, loading }}>
+  return <DemoContext.Provider value={{ organizations, selectOrganization: id => { if (organizations.some(o => o.id === id)) { setLoading(true); setSelectedOrgId(id); try { window.sessionStorage.setItem("experiencebridge:selected-org-id", id); } catch { /* Ignore storage errors */ } } }, state, update, notice, announce, refetch: loadData, orgId: organization?.id ?? null, organization, preview, loading }}>
     {!preview && (loading || !isLoaded) ? <p role="status" className="p-8">Loading authenticated organization records...</p>
       : error ? <div role="alert" className="p-8"><p>{error}</p><button type="button" onClick={() => void loadData().catch(() => {})} className="mt-4 underline">Retry</button> | <Link href="/sign-in">Sign in</Link></div>
       : children}

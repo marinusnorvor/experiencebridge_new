@@ -8,7 +8,7 @@ export interface Brief {
   fee: string; paymentTerms: string; ipTerms: string; privacyTerms: string; reviewer: string;
 }
 export interface DemoProject extends Brief {
-  id: string; status: ProjectStatus; termsVersion: number; members: string[];
+  id: string; status: ProjectStatus; backendStatus?: string; termsVersion: number; members: string[];
   milestones: { id: string; title: string; due: string; done: boolean; blocker: string }[];
 }
 export type ApplicationStatus = "New" | "Shortlisted" | "Offered" | "Accepted" | "Declined" | "Withdrawn";

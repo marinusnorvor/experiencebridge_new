@@ -1,10 +1,12 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 import { requireData, usePortalResource } from "@/lib/api/use-portal-resource";
+import { useOrganizationDemo } from "../hooks/organization-demo-context";
 import { loadProjectTeam } from "../lib/team-api";
 import { Badge, Button, Field, Modal, portalStyles as s } from "../components/ui/portal-ui";
 
 export function OrganizationTeamLive({ projectId }: { projectId: string }) {
+  const { refetch } = useOrganizationDemo();
   const live = usePortalResource(useCallback(api => loadProjectTeam(api, projectId), [projectId]));
   const [participation, setParticipation] = useState("");
   const [mentor, setMentor] = useState("");
@@ -32,7 +34,7 @@ export function OrganizationTeamLive({ projectId }: { projectId: string }) {
         const saved = requireData(await api.inviteMentor(part.id, mentor, context, new Date(`${expires}T23:59:59Z`).toISOString(), part.row_version));
         if (requireData(await api.getMentorAssignment(saved.id)).status !== "proposed") throw new Error("Invitation was not confirmed.");
       }
-      await live.reload(); setEnding(undefined); setContext(""); setMessage(end ? "Assignment ended and recorded." : "Invitation recorded. The mentor must accept independently in their portal.");
+      await live.reload(); await refetch(); setEnding(undefined); setContext(""); setMessage(end ? "Assignment ended and recorded." : "Invitation recorded. The mentor must accept independently in their portal.");
     } catch (err) { setError(err instanceof Error ? err.message : "Action failed."); }
     finally { saving.current = false; setBusy(false); }
   }

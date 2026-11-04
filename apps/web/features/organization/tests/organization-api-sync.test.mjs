@@ -103,3 +103,126 @@ test("wizard-generated project and terms payloads validate against the actual Py
   assert.equal(validation.status,0,validation.stderr);
   assert.match(validation.stdout,/DTOs valid/);
 });
+
+test("loadOrganizationRecords loads mentor invitations, accepted milestones, YYYY-MM-DD dates, and activity events", async () => {
+  const { loadOrganizationRecords } = await import("../lib/live-records.ts");
+  const { formatDashboardDate } = await import("../lib/dashboard-selectors.ts");
+  const ok = data => ({ data, error: null, status: 200 });
+  const projects = [{
+    id: "proj-1",
+    organization_id: "org-1",
+    title: "Health Tracker",
+    description: "Build an offline health tracker for community clinics.",
+    capacity: 2,
+    status: "in_progress",
+    created_at: "2026-11-01T10:00:00Z",
+    row_version: 3,
+    scope: {
+      scope_in: "Offline form and sync",
+      scope_out: "SMS gateway",
+      estimated_minutes: 600,
+      start_on: "2026-11-02",
+      due_on: "2026-12-01",
+      milestones: [{ title: "Milestone 1", acceptance_criteria: ["Criterion A"], due_on: "2026-12-01" }],
+    },
+    data_origin: "synthetic",
+  }];
+  const api = {
+    getProjectApplications: async () => ok([{
+      id: "app-1",
+      project_id: "proj-1",
+      student_user_id: "student-12345678",
+      declared_skills: ["React", "TypeScript"],
+      motivation: "Excited to contribute to rural health tooling.",
+      links: [{ label: "Repo", url: "https://example.com/repo" }],
+      weekly_minutes_available: 600,
+      status: "submitted",
+      created_at: "2026-11-02T09:00:00Z",
+      row_version: 1,
+    }]),
+    getApplication: async () => ok({ observed_terms: { version_no: 1 } }),
+    getProjectParticipations: async () => ok([{
+      id: "part-1",
+      project_id: "proj-1",
+      student_user_id: "student-87654321",
+      status: "active",
+      row_version: 1,
+    }]),
+    getParticipationAssignments: async () => ok([{
+      id: "assign-1",
+      participation_id: "part-1",
+      project_id: "proj-1",
+      mentor_user_id: "mentor-11223344",
+      status: "proposed",
+      context: "Weekly code review",
+      expires_at: "2026-11-15T23:59:59Z",
+      created_at: "2026-11-02T11:00:00Z",
+      row_version: 1,
+    }]),
+    getParticipation: async () => ok({
+      id: "part-1",
+      agreed_terms: {
+        snapshot: {
+          title: "Health Tracker",
+          description: "Desc",
+          capacity: 2,
+          scope: {
+            scope_in: "In",
+            scope_out: "Out",
+            estimated_minutes: 600,
+            start_on: "2026-11-02",
+            due_on: "2026-12-01",
+            milestones: [{ title: "Milestone 1", acceptance_criteria: ["Criterion A"], due_on: "2026-12-01" }],
+          },
+          terms: {
+            compensation_type: "paid_fixed",
+            currency: "GHS",
+            fee_amount: "1200.00",
+            payment_terms: "Upon completion",
+            ip_ownership_terms: "MIT",
+            confidentiality_terms: "Synthetic only",
+            mentor_plan: "Weekly check-in",
+          },
+        },
+      },
+    }),
+    getSubmissions: async () => ok([{
+      id: "sub-1",
+      participation_id: "part-1",
+      milestone_index: 0,
+      revision_no: 1,
+      status: "submitted",
+      summary: "Delivered offline sync",
+      contribution_statement: "Built IndexedDB layer",
+      submitted_at: "2026-11-03T14:30:00Z",
+      created_at: "2026-11-03T14:00:00Z",
+      row_version: 2,
+      artifacts: [{ label: "PR", url: "https://example.com/pr/1" }],
+    }]),
+    getOrganizationReviews: async () => ok([{
+      id: "org-rev-1",
+      decision: "accepted",
+      explanation: "Meets all acceptance criteria.",
+      criteria_results: [{ criterion_text: "Criterion A", met: true, explanation: "Verified" }],
+      reviewer_user_id: "reviewer-1",
+      created_at: "2026-11-03T16:00:00Z",
+    }]),
+    getMentorReviews: async () => ok([{
+      id: "men-rev-1",
+      decision: "reviewed",
+      manager_summary: "Strong offline architecture.",
+    }]),
+  };
+
+  const records = await loadOrganizationRecords(api, projects);
+  assert.equal(records.applications.length, 1);
+  assert.equal(records.invitations.length, 1);
+  assert.equal(records.invitations[0].status, "Pending");
+  assert.equal(records.mentors.length, 1);
+  assert.deepEqual(records.acceptedMilestones["proj-1"], [0]);
+  assert.equal(records.submissions[0].versions[0].date, "2026-11-03");
+  assert.equal(formatDashboardDate(records.submissions[0].versions[0].date), "3 Nov");
+  assert.equal(formatDashboardDate("2026-11-03T14:30:00Z"), "3 Nov");
+  assert.equal(formatDashboardDate(""), "Not scheduled");
+  assert.ok(records.events.length >= 4);
+});
