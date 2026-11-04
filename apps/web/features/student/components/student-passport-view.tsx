@@ -66,7 +66,15 @@ export function StudentPassportView() {
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(() => {
-      if (preview || !isSignedIn) return;
+      if (preview) return;
+      if (!isSignedIn) {
+        if (active) {
+          setPassport(EMPTY_LIVE_PASSPORT);
+          setStudentDisplayName("Student");
+          setLoadError("");
+        }
+        return;
+      }
       void reloadLivePassport().catch((e) => {
         if (active) {
           setPassport(EMPTY_LIVE_PASSPORT);
@@ -90,7 +98,7 @@ export function StudentPassportView() {
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={studentDisplayName} isSynthetic={true} />
+      <StudentPortalHeader studentName={studentDisplayName} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
         {loadError && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900">{loadError}</p>}

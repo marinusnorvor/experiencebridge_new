@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { usePortalResource } from "@/lib/api/use-portal-resource";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import { emptyWorkspace, loadWorkspace, saveEvidence } from "../lib/api-records";
 import Link from "next/link";
@@ -91,6 +92,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
   const preview = isDevPreview || isPortalPresentationMode();
   const live = usePortalResource(useCallback(api => loadWorkspace(api, participationId), [participationId]), !preview);
+  useVisibleRefresh(live.reload, !preview);
   const [actionError, setActionError] = useState("");
   const saving = useRef(false);
   const savedSubmission = useRef<string | undefined>(undefined);
@@ -309,7 +311,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
         {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
@@ -548,10 +550,26 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800">
-                      Confirmed Primary Mentor
+                      {workspace.mentor.status === "accepted"
+                        ? "Confirmed Primary Mentor"
+                        : workspace.mentor.status === "proposed"
+                        ? "Proposed Mentor"
+                        : "Mentor Supervision"}
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Accepted Assignment
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                        workspace.mentor.status === "accepted"
+                          ? "text-emerald-800 bg-emerald-50 border-emerald-200"
+                          : workspace.mentor.status === "proposed"
+                          ? "text-amber-900 bg-amber-50 border-amber-200"
+                          : "text-slate-600 bg-slate-100 border-slate-200"
+                      }`}
+                    >
+                      {workspace.mentor.status === "accepted"
+                        ? "Accepted Assignment"
+                        : workspace.mentor.status === "proposed"
+                        ? "Invitation Pending"
+                        : "Awaiting Assignment"}
                     </span>
                   </div>
                   <div className="text-sm font-bold text-slate-900">{workspace.mentor.name}</div>

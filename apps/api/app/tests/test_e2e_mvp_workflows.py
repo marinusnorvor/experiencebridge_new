@@ -499,3 +499,130 @@ def test_complete_cross_portal_mvp_workflows(tmp_path: Path) -> None:
         or_row = db.scalar(select(OrganizationReview).where(OrganizationReview.submission_id == sub_row.id))
         assert or_row is not None and or_row.decision == "accepted"
     engine.dispose()
+
+
+def test_student_profile_persistence_isolation_and_duplicate_application_guard(tmp_path: Path) -> None:
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'e2e_student_profile.sqlite'}",
+        connect_args={"check_same_thread": False},
+    )
+
+    @event.listens_for(engine, "connect")
+    def foreign_keys(connection, _):
+        connection.execute("PRAGMA foreign_keys=ON")
+
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(engine, expire_on_commit=False)
+
+    settings = _make_clerk_settings()
+    app = create_app(settings)
+    app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
+
+    def database():
+        with session_factory() as db:
+            try:
+                yield db
+            except Exception:
+                db.rollback()
+                raise
+
+    app.dependency_overrides[get_db] = database
+    client = TestClient(app)
+
+    def set_actor(actor_name: str, email: str | None = None) -> None:
+        extra = {"email": email, "email_verified": True} if email else None
+        token = _mint_jwt(sub=f"user_stu_{actor_name}", extra_claims=extra)
+        client.headers["Authorization"] = f"Bearer {token}"
+
+    def api_put(path: str, body: dict):
+        return client.put(
+            "/api/v1" + path,
+            json=body,
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+
+    # 1. Student A signs in and loads initial profile
+    set_actor("stella", email="stella.appiok@ashesi.edu.gh")
+    init_prof = client.get("/api/v1/me/student-profile")
+    assert init_prof.status_code == 200
+    assert init_prof.json()["email"] == "stella.appiok@ashesi.edu.gh"
+    assert init_prof.json()["self_reported_skills"] == []
+
+    # 2. Validation rejects invalid URLs and blank display_name
+    bad_url = api_put(
+        "/me/student-profile",
+        {
+            "display_name": "Stella Appiok",
+            "github_url": "ftp://invalid-scheme.example.com",
+        },
+    )
+    assert bad_url.status_code == 422
+
+    # 3. Student A saves full profile to backend
+    save_res = api_put(
+        "/me/student-profile",
+        {
+            "display_name": "Stella Appiok",
+            "headline": "Computer Engineering Senior | Offline-First Web Systems",
+            "bio": "Building resilient web and mobile tools for community health workers.",
+            "institution": "Ashesi University",
+            "program_of_study": "B.Sc. Computer Engineering",
+            "graduation_year": 2026,
+            "weekly_hours_available": 15,
+            "preferred_domains": ["Fullstack Web", "Distributed Systems"],
+            "portfolio_url": "https://stellaappiok.dev",
+            "github_url": "https://github.com/stellaappiok",
+            "linkedin_url": "https://linkedin.com/in/stellaappiok",
+            "self_reported_skills": [
+                {
+                    "id": "skill-ts",
+                    "name": "TypeScript",
+                    "category": "2-3 years",
+                    "proficiency": "advanced",
+                    "notes": "Used across Next.js and FastAPI client packages",
+                }
+            ],
+            "top_projects": [
+                {
+                    "id": "proj-1",
+                    "title": "Rural Clinic Inventory Sync",
+                    "summary": "Offline IndexedDB sync queue for district pharmacies.",
+                    "role": "Lead Developer",
+                    "link_url": "https://github.com/stellaappiok/clinic-sync",
+                }
+            ],
+        },
+    )
+    assert save_res.status_code == 200, save_res.text
+    saved = save_res.json()
+    assert saved["display_name"] == "Stella Appiok"
+    assert saved["institution"] == "Ashesi University"
+    assert saved["graduation_year"] == 2026
+    assert saved["weekly_hours_available"] == 15
+    assert saved["email"] == "stella.appiok@ashesi.edu.gh"
+    assert len(saved["self_reported_skills"]) == 1
+    assert saved["self_reported_skills"][0]["name"] == "TypeScript"
+    assert len(saved["top_projects"]) == 1
+
+    # Verify /api/v1/me reflects updated display_name and "student" effective context
+    me_after = client.get("/api/v1/me").json()
+    assert me_after["display_name"] == "Stella Appiok"
+    assert "student" in me_after["effective_contexts"]
+
+    # 4. Student B signs in: cannot see Student A's profile data
+    set_actor("kwame", email="kwame.mensah@ug.edu.gh")
+    other_prof = client.get("/api/v1/me/student-profile").json()
+    assert other_prof["email"] == "kwame.mensah@ug.edu.gh"
+    assert other_prof["institution"] == ""
+    assert other_prof["self_reported_skills"] == []
+    assert other_prof["top_projects"] == []
+
+    # 5. Student A signs back in: saved profile persists across sessions
+    set_actor("stella", email="stella.appiok@ashesi.edu.gh")
+    reloaded = client.get("/api/v1/me/student-profile").json()
+    assert reloaded["display_name"] == "Stella Appiok"
+    assert reloaded["institution"] == "Ashesi University"
+    assert len(reloaded["self_reported_skills"]) == 1
+    assert len(reloaded["top_projects"]) == 1
+
+    engine.dispose()

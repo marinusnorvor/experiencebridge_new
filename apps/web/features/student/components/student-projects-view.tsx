@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import { usePortalResource } from "@/lib/api/use-portal-resource";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { loadParticipations } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,6 +35,7 @@ export function StudentProjectsView() {
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
   const preview = isDevPreview || isPortalPresentationMode();
   const live = usePortalResource(loadParticipations, !preview);
+  useVisibleRefresh(live.reload, !preview);
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
   const [filter, setFilter] = useState<"all" | ParticipationStatus>("all");
@@ -70,10 +72,13 @@ export function StudentProjectsView() {
   const activeCount = projectsList.filter((p) => p.status === "active").length;
   const underReviewCount = projectsList.filter((p) => p.status === "under_review").length;
   const completedCount = projectsList.filter((p) => p.status === "completed").length;
+  const totalWeeklyHours = projectsList
+    .filter((p) => p.status === "active" || p.status === "under_review")
+    .reduce((sum, p) => sum + (p.weeklyHours || 0), 0);
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
         {!preview && live.loading && <p role="status">Loading database records...</p>}
@@ -171,7 +176,7 @@ export function StudentProjectsView() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
             <span className="text-xs font-medium text-slate-500">Weekly Commitment</span>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">15</span>
+              <span className="text-2xl font-bold text-slate-900">{totalWeeklyHours}</span>
               <span className="text-[11px] text-slate-500">hours/week allocated</span>
             </div>
           </div>

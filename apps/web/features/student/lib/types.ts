@@ -92,19 +92,27 @@ export interface StudentProfileDetails {
   selfReportedSkills: SelfReportedSkill[];
   topProjects?: TopProjectItem[];
   isSyntheticDemo: boolean;
+  profileCompletionPercentage?: number;
+  userId?: string;
 }
+
+export type StudentProfile = StudentProfileDetails;
 
 export interface StudentActionRequiredItem {
   id: string;
   type: "offer_pending" | "submission_due" | "revision_requested";
   title: string;
-  description: string;
-  projectTitle: string;
+  description?: string;
+  projectTitle?: string;
   organizationName: string;
-  actionLabel: string;
-  actionHref: string;
+  actionLabel?: string;
+  actionHref?: string;
   deadlineText?: string;
-  urgency: "high" | "medium";
+  urgency?: "high" | "medium";
+  deadline?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+  priority?: "urgent" | "normal";
 }
 
 export interface ApplicationTimelineEvent {
@@ -151,6 +159,8 @@ export interface StudentApplicationSummary {
   status: ApplicationStatus;
   appliedAt: string;
   termsVersionViewed: string;
+  offerStatus?: string;
+  offerDeadline?: string;
 }
 
 export interface StudentActiveProject {
@@ -163,6 +173,7 @@ export interface StudentActiveProject {
   currentMilestone: string;
   nextMilestoneDue: string;
   progressPercent: number;
+  weeklyHours?: number;
 }
 
 export interface StudentDecisionAudit {

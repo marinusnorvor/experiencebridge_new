@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import "../features/organization/tests/register-typescript.mjs";
-const { saveEvidence, loadWorkspace, loadOpportunities, loadStudentPassportAndDecisions } = await import("../features/student/lib/api-records.ts");
+const {
+  saveEvidence,
+  loadWorkspace,
+  loadOpportunities,
+  loadStudentPassportAndDecisions,
+  loadStudentProfile,
+  saveStudentProfile,
+  buildStudentActionItems,
+} = await import("../features/student/lib/api-records.ts");
 const ok = data => ({ data, error: null, status: 200 });
 const failed = message => ({ data: null, error: message, status: 503 });
 
@@ -158,4 +166,106 @@ test("passport loader separates mentor-assessed observations, self-reported skil
     completedProjectsCount: 1,
     mentorObservationsCount: 1,
   });
+});
+
+test("student profile loader and saver persist editable fields and calculate completion", async () => {
+  let storedDto = {
+    user_id: "stu-1",
+    identity_issuer: "https://clerk.example.test",
+    identity_subject: "user_stu_1",
+    display_name: "Stella Appiok",
+    email: "stella@ashesi.edu.gh",
+    headline: "CS Senior",
+    bio: "Offline-first web builder",
+    institution: "Ashesi University",
+    program_of_study: "B.Sc. Computer Engineering",
+    graduation_year: 2026,
+    weekly_hours_available: 15,
+    preferred_domains: ["Fullstack Web"],
+    portfolio_url: "https://stella.dev",
+    github_url: "https://github.com/stella",
+    linkedin_url: null,
+    self_reported_skills: [
+      { id: "sk-1", name: "TypeScript", category: "2 years", proficiency: "advanced", notes: "Daily use" },
+    ],
+    top_projects: [
+      { id: "tp-1", title: "Clinic Sync", summary: "Offline sync queue", role: "Lead", link_url: "https://github.com/stella/clinic" },
+    ],
+    updated_at: "2026-11-04T00:00:00Z",
+    row_version: 2,
+  };
+  const api = {
+    getStudentProfile: async () => ok(storedDto),
+    upsertStudentProfile: async (payload) => {
+      storedDto = { ...storedDto, ...payload, row_version: storedDto.row_version + 1 };
+      return ok(storedDto);
+    },
+  };
+  const loaded = await loadStudentProfile(api);
+  assert.equal(loaded.displayName, "Stella Appiok");
+  assert.equal(loaded.institution, "Ashesi University");
+  assert.equal(loaded.profileCompletionPercentage, 100);
+  assert.equal(loaded.isSyntheticDemo, false);
+
+  const updated = await saveStudentProfile(api, {
+    ...loaded,
+    headline: "Distributed Systems Engineer",
+    weeklyHoursAvailable: 20,
+  });
+  assert.equal(updated.headline, "Distributed Systems Engineer");
+  assert.equal(updated.weeklyHoursAvailable, 20);
+  assert.equal(storedDto.row_version, 3);
+});
+
+test("buildStudentActionItems surfaces pending offers and active milestone submissions", () => {
+  const actions = buildStudentActionItems(
+    [
+      {
+        id: "app-offer-1",
+        projectId: "proj-1",
+        projectTitle: "Solar Telemetry",
+        organizationName: "Verified Host Organization",
+        organizationVerified: true,
+        status: "offered",
+        offerStatus: "offered",
+        appliedAt: "2026-11-01",
+        offerDeadline: "2026-11-10T23:59:59Z",
+        motivationStatement: "Fit",
+        declaredSkills: [],
+        externalLinks: [],
+        observedTermsSnapshot: {
+          termsVersionId: "t1",
+          weeklyHours: 10,
+          durationWeeks: 4,
+          ipConditions: "MIT",
+          confidentialitySummary: "Public",
+          snapshotDate: "2026-11-01",
+        },
+        timeline: [],
+        isSyntheticDemo: false,
+      },
+    ],
+    [
+      {
+        participationId: "part-active-1",
+        projectId: "proj-2",
+        projectTitle: "Clinic Sync",
+        organizationName: "Verified Host Organization",
+        organizationVerified: true,
+        mentorName: "Mentor 1234",
+        mentorStatus: "accepted",
+        status: "active",
+        currentMilestone: "Milestone 1: Sync Queue",
+        nextMilestoneDue: "2026-11-15",
+        progressPercent: 0,
+        completedMilestonesCount: 0,
+        totalMilestonesCount: 2,
+        weeklyHours: 12,
+        compensationSummary: "GHS 500",
+      },
+    ]
+  );
+  assert.equal(actions.length, 2);
+  assert.equal(actions[0].type, "offer_pending");
+  assert.equal(actions[1].type, "submission_due");
 });

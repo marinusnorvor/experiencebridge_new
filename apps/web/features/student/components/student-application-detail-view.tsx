@@ -210,7 +210,7 @@ export function StudentApplicationDetailView({
   if (!currentApp) {
     return (
       <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-        <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
+        <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
         <main className="mx-auto max-w-4xl px-4 sm:px-6 pt-12 text-center space-y-4">
           <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -243,6 +243,8 @@ export function StudentApplicationDetailView({
       ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
       : currentApp.status === "under_review"
       ? "bg-blue-50 text-blue-900 border-blue-200"
+      : currentApp.status === "rejected"
+      ? "bg-red-50 text-red-900 border-red-200 font-semibold"
       : currentApp.status === "withdrawn"
       ? "bg-slate-100 text-slate-600 border-slate-200"
       : "bg-slate-100 text-slate-800 border-slate-200";
@@ -256,6 +258,8 @@ export function StudentApplicationDetailView({
       ? "Shortlisted for Final Placement"
       : currentApp.status === "under_review"
       ? "Under Technical Review"
+      : currentApp.status === "rejected"
+      ? "Not Selected"
       : currentApp.status === "withdrawn"
       ? "Withdrawn"
       : "Submitted • In Review Queue";

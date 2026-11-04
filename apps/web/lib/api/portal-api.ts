@@ -38,6 +38,47 @@ export interface ApiResult<T> {
   status: number;
 }
 
+export interface StudentSelfReportedSkillDTO {
+  id: string;
+  name: string;
+  category: string;
+  proficiency: "beginner" | "intermediate" | "advanced";
+  notes?: string | null;
+}
+
+export interface StudentProfileProjectDTO {
+  id: string;
+  title: string;
+  summary: string;
+  role: string;
+  link_url?: string | null;
+}
+
+export interface StudentProfileUpsertInput {
+  display_name: string;
+  headline: string;
+  bio: string;
+  institution: string;
+  program_of_study: string;
+  graduation_year: number;
+  weekly_hours_available: number;
+  preferred_domains: string[];
+  portfolio_url?: string | null;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  self_reported_skills: StudentSelfReportedSkillDTO[];
+  top_projects: StudentProfileProjectDTO[];
+}
+
+export interface StudentProfileDTO extends StudentProfileUpsertInput {
+  user_id: string;
+  identity_issuer: string;
+  identity_subject: string;
+  email: string | null;
+  updated_at: string;
+  row_version: number;
+}
+
 function apiError(payload: unknown, fallback: string): string {
   if (payload && typeof payload === "object" && "error" in payload) {
     const detail = (payload as { error?: { message?: unknown; field_errors?: unknown } }).error;
@@ -180,6 +221,39 @@ export function createPortalApi(token?: string | null) {
           return { data: null, error: apiError(res.error, `Failed to fetch profile (${res.response.status})`), status: res.response.status };
         }
         return { data: res.data as UserSelf, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async getStudentProfile(): Promise<ApiResult<StudentProfileDTO>> {
+      try {
+        const rawClient = client as unknown as {
+          GET: (path: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }>;
+        };
+        const res = await rawClient.GET("/api/v1/me/student-profile", { cache: "no-store" });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to fetch student profile (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as StudentProfileDTO, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async upsertStudentProfile(body: StudentProfileUpsertInput, rowVersion?: number): Promise<ApiResult<StudentProfileDTO>> {
+      try {
+        const rawClient = client as unknown as {
+          PUT: (path: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }>;
+        };
+        const res = await rawClient.PUT("/api/v1/me/student-profile", {
+          body,
+          headers: headers(rowVersion),
+        });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Save student profile failed (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as StudentProfileDTO, error: null, status: res.response.status };
       } catch (e) {
         return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
       }
