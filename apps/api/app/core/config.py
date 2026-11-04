@@ -209,13 +209,13 @@ class Settings(BaseSettings):
     )
 
     db_pool_mode: DatabasePoolMode = Field(default="auto", validation_alias="DB_POOL_MODE")
-    db_pool_size: int = Field(default=2, ge=1, le=20, validation_alias="DB_POOL_SIZE")
-    db_max_overflow: int = Field(default=0, ge=0, le=20, validation_alias="DB_MAX_OVERFLOW")
-    db_pool_timeout: int = Field(default=10, ge=1, le=60, validation_alias="DB_POOL_TIMEOUT")
-    db_pool_recycle: int = Field(default=300, ge=30, le=3600, validation_alias="DB_POOL_RECYCLE")
-    db_connect_timeout: int = Field(default=10, ge=1, le=60, validation_alias="DB_CONNECT_TIMEOUT")
+    db_pool_size: int = Field(default=5, ge=1, le=50, validation_alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, ge=0, le=50, validation_alias="DB_MAX_OVERFLOW")
+    db_pool_timeout: int = Field(default=30, ge=1, le=120, validation_alias="DB_POOL_TIMEOUT")
+    db_pool_recycle: int = Field(default=60, ge=10, le=3600, validation_alias="DB_POOL_RECYCLE")
+    db_connect_timeout: int = Field(default=30, ge=1, le=120, validation_alias="DB_CONNECT_TIMEOUT")
     db_statement_timeout_ms: int = Field(
-        default=15000,
+        default=30000,
         ge=1000,
         le=120000,
         validation_alias="DB_STATEMENT_TIMEOUT_MS",

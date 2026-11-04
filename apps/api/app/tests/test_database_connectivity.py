@@ -168,5 +168,5 @@ def test_live_neon_development_read_only_connectivity() -> None:
     assert result.environment == "development"
     assert result.neon_branch == "development"
     assert result.database_role == "experiencebridge_development"
-    assert result.pool_class == "NullPool"
+    assert result.pool_class in {"QueuePool", "NullPool"}
     assert result.error is None

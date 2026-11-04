@@ -150,10 +150,15 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: SQLAlchemyError
     ) -> JSONResponse:
         request_id = get_request_id(request)
+        orig_err = getattr(exc, "orig", None)
+        orig_msg = str(orig_err) if orig_err is not None else ""
+        err_msg = str(exc)
         logger.error(
-            "Database operation failed [request_id=%s]: %s",
+            "Database operation failed [request_id=%s]: %s: %s (driver: %s)",
             request_id,
-            scrub_sensitive_text(str(exc.__class__.__name__)),
+            exc.__class__.__name__,
+            scrub_sensitive_text(err_msg),
+            scrub_sensitive_text(orig_msg),
         )
         return build_error_response(
             request=request,

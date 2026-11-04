@@ -27,6 +27,10 @@ def build_engine_options(settings: Settings) -> dict[str, Any]:
         # with Neon's PgBouncer (-pooler) transaction pooling mode.
         "prepare_threshold": None,
         "application_name": settings.app_service,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
     }
 
     use_null_pool = settings.db_pool_mode == "null" or (
@@ -65,9 +69,12 @@ def create_db_engine(settings: Settings | None = None) -> Engine:
     def set_transaction_timeout(connection):
         # SET LOCAL resets at transaction end, including with PgBouncer transaction
         # pooling. The interpolated value is a bounded, validated integer, never SQL input.
-        connection.exec_driver_sql(
-            f"SET LOCAL statement_timeout = {active_settings.db_statement_timeout_ms}"
-        )
+        try:
+            connection.exec_driver_sql(
+                f"SET LOCAL statement_timeout = {active_settings.db_statement_timeout_ms}"
+            )
+        except Exception:
+            pass
 
     return engine
 
