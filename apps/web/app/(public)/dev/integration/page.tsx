@@ -18,7 +18,7 @@ export default function DevelopmentIntegrationPage() {
       </h1>
       <p className="mt-4 max-w-2xl leading-7 text-slate-600">
         This development-only page requests the FastAPI liveness endpoint (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">GET /health</code>)
-        and the Clerk-authenticated profile endpoint (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">GET /api/v1/me</code>).
+        and the authenticated profile endpoint (<code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">GET /api/v1/me</code>).
       </p>
       <Suspense
         fallback={

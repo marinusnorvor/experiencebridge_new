@@ -19,48 +19,22 @@ from app.database.session import get_db
 from app.identity.models import UserRoleGrant
 from app.main import create_app
 from app.projects.models import ModerationDecision, Project, TermsVersion
-from app.tests.test_identity_auth import RSA_PUBLIC_JWK, _make_clerk_settings, _mint_jwt
+from app.tests.auth_workflow_helpers import staging_workflow, register_actor, activate, ORIGIN, PASSWORD
 
 
 @pytest.fixture
-def workflow(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'workflow.db'}", connect_args={"check_same_thread": False})
-    @event.listens_for(engine, "connect")
-    def foreign_keys(connection, _):
-        connection.execute("PRAGMA foreign_keys=ON")
-    Base.metadata.create_all(engine)
-    sessions = sessionmaker(engine, expire_on_commit=False)
-
-    def make_app():
-        app = create_app(_make_clerk_settings())
-        app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-        def database():
-            with sessions() as db:
-                try:
-                    yield db
-                except Exception:
-                    db.rollback()
-                    raise
-        app.dependency_overrides[get_db] = database
-        return app
-
-    with TestClient(make_app()) as client:
-        actors = {}
-        for name in ("owner", "admin", "outsider"):
-            token = _mint_jwt(sub=f"user_supervisor_{name}")
-            client.headers["Authorization"] = f"Bearer {token}"
-            result = client.get("/api/v1/me")
-            assert result.status_code == 200
-            actors[name] = {"token": token, "id": result.json()["id"]}
+def workflow(staging_workflow):
+    sessions, make_app = staging_workflow
+    with TestClient(make_app(), base_url=ORIGIN) as client:
+        actors = {name: register_actor(client, name) for name in ("owner", "admin", "outsider")}
         with sessions() as db:
             db.add(UserRoleGrant(user_id=UUID(actors["admin"]["id"]), role="platform_admin", reason="Synthetic test administrator"))
             db.commit()
         yield client, actors, sessions, make_app
-    engine.dispose()
 
 
 def actor(client, actors, name):
-    client.headers["Authorization"] = f'Bearer {actors[name]["token"]}'
+    activate(client, actors[name])
 
 
 def post(client, path, body, version=None, key=None):
@@ -146,10 +120,10 @@ def test_publish_and_retrieve_after_app_restart(workflow):
     assert post(client, f'/projects/{project["id"]}/terms-versions', terms_body(), 4).status_code == 409
     with sessions() as db:
         assert db.get(Project, UUID(project["id"])).status == "open"
-        assert len(db.scalars(select(ModerationDecision)).all()) == 2
-        assert len(db.scalars(select(AuditEvent)).all()) == 7
-    # A new app, client and session read the same file-backed database, not localStorage.
-    with TestClient(make_app()) as restarted:
+        assert len(db.scalars(select(ModerationDecision).where(ModerationDecision.admin_user_id == UUID(actors["admin"]["id"]))).all()) == 2
+        assert len(db.scalars(select(AuditEvent).where(AuditEvent.actor_user_id.in_([UUID(a["id"]) for a in actors.values()]))).all()) == 7
+    # A new app and client read the same staging-backed state.
+    with TestClient(make_app(), base_url=ORIGIN) as restarted:
         actor(restarted, actors, "outsider")
         listing = restarted.get("/api/v1/projects").json()["items"]
         assert listing[0]["id"] == project["id"]
@@ -170,7 +144,7 @@ def test_publish_and_retrieve_after_app_restart(workflow):
 def test_auth_tenant_and_independent_moderation(workflow):
     client, actors, sessions, _ = workflow
     org = organization(workflow)
-    client.headers.pop("Authorization")
+    client.cookies.clear()
     assert client.get(f'/api/v1/organizations/{org["id"]}').status_code == 401
     actor(client, actors, "outsider")
     assert client.get(f'/api/v1/organizations/{org["id"]}').status_code == 404
@@ -287,7 +261,7 @@ def test_organization_portal_15_step_project_creation_and_relogin_persistence(wo
     """Verifies Section 6 critical acceptance test: full 15-step Organization project lifecycle and re-login persistence."""
     client, actors, sessions, make_app = workflow
 
-    # Steps 1-2: Sign in through Clerk token, open Organization Portal, verify organization identity & membership
+    # Steps 1-2: Sign in with the synthetic session, open Organization Portal, verify organization identity & membership
     org = verified_organization(workflow)
     actor(client, actors, "owner")
     me_res = client.get("/api/v1/me")
@@ -398,9 +372,10 @@ def test_organization_portal_15_step_project_creation_and_relogin_persistence(wo
     assert dashboard_projects[0]["submitted_terms_version_id"] == terms["id"]
 
     # Steps 14-15: Sign out and sign back in with a fresh session/token; confirm same org, project, and approval status remain visible
-    fresh_owner_token = _mint_jwt(sub="user_supervisor_owner")
-    with TestClient(make_app()) as relogin_client:
-        relogin_client.headers["Authorization"] = f"Bearer {fresh_owner_token}"
+    with TestClient(make_app(), base_url=ORIGIN) as relogin_client:
+        activate(relogin_client, actors["owner"])
+        signed_in = relogin_client.post("/api/v1/auth/login", json={"email": actors["owner"]["email"], "password": PASSWORD})
+        assert signed_in.status_code == 200, signed_in.text
         me_relogin = relogin_client.get("/api/v1/me")
         assert me_relogin.status_code == 200
         assert me_relogin.json()["id"] == actors["owner"]["id"]
@@ -422,7 +397,7 @@ def test_organization_portal_15_step_project_creation_and_relogin_persistence(wo
         assert terms_relogin.json()["snapshot"]["title"] == edited_payload["title"]
 
         # Verify another user without membership cannot access this organization's private records
-        relogin_client.headers["Authorization"] = f'Bearer {actors["outsider"]["token"]}'
+        activate(relogin_client, actors["outsider"])
         assert relogin_client.get(f'/api/v1/organizations/{org["id"]}/projects').status_code == 404
         assert relogin_client.get(f"/api/v1/projects/{project_id}").status_code == 404
 

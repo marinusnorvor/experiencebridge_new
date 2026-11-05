@@ -13,53 +13,23 @@ from app.database.base import Base
 from app.database.session import get_db
 from app.identity.models import UserRoleGrant
 from app.main import create_app
-from app.tests.test_identity_auth import RSA_PUBLIC_JWK, _make_clerk_settings, _mint_jwt
+from app.tests.auth_workflow_helpers import staging_workflow, register_actor, activate, ORIGIN
 
 
 @pytest.fixture
-def admin_workflow(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'admin_workflow.db'}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(engine)
-    sessions = sessionmaker(engine, expire_on_commit=False)
-
-    def make_app():
-        app = create_app(_make_clerk_settings())
-        app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-
-        def database():
-            with sessions() as db:
-                try:
-                    yield db
-                except Exception:
-                    db.rollback()
-                    raise
-
-        app.dependency_overrides[get_db] = database
-        return app
-
-    with TestClient(make_app()) as client:
-        actors = {}
-        for role_name in ("admin", "student", "org_owner", "unauthorized_user"):
-            token = _mint_jwt(sub=f"user_admin_{role_name}")
-            client.headers["Authorization"] = f"Bearer {token}"
-            res = client.get("/api/v1/me")
-            assert res.status_code == 200, res.text
-            actors[role_name] = {"token": token, "id": res.json()["id"]}
-
+def admin_workflow(staging_workflow):
+    sessions, make_app = staging_workflow
+    with TestClient(make_app(), base_url=ORIGIN) as client:
+        actors = {name: register_actor(client, name) for name in ("admin", "student", "org_owner", "unauthorized_user")}
         with sessions() as db:
-            # Grant admin role
-            db.add(UserRoleGrant(user_id=UUID(actors["admin"]["id"]), role="platform_admin", reason="Test admin"))
-            # Grant student role
-            db.add(UserRoleGrant(user_id=UUID(actors["student"]["id"]), role="student", reason="Test student"))
+            db.add(UserRoleGrant(user_id=UUID(actors["admin"]["id"]), role="platform_admin", reason="Synthetic test administrator"))
+            db.add(UserRoleGrant(user_id=UUID(actors["student"]["id"]), role="student", reason="Synthetic test student"))
             db.commit()
-
         yield client, actors, sessions
-
-    engine.dispose()
 
 
 def set_actor(client: TestClient, actors: dict, name: str):
-    client.headers["Authorization"] = f"Bearer {actors[name]['token']}"
+    activate(client, actors[name])
 
 
 def test_admin_stats_and_unauthorized_access(admin_workflow):

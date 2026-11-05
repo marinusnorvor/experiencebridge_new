@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 from typing import Any
-import base64
 
 import pytest
 from sqlalchemy.pool import NullPool, QueuePool
 
-from app.core.config import DEFAULT_DEV_ENV_FILE, Settings, load_settings
+from app.core.config import Settings
 from app.database.connectivity import verify_database_connectivity
 from app.database.migrations import get_migration_settings
 from app.database.session import build_engine_options, get_db
@@ -50,8 +49,6 @@ def test_verify_database_connectivity_blocks_production() -> None:
         app_env="production",
         neon_branch="production",
         cors_allowed_origins=["https://app.example.com"],
-        clerk_publishable_key="pk_live_" + base64.b64encode(b"clerk.example.com$").decode(),
-        clerk_authorized_parties=["https://app.example.com"],
     )
     with pytest.raises(RuntimeError, match="Refusing to run local/test database connectivity check"):
         verify_database_connectivity(settings=prod_settings)
@@ -61,8 +58,6 @@ def test_alembic_guard_blocks_production_migrations(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("NEON_BRANCH", "production")
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
-    monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", "pk_live_" + base64.b64encode(b"clerk.example.com$").decode())
-    monkeypatch.setenv("CLERK_AUTHORIZED_PARTIES", "https://app.example.com")
     monkeypatch.delenv("ALLOW_PRODUCTION_MIGRATIONS", raising=False)
 
     with pytest.raises(RuntimeError, match="Blocked Alembic migration against production"):
@@ -149,24 +144,22 @@ def test_get_db_dependency_closes_and_rolls_back_on_error(
     assert events == ["rollback", "close"]
 
 
-@pytest.mark.skipif(
-    not DEFAULT_DEV_ENV_FILE.is_file(),
-    reason="Local Neon development .env.development.local is not present.",
-)
-def test_live_neon_development_read_only_connectivity() -> None:
-    """Connect to the configured Neon development database in read-only mode."""
-    dev_settings = load_settings(
-        env_file=DEFAULT_DEV_ENV_FILE,
-        overrides={"app_env": "development", "neon_branch": "development"},
-    )
-    assert dev_settings.app_env == "development"
-    assert dev_settings.neon_branch == "development"
+def test_live_neon_staging_read_only_connectivity() -> None:
+    """Only inspect the explicitly verified staging endpoint, in read-only mode."""
+    import os
+    from urllib.parse import urlsplit
+    from sqlalchemy import create_engine, text
+    from app.core.config import normalize_sqlalchemy_postgres_url
 
-    result = verify_database_connectivity(settings=dev_settings)
-    assert result.ok is True, f"Neon development connectivity check failed: {result.error}"
-    assert result.read_only is True
-    assert result.environment == "development"
-    assert result.neon_branch == "development"
-    assert result.database_role == "experiencebridge_development"
-    assert result.pool_class in {"QueuePool", "NullPool"}
-    assert result.error is None
+    url = os.environ.get("EB_AUTH_STAGING_TEST_URL", "")
+    if not ((urlsplit(url).hostname or "").startswith("ep-ancient-truth-zavsgzpz-pooler.") and (urlsplit(url).hostname or "").endswith(".aws.neon.tech")):
+        pytest.fail("A verified Neon staging pooled connection is required")
+    engine = create_engine(normalize_sqlalchemy_postgres_url(url), poolclass=NullPool, hide_parameters=True)
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+            assert connection.execute(text("SHOW transaction_read_only")).scalar_one() == "on"
+            assert connection.execute(text("SELECT 1")).scalar_one() == 1
+            connection.rollback()
+    finally:
+        engine.dispose()

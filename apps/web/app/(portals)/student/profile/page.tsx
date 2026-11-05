@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { StudentProfileView } from "@/features/student/components/student-profile-view";
 
 export const metadata = {
@@ -6,5 +7,5 @@ export const metadata = {
 };
 
 export default function StudentProfilePage() {
-  return <StudentProfileView />;
+  return <PortalBoundary>{<StudentProfileView />}</PortalBoundary>;
 }

@@ -29,6 +29,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.neon_branch,
         settings.is_serverless,
     )
+    if settings.super_admin_email and settings.super_admin_password:
+        try:
+            from app.identity.super_admin import bootstrap_super_admin
+            with app.state.database.session_factory() as session:
+                bootstrap_super_admin(session, settings)
+        except Exception as exc:
+            logger.error("Failed to bootstrap super admin account: %s", exc, exc_info=True)
     try:
         yield
     finally:
@@ -54,6 +61,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = active_settings
+    if active_settings.app_env == "production":
+        from app.identity.auth_config import AuthConfig
+        application.state.auth_config = AuthConfig.from_environment(active_settings.app_env)
     application.state.database = ApplicationDatabase(active_settings)
 
     application.add_middleware(
@@ -61,7 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=list(active_settings.cors_allowed_origins),
         allow_credentials=active_settings.cors_allow_credentials,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "If-Match", "X-Request-ID"],
+        allow_headers=["Content-Type", "Idempotency-Key", "If-Match", "X-Request-ID", "X-CSRF-Token"],
         expose_headers=["ETag", "X-Request-ID"],
     )
 

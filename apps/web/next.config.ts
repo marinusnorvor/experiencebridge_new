@@ -2,8 +2,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { NextConfig } from "next";
-import { getClerkPublishableKey } from "./lib/auth/clerk-config";
-import { getPublicApiBaseUrl } from "./lib/api/base-url";
 
 // Validate deployment configuration before producing a production artifact.
 // Secrets are checked here only, never exposed through Next's `env` option.
@@ -12,12 +10,9 @@ if (process.env.VERCEL_ENV === "production" && appEnv !== "production") {
   throw new Error("Vercel Production requires NEXT_PUBLIC_APP_ENV=production.");
 }
 if (appEnv === "production") {
-  getClerkPublishableKey();
-  getPublicApiBaseUrl();
-  const secret = process.env.CLERK_SECRET_KEY?.trim();
-  if (!secret?.startsWith("sk_live_") || secret.includes("<") || secret.includes(">")) {
-    throw new Error("Production requires a configured live CLERK_SECRET_KEY.");
-  }
+  if (!process.env.API_UPSTREAM_ORIGIN || !process.env.API_UPSTREAM_ALLOWED_HOST) throw new Error("Production requires an explicit API upstream origin and allowed host.");
+  const proxySecret = process.env.AUTH_PROXY_SECRET ?? "";
+  if (Buffer.byteLength(proxySecret) < 32 || proxySecret.includes("<") || proxySecret.includes(">")) throw new Error("Production requires a non-placeholder AUTH_PROXY_SECRET of at least 32 bytes.");
 }
 
 const monorepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");

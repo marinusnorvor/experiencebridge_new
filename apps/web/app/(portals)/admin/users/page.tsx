@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { AdminUsersView } from "@/features/admin";
 
 export const metadata = {
@@ -6,5 +7,5 @@ export const metadata = {
 };
 
 export default function AdminUsersPage() {
-  return <AdminUsersView />;
+  return <PortalBoundary>{<AdminUsersView />}</PortalBoundary>;
 }

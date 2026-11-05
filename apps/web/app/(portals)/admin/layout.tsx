@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { AdminShell } from "@/features/admin";
 
 export const metadata = {
   title: "Admin & Governance Portal | ExperienceBridge",
@@ -7,5 +6,5 @@ export const metadata = {
 };
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+  return children;
 }

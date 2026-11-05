@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { MentorDashboardConnected } from "@/features/mentor/components/mentor-dashboard-connected";
 
 export const metadata = {
@@ -6,5 +7,5 @@ export const metadata = {
 };
 
 export default function MentorDashboardPage() {
-  return <MentorDashboardConnected />;
+  return <PortalBoundary>{<MentorDashboardConnected />}</PortalBoundary>;
 }

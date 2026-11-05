@@ -24,6 +24,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service liveness check
+         * @description Return service liveness metadata without exposing database diagnostics.
+         */
+        get: operations["health_check_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/csrf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Csrf */
+        get: operations["csrf_api_v1_auth_csrf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify */
+        post: operations["verify_api_v1_auth_verify_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler */
+        post: operations["handler_api_v1_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler */
+        post: operations["handler_api_v1_auth_forgot_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset */
+        post: operations["reset_api_v1_auth_reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -33,10 +189,34 @@ export interface paths {
         };
         /**
          * Get authenticated user profile and effective contexts
-         * @description Verify the caller's Clerk session token, resolve or provision the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).
+         * @description Verify the caller's session and resolve the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).
          */
         get: operations["get_current_user_profile_api_v1_me_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/student-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get authenticated student profile
+         * @description Return the authenticated student's editable profile fields together with account identity attributes.
+         */
+        get: operations["get_my_student_profile_api_v1_me_student_profile_get"];
+        /**
+         * Update authenticated student profile
+         * @description Persist editable student profile fields (display_name, headline, bio, academic details, availability, links, self-reported skills, and top projects) while keeping email and identity subject governed by the account.
+         */
+        put: operations["put_my_student_profile_api_v1_me_student_profile_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -140,6 +320,137 @@ export interface paths {
         put?: never;
         /** Organization Decision */
         post: operations["organization_decision_api_v1_admin_organizations__org_id__decisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Stats
+         * @description Live aggregate counts read directly from the database (no cached or synthetic values).
+         */
+        get: operations["admin_stats_api_v1_admin_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Audit Logs */
+        get: operations["admin_audit_logs_api_v1_admin_audit_logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin All Organizations */
+        get: operations["admin_all_organizations_api_v1_admin_organizations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin All Projects
+         * @description Every project across lifecycle states. Drafts carry no terms; none are invented.
+         */
+        get: operations["admin_all_projects_api_v1_admin_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/oversight/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Oversight Users */
+        get: operations["admin_oversight_users_api_v1_admin_oversight_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/oversight/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Oversight Applications
+         * @description Selection metadata only; motivation text and links stay with the organization review.
+         */
+        get: operations["admin_oversight_applications_api_v1_admin_oversight_applications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/oversight/participations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Oversight Participations
+         * @description Progress metadata only: submission counts by status, never evidence contents.
+         */
+        get: operations["admin_oversight_participations_api_v1_admin_oversight_participations_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -990,6 +1301,189 @@ export interface components {
              */
             data_origin: "synthetic";
         };
+        /** AdminApplicationOversight */
+        AdminApplicationOversight: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Project Title */
+            project_title?: string | null;
+            /**
+             * Student User Id
+             * Format: uuid
+             */
+            student_user_id: string;
+            /** Student Email */
+            student_email?: string | null;
+            /** Student Name */
+            student_name?: string | null;
+            /** Status */
+            status: string;
+            /** Offer Status */
+            offer_status?: string | null;
+            /** Weekly Minutes Available */
+            weekly_minutes_available: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Row Version */
+            row_version: number;
+        };
+        /** AdminApplicationOversightPage */
+        AdminApplicationOversightPage: {
+            /** Items */
+            items: components["schemas"]["AdminApplicationOversight"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminParticipationOversight */
+        AdminParticipationOversight: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Project Title */
+            project_title?: string | null;
+            /**
+             * Student User Id
+             * Format: uuid
+             */
+            student_user_id: string;
+            /** Student Email */
+            student_email?: string | null;
+            /** Student Name */
+            student_name?: string | null;
+            /** Status */
+            status: string;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * Submission Counts
+             * @default {}
+             */
+            submission_counts: {
+                [key: string]: number;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Row Version */
+            row_version: number;
+        };
+        /** AdminParticipationOversightPage */
+        AdminParticipationOversightPage: {
+            /** Items */
+            items: components["schemas"]["AdminParticipationOversight"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminProjectItem */
+        AdminProjectItem: {
+            project: components["schemas"]["ProjectRead"];
+            terms?: components["schemas"]["TermsRead"] | null;
+            /** Organization Name */
+            organization_name?: string | null;
+            /** Organization Verification Status */
+            organization_verification_status?: string | null;
+        };
+        /** AdminProjectPage */
+        AdminProjectPage: {
+            /** Items */
+            items: components["schemas"]["AdminProjectItem"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminStats */
+        AdminStats: {
+            /** Organizations */
+            organizations: {
+                [key: string]: number;
+            };
+            /** Projects */
+            projects: {
+                [key: string]: number;
+            };
+            /** Mentors */
+            mentors: {
+                [key: string]: number;
+            };
+            /** Applications */
+            applications: {
+                [key: string]: number;
+            };
+            /**
+             * Offers
+             * @default {}
+             */
+            offers: {
+                [key: string]: number;
+            };
+            /** Participations */
+            participations: {
+                [key: string]: number;
+            };
+            /**
+             * Submissions
+             * @default {}
+             */
+            submissions: {
+                [key: string]: number;
+            };
+            /** Users */
+            users: {
+                [key: string]: number;
+            };
+            /** Total Audit Events */
+            total_audit_events: number;
+        };
+        /** AdminUserOversight */
+        AdminUserOversight: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email?: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Account Status
+             * @default active
+             */
+            account_status: string;
+            /** Roles */
+            roles: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** AdminUserOversightPage */
+        AdminUserOversightPage: {
+            /** Items */
+            items: components["schemas"]["AdminUserOversight"][];
+            /** Total */
+            total: number;
+        };
         /** ApplicationCreate */
         ApplicationCreate: {
             /**
@@ -1288,6 +1782,54 @@ export interface components {
              */
             data_origin: "synthetic";
         };
+        /** AuditLogItem */
+        AuditLogItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Actor User Id
+             * Format: uuid
+             */
+            actor_user_id: string;
+            /** Actor Email */
+            actor_email?: string | null;
+            /** Actor Name */
+            actor_name?: string | null;
+            /** Event Type */
+            event_type: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Request Id */
+            request_id: string;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Row Version */
+            row_version: number;
+        };
+        /** AuditLogPage */
+        AuditLogPage: {
+            /** Items */
+            items: components["schemas"]["AuditLogItem"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
         /** DecisionInput */
         DecisionInput: {
             /**
@@ -1301,6 +1843,11 @@ export interface components {
             terms_version_id?: string | null;
             /** Snapshot Hash */
             snapshot_hash?: string | null;
+        };
+        /** EmailBody */
+        EmailBody: {
+            /** Email */
+            email: string;
         };
         /** Empty */
         Empty: Record<string, never>;
@@ -1339,6 +1886,13 @@ export interface components {
              * @default 0.1.0
              */
             version: string;
+        };
+        /** LoginBody */
+        LoginBody: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
         /** MentorEligibilityInput */
         MentorEligibilityInput: {
@@ -2011,7 +2565,9 @@ export interface components {
         /** ProjectReviewItem */
         ProjectReviewItem: {
             project: components["schemas"]["ProjectRead"];
-            terms: components["schemas"]["TermsRead"];
+            terms?: components["schemas"]["TermsRead"] | null;
+            /** Organization Name */
+            organization_name?: string | null;
         };
         /** ProjectReviewPage */
         ProjectReviewPage: {
@@ -2030,10 +2586,189 @@ export interface components {
             /** Explanation */
             explanation: string;
         };
+        /** RegistrationBody */
+        RegistrationBody: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+            /** Display Name */
+            display_name: string;
+        };
         /** RequiredReason */
         RequiredReason: {
             /** Explanation */
             explanation: string;
+        };
+        /** ResetBody */
+        ResetBody: {
+            /** Token */
+            token: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
+         * StudentProfileProjectDTO
+         * @description Highlighted project entry persisted in the student profile.
+         */
+        StudentProfileProjectDTO: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Role
+             * @default Contributor
+             */
+            role: string;
+            /** Link Url */
+            link_url?: string | null;
+        };
+        /**
+         * StudentProfileRead
+         * @description Response model for GET/PUT /api/v1/me/student-profile.
+         */
+        StudentProfileRead: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Identity Issuer */
+            identity_issuer: string;
+            /** Identity Subject */
+            identity_subject: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email?: string | null;
+            /**
+             * Headline
+             * @default
+             */
+            headline: string;
+            /**
+             * Bio
+             * @default
+             */
+            bio: string;
+            /**
+             * Institution
+             * @default
+             */
+            institution: string;
+            /**
+             * Program Of Study
+             * @default
+             */
+            program_of_study: string;
+            /**
+             * Graduation Year
+             * @default 2026
+             */
+            graduation_year: number;
+            /**
+             * Weekly Hours Available
+             * @default 10
+             */
+            weekly_hours_available: number;
+            /** Preferred Domains */
+            preferred_domains?: string[];
+            /** Portfolio Url */
+            portfolio_url?: string | null;
+            /** Github Url */
+            github_url?: string | null;
+            /** Linkedin Url */
+            linkedin_url?: string | null;
+            /** Self Reported Skills */
+            self_reported_skills?: components["schemas"]["StudentSelfReportedSkillDTO"][];
+            /** Top Projects */
+            top_projects?: components["schemas"]["StudentProfileProjectDTO"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Row Version */
+            row_version: number;
+        };
+        /**
+         * StudentProfileUpsert
+         * @description Editable student profile fields saved via PUT /api/v1/me/student-profile.
+         */
+        StudentProfileUpsert: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Headline
+             * @default
+             */
+            headline: string;
+            /**
+             * Bio
+             * @default
+             */
+            bio: string;
+            /**
+             * Institution
+             * @default
+             */
+            institution: string;
+            /**
+             * Program Of Study
+             * @default
+             */
+            program_of_study: string;
+            /**
+             * Graduation Year
+             * @default 2026
+             */
+            graduation_year: number;
+            /**
+             * Weekly Hours Available
+             * @default 10
+             */
+            weekly_hours_available: number;
+            /** Preferred Domains */
+            preferred_domains?: string[];
+            /** Portfolio Url */
+            portfolio_url?: string | null;
+            /** Github Url */
+            github_url?: string | null;
+            /** Linkedin Url */
+            linkedin_url?: string | null;
+            /** Self Reported Skills */
+            self_reported_skills?: components["schemas"]["StudentSelfReportedSkillDTO"][];
+            /** Top Projects */
+            top_projects?: components["schemas"]["StudentProfileProjectDTO"][];
+        };
+        /**
+         * StudentSelfReportedSkillDTO
+         * @description Self-reported student skill entry persisted in the student profile.
+         */
+        StudentSelfReportedSkillDTO: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Category
+             * @default General
+             */
+            category: string;
+            /**
+             * Proficiency
+             * @default intermediate
+             * @enum {string}
+             */
+            proficiency: "beginner" | "intermediate" | "advanced";
+            /** Notes */
+            notes?: string | null;
         };
         /** SubmissionCreate */
         SubmissionCreate: {
@@ -2177,6 +2912,11 @@ export interface components {
             /** Project Row Version */
             project_row_version?: number | null;
         };
+        /** TokenBody */
+        TokenBody: {
+            /** Token */
+            token: string;
+        };
         /**
          * UserSelf
          * @description Response model for GET /api/v1/me (API-ID-01 / Contract C-01).
@@ -2284,6 +3024,262 @@ export interface operations {
             };
         };
     };
+    health_check_api_v1_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    csrf_api_v1_auth_csrf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_api_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    verify_api_v1_auth_verify_email_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handler_api_v1_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handler_api_v1_auth_forgot_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_api_v1_auth_reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_current_user_profile_api_v1_me_get: {
         parameters: {
             query?: never;
@@ -2302,7 +3298,7 @@ export interface operations {
                     "application/json": components["schemas"]["UserSelf"];
                 };
             };
-            /** @description Missing, invalid, or expired Clerk authentication credentials. */
+            /** @description Missing, invalid, or expired authentication credentials. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -2315,6 +3311,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_my_student_profile_api_v1_me_student_profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentProfileRead"];
+                };
+            };
+        };
+    };
+    put_my_student_profile_api_v1_me_student_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentProfileUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -2479,6 +3528,224 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrganizationRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_stats_api_v1_admin_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStats"];
+                };
+            };
+        };
+    };
+    admin_audit_logs_api_v1_admin_audit_logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                event_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_all_organizations_api_v1_admin_organizations_get: {
+        parameters: {
+            query?: {
+                status?: ("draft" | "submitted" | "verified" | "changes_requested" | "rejected") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_all_projects_api_v1_admin_projects_get: {
+        parameters: {
+            query?: {
+                status?: ("draft" | "pending_review" | "changes_requested" | "rejected" | "open" | "in_progress" | "completed" | "cancelled") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProjectPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_oversight_users_api_v1_admin_oversight_users_get: {
+        parameters: {
+            query?: {
+                role?: ("student" | "mentor_candidate" | "platform_admin") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOversightPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_oversight_applications_api_v1_admin_oversight_applications_get: {
+        parameters: {
+            query?: {
+                status?: ("submitted" | "under_review" | "shortlisted" | "rejected" | "offered" | "withdrawn") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminApplicationOversightPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_oversight_participations_api_v1_admin_oversight_participations_get: {
+        parameters: {
+            query?: {
+                status?: ("active" | "under_review" | "completed" | "partially_completed" | "withdrawn" | "cancelled") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminParticipationOversightPage"];
                 };
             };
             /** @description Validation Error */

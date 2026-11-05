@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import "../features/organization/tests/register-typescript.mjs";
 const { createPortalApi } = await import("../lib/api/portal-api.ts");
 
-test("adapter forwards bearer token and exact version/terms headers to the configured origin", async t => {
+test("adapter uses same-origin cookies and preserves version/terms headers", async t => {
   const previousUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000";
   t.after(() => { globalThis.fetch = originalFetch; if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = previousUrl; });
   const requests = [];
   globalThis.fetch = async request => {
+    if (typeof request === "string") return Response.json({csrf_token:"synthetic"});
     requests.push({ url: request.url, method: request.method, headers: request.headers, body: request.method === "GET" ? null : await request.json() });
     return Response.json({ id: "fixture-id", row_version: 1 });
   };
@@ -19,8 +20,9 @@ test("adapter forwards bearer token and exact version/terms headers to the confi
   await api.createTermsVersion("project", { fee_amount: "1200.00" }, 8);
   await api.submitProjectReview("project", "terms", 9);
   await api.decideProject("project", 10, "approve", "Synthetic test approval.", "terms", "a".repeat(64));
-  assert.equal(requests[0].url, "http://127.0.0.1:8000/api/v1/me");
-  for (const request of requests) assert.equal(request.headers.get("Authorization"), "Bearer synthetic-test-token-not-a-Clerk-session");
+  assert.equal(requests[0].url, "http://localhost/api/v1/me");
+  for (const request of requests) assert.equal(request.headers.get("Authorization"), null);
+  for (const request of requests.slice(1)) assert.equal(request.headers.get("X-CSRF-Token"), "synthetic");
   for (const [index, version] of [[1, 4], [2, 8], [3, 9], [4, 10]]) {
     assert.equal(requests[index].headers.get("If-Match"), `"${version}"`);
     assert.ok(requests[index].headers.get("Idempotency-Key").length >= 16);
@@ -33,7 +35,7 @@ test("API rejection remains an error and includes the backend explanation", asyn
   const previousUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000";
   t.after(() => { globalThis.fetch = originalFetch; if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = previousUrl; });
-  globalThis.fetch = async () => Response.json({ error: { code: "ORG_NOT_VERIFIED", message: "Independent organization review required." } }, { status: 409 });
+  globalThis.fetch = async request => typeof request === "string" ? Response.json({csrf_token:"synthetic"}) : Response.json({ error: { code: "ORG_NOT_VERIFIED", message: "Independent organization review required." } }, { status: 409 });
   const result = await createPortalApi("synthetic-token").submitProjectReview("project", "terms", 2);
   assert.equal(result.status, 409);
   assert.equal(result.data, null);
@@ -48,6 +50,7 @@ test("application, offer, and assignment writes carry observed versions and expl
   t.after(() => { globalThis.fetch = oldFetch; if (oldUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = oldUrl; });
   const requests = [];
   globalThis.fetch = async request => {
+    if (typeof request === "string") return Response.json({csrf_token:"synthetic"});
     requests.push({ method: request.method, url: request.url, headers: request.headers, body: await request.json() });
     return Response.json({ id: "synthetic-record", row_version: 7 });
   };
@@ -71,7 +74,7 @@ test("422 errors expose the backend field guidance without echoing submitted dat
   const previousUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
   process.env.NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000";
   t.after(() => { globalThis.fetch = originalFetch; if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = previousUrl; });
-  globalThis.fetch = async () => Response.json({error:{code:"VALIDATION_ERROR",message:"Submitted request data failed validation.",field_errors:{"scope_out":["String should have at least 10 characters"],"milestones.0.title":["String should have at most 180 characters"]}}},{status:422});
+  globalThis.fetch = async request => typeof request === "string" ? Response.json({csrf_token:"synthetic"}) : Response.json({error:{code:"VALIDATION_ERROR",message:"Submitted request data failed validation.",field_errors:{"scope_out":["String should have at least 10 characters"],"milestones.0.title":["String should have at most 180 characters"]}}},{status:422});
   const result = await createPortalApi("synthetic-token").createProject("org",{},1);
   assert.equal(result.status,422);
   assert.equal(result.data,null);
@@ -87,6 +90,7 @@ test("student discovery loads every server page without using stale browser cach
   t.after(() => { globalThis.fetch = originalFetch; if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_API_BASE_URL; else process.env.NEXT_PUBLIC_API_BASE_URL = previousUrl; });
   const offsets = [];
   globalThis.fetch = async request => {
+    if (typeof request === "string") return Response.json({csrf_token:"synthetic"});
     const offset = Number(new URL(request.url).searchParams.get("offset"));
     offsets.push(offset);
     assert.equal(request.cache,"no-store");
@@ -103,7 +107,7 @@ test("completion, withdrawal and offer-decline actions use distinct versioned en
   process.env.NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:8000";
   t.after(()=>{globalThis.fetch=oldFetch;if(oldUrl===undefined)delete process.env.NEXT_PUBLIC_API_BASE_URL;else process.env.NEXT_PUBLIC_API_BASE_URL=oldUrl;});
   const calls=[];
-  globalThis.fetch=async request=>{calls.push({path:new URL(request.url).pathname,version:request.headers.get("If-Match"),body:await request.json()});return Response.json({id:"synthetic",row_version:9});};
+  globalThis.fetch=async request=>{if(typeof request==="string")return Response.json({csrf_token:"synthetic"});calls.push({path:new URL(request.url).pathname,version:request.headers.get("If-Match"),body:await request.json()});return Response.json({id:"synthetic",row_version:9});};
   const api=createPortalApi("synthetic-test-token");
   await api.declineOffer("offer",2,"Synthetic decline reason.");
   await api.revokeOffer("offer",3,"Synthetic revoke reason.");

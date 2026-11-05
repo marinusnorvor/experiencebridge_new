@@ -22,56 +22,20 @@ from app.identity.models import User, UserRoleGrant
 from app.main import create_app
 from app.mentorship.models import MentorAssignment, MentorProfile
 from app.projects.models import Project
-from app.tests.test_identity_auth import RSA_PUBLIC_JWK, _make_clerk_settings, _mint_jwt
+from app.tests.auth_workflow_helpers import staging_workflow, register_actor, activate, ORIGIN
 from app.tests.test_supervisor_applications import application_body, open_project
 from app.tests.test_supervisor_projects import actor, post
 
 
 @pytest.fixture
-def workflow(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'workflow_mentorship.db'}", connect_args={"check_same_thread": False})
-
-    @event.listens_for(engine, "connect")
-    def foreign_keys(connection, _):
-        connection.execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(engine)
-    sessions = sessionmaker(engine, expire_on_commit=False)
-
-    def make_app():
-        app = create_app(_make_clerk_settings())
-        app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-
-        def database():
-            with sessions() as db:
-                try:
-                    yield db
-                except Exception:
-                    db.rollback()
-                    raise
-
-        app.dependency_overrides[get_db] = database
-        return app
-
-    with TestClient(make_app()) as client:
-        actors = {}
-        for name in ("owner", "reviewer", "admin", "student", "mentor", "outsider"):
-            token = _mint_jwt(sub=f"user_cp3_{name}")
-            client.headers["Authorization"] = f"Bearer {token}"
-            result = client.get("/api/v1/me")
-            assert result.status_code == 200
-            actors[name] = {"token": token, "id": result.json()["id"]}
+def workflow(staging_workflow):
+    sessions, make_app = staging_workflow
+    with TestClient(make_app(), base_url=ORIGIN) as client:
+        actors = {name: register_actor(client, name) for name in ("owner", "reviewer", "admin", "student", "mentor", "outsider")}
         with sessions() as db:
-            db.add(
-                UserRoleGrant(
-                    user_id=UUID(actors["admin"]["id"]),
-                    role="platform_admin",
-                    reason="Synthetic test administrator",
-                )
-            )
+            db.add(UserRoleGrant(user_id=UUID(actors["admin"]["id"]), role="platform_admin", reason="Synthetic test administrator"))
             db.commit()
         yield client, actors, sessions, make_app
-    engine.dispose()
 
 
 def setup_active_participation(workflow):
@@ -327,8 +291,8 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow, sc
         assert p.status == "completed"
         part_row = db.get(Participation, UUID(part["id"]))
         assert part_row.status == "completed"
-        assert len(db.scalars(select(MentorReview)).all()) == 1
-        assert len(db.scalars(select(OrganizationReview)).all()) == 1
+        assert len(db.scalars(select(MentorReview).where(MentorReview.submission_id == UUID(submission["id"]))).all()) == 1
+        assert len(db.scalars(select(OrganizationReview).where(OrganizationReview.submission_id == UUID(submission["id"]))).all()) == 1
 
 
 def test_mentor_conflict_check_rejects_org_member(workflow):

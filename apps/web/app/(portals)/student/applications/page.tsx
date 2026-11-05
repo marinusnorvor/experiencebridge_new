@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { Suspense } from "react";
 import { StudentApplicationsView } from "@/features/student/components/student-applications-view";
 
@@ -7,9 +8,9 @@ export const metadata = {
 };
 
 export default function StudentApplicationsPage() {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading applications...</div>}>
       <StudentApplicationsView />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }

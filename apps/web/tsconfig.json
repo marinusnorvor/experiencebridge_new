@@ -39,7 +39,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     ".next-integration/types/**/*.ts",
-    ".next-integration/dev/types/**/*.ts"
+    ".next-integration/dev/types/**/*.ts",
+    ".next-auth-check/types/**/*.ts",
+    ".next-auth-check/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

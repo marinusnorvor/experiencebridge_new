@@ -171,7 +171,7 @@ export function StudentProfileView() {
           linkedinUrl: dto?.linkedin_url ?? "",
           verificationBadge: {
             isVerified: true,
-            provider: "Clerk Authenticated Identity",
+            provider: "ExperienceBridge authenticated identity",
             verifiedAt: dto?.updated_at?.slice(0, 10) || "Active",
           },
           assessedSkills: passport.assessedSkills,
@@ -659,7 +659,7 @@ export function StudentProfileView() {
                     <span className="text-[10px] text-slate-500">
                       {preview
                         ? "Organizations and mentors contact you at this address"
-                        : "Governed by your authenticated Clerk account"}
+                        : "Governed by your authenticated account"}
                     </span>
                   </div>
 

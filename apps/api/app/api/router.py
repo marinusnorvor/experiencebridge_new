@@ -14,6 +14,8 @@ from app import (
     projects,
 )
 from app.core.domains import DomainModuleSpec
+from app.api.health import router as health_router
+from app.identity.auth_router import router as authentication_router
 
 DOMAIN_MODULES: tuple[DomainModuleSpec, ...] = (
     identity.MODULE_SPEC,
@@ -26,6 +28,8 @@ DOMAIN_MODULES: tuple[DomainModuleSpec, ...] = (
 )
 
 api_v1_router = APIRouter(prefix="/api/v1")
+api_v1_router.include_router(health_router)
+api_v1_router.include_router(authentication_router)
 for domain_pkg in (
     identity,
     organizations,

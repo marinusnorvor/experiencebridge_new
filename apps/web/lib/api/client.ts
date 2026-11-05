@@ -1,15 +1,8 @@
-import { getPublicApiBaseUrl } from "./base-url";
-export { getPublicApiBaseUrl } from "./base-url";
-
 import { createApiClient } from "@experiencebridge/api-client";
-
-let apiClient: ReturnType<typeof createApiClient> | undefined;
+import { authenticatedFetch } from "../auth/client";
 
 export function getApiClient() {
-  apiClient ??= createApiClient(getPublicApiBaseUrl());
-  return apiClient;
+  const baseUrl = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  return createApiClient(baseUrl, { fetch: authenticatedFetch as typeof fetch });
 }
-
-export function getAuthenticatedApiClient(accessToken: string | null | undefined) {
-  return createApiClient(getPublicApiBaseUrl(), { accessToken });
-}
+export function getAuthenticatedApiClient() { return getApiClient(); }

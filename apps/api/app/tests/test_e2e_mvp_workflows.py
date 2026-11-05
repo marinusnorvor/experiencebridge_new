@@ -25,42 +25,18 @@ from app.database.session import get_db
 from app.identity.models import UserRoleGrant
 from app.main import create_app
 from app.projects.models import Project
-from app.tests.test_identity_auth import RSA_PUBLIC_JWK, _make_clerk_settings, _mint_jwt
+from app.tests.auth_workflow_helpers import staging_workflow, register_actor, activate, ORIGIN
 
 
-def test_complete_cross_portal_mvp_workflows(tmp_path: Path) -> None:
-    engine = create_engine(
-        f"sqlite:///{tmp_path / 'e2e_mvp.sqlite'}",
-        connect_args={"check_same_thread": False},
-    )
-
-    @event.listens_for(engine, "connect")
-    def foreign_keys(connection, _):
-        connection.execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(engine, expire_on_commit=False)
-
-    settings = _make_clerk_settings()
-    app = create_app(settings)
-    app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-
-    def database():
-        with session_factory() as db:
-            try:
-                yield db
-            except Exception:
-                db.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = database
-    client = TestClient(app)
-
-    def token_for(actor_name: str) -> str:
-        return _mint_jwt(sub=f"user_e2e_{actor_name}")
+def test_complete_cross_portal_mvp_workflows(staging_workflow) -> None:
+    session_factory, make_app = staging_workflow
+    client = TestClient(make_app(), base_url=ORIGIN)
+    actors = {}
 
     def set_actor(actor_name: str) -> None:
-        client.headers["Authorization"] = f"Bearer {token_for(actor_name)}"
+        if actor_name not in actors:
+            actors[actor_name] = register_actor(client, actor_name)
+        activate(client, actors[actor_name])
 
     def api_post(path: str, body: dict, row_version: int | None = None):
         headers = {"Idempotency-Key": str(uuid4())}
@@ -498,41 +474,18 @@ def test_complete_cross_portal_mvp_workflows(tmp_path: Path) -> None:
         assert mr_row is not None and mr_row.decision == "reviewed"
         or_row = db.scalar(select(OrganizationReview).where(OrganizationReview.submission_id == sub_row.id))
         assert or_row is not None and or_row.decision == "accepted"
-    engine.dispose()
+    client.close()
 
 
-def test_student_profile_persistence_isolation_and_duplicate_application_guard(tmp_path: Path) -> None:
-    engine = create_engine(
-        f"sqlite:///{tmp_path / 'e2e_student_profile.sqlite'}",
-        connect_args={"check_same_thread": False},
-    )
-
-    @event.listens_for(engine, "connect")
-    def foreign_keys(connection, _):
-        connection.execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(engine)
-    session_factory = sessionmaker(engine, expire_on_commit=False)
-
-    settings = _make_clerk_settings()
-    app = create_app(settings)
-    app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-
-    def database():
-        with session_factory() as db:
-            try:
-                yield db
-            except Exception:
-                db.rollback()
-                raise
-
-    app.dependency_overrides[get_db] = database
-    client = TestClient(app)
+def test_student_profile_persistence_isolation_and_duplicate_application_guard(staging_workflow) -> None:
+    session_factory, make_app = staging_workflow
+    client = TestClient(make_app(), base_url=ORIGIN)
+    actors = {}
 
     def set_actor(actor_name: str, email: str | None = None) -> None:
-        extra = {"email": email, "email_verified": True} if email else None
-        token = _mint_jwt(sub=f"user_stu_{actor_name}", extra_claims=extra)
-        client.headers["Authorization"] = f"Bearer {token}"
+        if actor_name not in actors:
+            actors[actor_name] = register_actor(client, actor_name)
+        activate(client, actors[actor_name])
 
     def api_put(path: str, body: dict):
         return client.put(
@@ -542,10 +495,10 @@ def test_student_profile_persistence_isolation_and_duplicate_application_guard(t
         )
 
     # 1. Student A signs in and loads initial profile
-    set_actor("stella", email="stella.appiok@ashesi.edu.gh")
+    set_actor("stella")
     init_prof = client.get("/api/v1/me/student-profile")
     assert init_prof.status_code == 200
-    assert init_prof.json()["email"] == "stella.appiok@ashesi.edu.gh"
+    assert init_prof.json()["email"] == actors["stella"]["email"]
     assert init_prof.json()["self_reported_skills"] == []
 
     # 2. Validation rejects invalid URLs and blank display_name
@@ -599,7 +552,7 @@ def test_student_profile_persistence_isolation_and_duplicate_application_guard(t
     assert saved["institution"] == "Ashesi University"
     assert saved["graduation_year"] == 2026
     assert saved["weekly_hours_available"] == 15
-    assert saved["email"] == "stella.appiok@ashesi.edu.gh"
+    assert saved["email"] == actors["stella"]["email"]
     assert len(saved["self_reported_skills"]) == 1
     assert saved["self_reported_skills"][0]["name"] == "TypeScript"
     assert len(saved["top_projects"]) == 1
@@ -610,19 +563,19 @@ def test_student_profile_persistence_isolation_and_duplicate_application_guard(t
     assert "student" in me_after["effective_contexts"]
 
     # 4. Student B signs in: cannot see Student A's profile data
-    set_actor("kwame", email="kwame.mensah@ug.edu.gh")
+    set_actor("kwame")
     other_prof = client.get("/api/v1/me/student-profile").json()
-    assert other_prof["email"] == "kwame.mensah@ug.edu.gh"
+    assert other_prof["email"] == actors["kwame"]["email"]
     assert other_prof["institution"] == ""
     assert other_prof["self_reported_skills"] == []
     assert other_prof["top_projects"] == []
 
     # 5. Student A signs back in: saved profile persists across sessions
-    set_actor("stella", email="stella.appiok@ashesi.edu.gh")
+    set_actor("stella")
     reloaded = client.get("/api/v1/me/student-profile").json()
     assert reloaded["display_name"] == "Stella Appiok"
     assert reloaded["institution"] == "Ashesi University"
     assert len(reloaded["self_reported_skills"]) == 1
     assert len(reloaded["top_projects"]) == 1
 
-    engine.dispose()
+    client.close()

@@ -21,7 +21,7 @@ from app.database.session import get_db
 from app.identity.models import User, UserRoleGrant
 from app.main import create_app
 from app.projects.models import Project
-from app.tests.test_identity_auth import RSA_PUBLIC_JWK, _make_clerk_settings, _mint_jwt
+from app.tests.auth_workflow_helpers import staging_workflow, register_actor, activate, ORIGIN
 from app.tests.test_supervisor_projects import (
     actor,
     post,
@@ -30,50 +30,14 @@ from app.tests.test_supervisor_projects import (
 
 
 @pytest.fixture
-def workflow(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'workflow_apps.db'}", connect_args={"check_same_thread": False})
-
-    @event.listens_for(engine, "connect")
-    def foreign_keys(connection, _):
-        connection.execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(engine)
-    sessions = sessionmaker(engine, expire_on_commit=False)
-
-    def make_app():
-        app = create_app(_make_clerk_settings())
-        app.state.clerk_signing_key_resolver = lambda _: RSA_PUBLIC_JWK.key
-
-        def database():
-            with sessions() as db:
-                try:
-                    yield db
-                except Exception:
-                    db.rollback()
-                    raise
-
-        app.dependency_overrides[get_db] = database
-        return app
-
-    with TestClient(make_app()) as client:
-        actors = {}
-        for name in ("owner", "admin", "student1", "student2", "outsider"):
-            token = _mint_jwt(sub=f"user_app_{name}")
-            client.headers["Authorization"] = f"Bearer {token}"
-            result = client.get("/api/v1/me")
-            assert result.status_code == 200
-            actors[name] = {"token": token, "id": result.json()["id"]}
+def workflow(staging_workflow):
+    sessions, make_app = staging_workflow
+    with TestClient(make_app(), base_url=ORIGIN) as client:
+        actors = {name: register_actor(client, name) for name in ("owner", "admin", "student1", "student2", "outsider")}
         with sessions() as db:
-            db.add(
-                UserRoleGrant(
-                    user_id=UUID(actors["admin"]["id"]),
-                    role="platform_admin",
-                    reason="Synthetic test administrator",
-                )
-            )
+            db.add(UserRoleGrant(user_id=UUID(actors["admin"]["id"]), role="platform_admin", reason="Synthetic test administrator"))
             db.commit()
         yield client, actors, sessions, make_app
-    engine.dispose()
 
 
 def open_project(workflow, capacity=1):
@@ -436,7 +400,7 @@ def test_published_project_is_discoverable_and_application_reaches_organization_
     duplicate = post(client, f'/projects/{project["id"]}/applications', body, discovered["row_version"])
     assert duplicate.status_code == 409
 
-    with TestClient(make_app()) as restarted:
+    with TestClient(make_app(), base_url=ORIGIN) as restarted:
         assert restarted.get("/api/v1/me/applications").status_code == 401
         actor(restarted, actors, "student1")
         assert restarted.get("/api/v1/me/applications").json()["items"][0]["id"] == application_id

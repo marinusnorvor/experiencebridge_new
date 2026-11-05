@@ -199,18 +199,14 @@ class AuditLogPage(BaseModel):
     offset: int
 
 
-class AdminUserOversight(BaseModel):
-    id: UUID
-    email: str | None = None
-    display_name: str
-    account_status: str = "active"
-    roles: list[str]
-    created_at: datetime
+from app.identity.schemas import (
+    AdminCreateUserRequest,
+    AdminGrantRoleRequest,
+    AdminRoleType,
+    AdminUserOversight,
+    AdminUserOversightPage,
+)
 
-
-class AdminUserOversightPage(BaseModel):
-    items: list[AdminUserOversight]
-    total: int
 
 
 class AdminApplicationOversight(BaseModel):

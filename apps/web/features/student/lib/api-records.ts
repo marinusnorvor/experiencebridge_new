@@ -435,7 +435,7 @@ export function mapStudentProfileDto(dto: StudentProfileDTO): StudentProfile {
     id: dto.user_id,
     userId: dto.user_id,
     displayName: dto.display_name,
-    email: dto.email ?? "Provided by Clerk session",
+    email: dto.email ?? "Not provided",
     headline: dto.headline ?? "",
     bio: dto.bio ?? "",
     institution: dto.institution ?? "",
@@ -448,7 +448,7 @@ export function mapStudentProfileDto(dto: StudentProfileDTO): StudentProfile {
     linkedinUrl: dto.linkedin_url ?? "",
     verificationBadge: {
       isVerified: true,
-      provider: "Clerk Authenticated Identity",
+      provider: "ExperienceBridge authenticated identity",
       verifiedAt: dto.updated_at?.slice(0, 10) || "Active",
     },
     assessedSkills: [],

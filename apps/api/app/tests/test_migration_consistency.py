@@ -3,6 +3,7 @@
 import io
 from pathlib import Path
 
+import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
@@ -10,6 +11,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import CheckConstraint, create_engine, inspect
 
 import app.identity.models  # noqa: F401
+import app.identity.password_models  # noqa: F401
 import app.organizations.models  # noqa: F401
 import app.projects.models  # noqa: F401
 import app.applications.models  # noqa: F401
@@ -21,9 +23,9 @@ from app.database.base import Base
 
 def test_full_migration_chain_matches_models_and_compiles_for_postgres():
     scripts = ScriptDirectory(str(Path(__file__).resolve().parents[2] / "alembic"))
-    assert scripts.get_heads() == ["20261031_0004"]
+    assert scripts.get_heads() == ["20261105_0006"]
     revisions = list(reversed(list(scripts.walk_revisions())))
-    assert len(revisions) == 4
+    assert len(revisions) == 6
     engine = create_engine("sqlite://")
     try:
         with engine.begin() as connection:
@@ -39,9 +41,8 @@ def test_full_migration_chain_matches_models_and_compiles_for_postgres():
                 actual = {c["name"]: c["sqltext"] for c in inspector.get_check_constraints(table.name)}
                 assert actual == expected, table.name
             with Operations.context(context):
-                for revision in reversed(revisions):
-                    revision.module.downgrade()
-            assert inspect(connection).get_table_names() == []
+                with pytest.raises(RuntimeError, match="data-preserving rollback"):
+                    revisions[-1].module.downgrade()
     finally:
         engine.dispose()
 

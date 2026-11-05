@@ -8,6 +8,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 import app.identity.models  # noqa: F401
+import app.identity.password_models  # noqa: F401
 import app.organizations.models  # noqa: F401
 import app.projects.models  # noqa: F401
 import app.applications.models  # noqa: F401

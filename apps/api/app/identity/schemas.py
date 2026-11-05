@@ -144,32 +144,6 @@ class StudentProfileRead(BaseModel):
     row_version: int
 
 
-class VerifiedIdentityClaims(BaseModel):
-    """Server-verified identity claims extracted from a Clerk session JWT."""
-
-    model_config = ConfigDict(frozen=True)
-
-    issuer: str = Field(description="Verified OIDC/Clerk issuer URL (iss).")
-    subject: str = Field(description="Verified Clerk user ID (sub).")
-    session_id: str | None = Field(default=None, description="Clerk session identifier (sid).")
-    authorized_party: str | None = Field(
-        default=None,
-        description="Verified authorized party origin (azp) when present.",
-    )
-    email: str | None = Field(
-        default=None,
-        description="Optional normalized email claim from the verified token.",
-    )
-    email_verified: bool = Field(
-        default=False,
-        description="Whether the email address was verified by Clerk.",
-    )
-    display_name: str | None = Field(
-        default=None,
-        description="Optional display name claim from the verified token.",
-    )
-
-
 class UserRoleGrantRead(BaseModel):
     """Active global role grant attached to an internal user record."""
 
@@ -207,3 +181,38 @@ class UserSelf(BaseModel):
     created_at: datetime
     updated_at: datetime
     row_version: int
+
+
+AdminRoleType = Literal["student", "mentor_candidate", "platform_admin"]
+
+
+class AdminCreateUserRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=128)
+    display_name: str = Field(min_length=1, max_length=160)
+    role: AdminRoleType | None = "platform_admin"
+
+
+class AdminGrantRoleRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    role: AdminRoleType
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AdminUserOversight(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: str | None = None
+    display_name: str
+    account_status: str = "active"
+    roles: list[str]
+    created_at: datetime
+
+
+class AdminUserOversightPage(BaseModel):
+    items: list[AdminUserOversight]
+    total: int

@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { Show } from "@clerk/nextjs";
 import { portalLinks } from "@/lib/portal-routes";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 
@@ -19,31 +17,8 @@ export default function HomePage() {
       </p>
 
       {!isPortalPresentationMode() && <div className="mt-8 flex flex-wrap items-center gap-4">
-        <Suspense
-          fallback={
-            <div className="h-10 w-56 animate-pulse rounded-lg bg-slate-200" />
-          }
-        >
-          <Show when="signed-out">
-            <Link
-              href="/sign-in"
-              className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/sign-up"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-800 transition hover:border-teal-700 hover:text-teal-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
-            >
-              Create account
-            </Link>
-          </Show>
-          <Show when="signed-in">
-            <p className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-900">
-              You are signed in. Choose a workspace below.
-            </p>
-          </Show>
-        </Suspense>
+        <Link href="/sign-in" className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm text-white">Sign in</Link>
+        <Link href="/sign-up" className="rounded-lg border px-5 py-2.5 text-sm">Create account</Link>
       </div>}
 
       <nav aria-label="Portal routes" className="mt-10 grid gap-4 sm:grid-cols-2">

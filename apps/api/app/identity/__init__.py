@@ -15,11 +15,11 @@ MODULE_SPEC = DomainModuleSpec(
         "contextual authorization predicates."
     ),
     proposed_tables=("users", "user_role_grants"),
-    blocking_decisions=("ADR-002 (APPROVED)",),
+    blocking_decisions=("ADR-012 (branch development exception)",),
     invariants=(
         "Identity is not authorization; contextual membership, assignment, and ownership are checked server-side.",
         "Client-supplied role labels or user IDs are never trusted.",
-        "No passwords or identity-provider secrets are stored in the application database.",
+        "Only password hashes and token hashes are persisted.",
     ),
 )
 

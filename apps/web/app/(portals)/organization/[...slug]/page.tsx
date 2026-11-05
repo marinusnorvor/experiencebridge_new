@@ -1,6 +1,7 @@
 // This page is intentionally gated while the client loads authenticated organization records.
 export const instant = false;
 
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { OrganizationFeatureRouter } from "@/features/organization/screens/organization-feature-router";
 import { Suspense } from "react";
 import { PortalLoading } from "@/features/organization/components/ui/portal-states";
@@ -19,10 +20,10 @@ async function OrganizationRouteContent({
 }
 
 export default function OrganizationDynamicRoutePage(props: PageProps) {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<PortalLoading />}>
       <OrganizationRouteContent {...props} />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }
 

@@ -1,6 +1,7 @@
 // This page is intentionally gated while the client loads authenticated organization records.
 export const instant = false;
 
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { Suspense } from "react";
 import { OrganizationDashboardScreen } from "@/features/organization";
 import { DashboardLoading } from "@/features/organization/components/dashboard/dashboard-states";
@@ -11,9 +12,9 @@ export const metadata = {
 };
 
 export default function OrganizationDashboardPage() {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<DashboardLoading />}>
       <OrganizationDashboardScreen />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }

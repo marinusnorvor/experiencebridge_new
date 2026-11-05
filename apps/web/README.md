@@ -23,13 +23,7 @@ owners' implementations from `features/<portal>/`. Approved updates to those
 files appear at the same destination after staging is merged, without copying
 their components into the homepage.
 
-Local `next dev` allows viewing these interfaces without Clerk or private API
-requests. This applies only with `NEXT_PUBLIC_APP_ENV` unset or `development`,
-and without `VERCEL`. Production builds, staging, and Vercel retain Clerk route
-protection. Sign-in/up and the API diagnostic screen retain their Clerk provider.
-Backend JWT verification and permissions are unchanged. Restoring local sign-in
-requirements only requires disabling `isPortalPresentationMode()` in
-`lib/auth/portal-presentation.ts`.
+The shared FastAPI session client protects portal routes and uses the same-origin API proxy. The explicitly enabled local presentation mode (`NEXT_PUBLIC_PORTAL_PREVIEW=true`) shows labeled sample interfaces without granting API permissions. Configure the backend, proxy and development mail sink as described in `docs/auth-integration.md`; sign-in and account recovery use the shared authentication client.
 
 Validation from the repository root (Node 24 for the built-in test runner):
 

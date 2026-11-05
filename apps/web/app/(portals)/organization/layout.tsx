@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { OrganizationPortalShell } from "@/features/organization";
 import { OrganizationDemoProvider } from "@/features/organization/hooks/organization-demo-context";
 
 export const metadata = {
@@ -12,6 +11,6 @@ export default function OrganizationPortalLayout({
 }: {
   children: ReactNode;
 }) {
-  return <OrganizationDemoProvider><OrganizationPortalShell>{children}</OrganizationPortalShell></OrganizationDemoProvider>;
+  return <OrganizationDemoProvider>{children}</OrganizationDemoProvider>;
 }
 

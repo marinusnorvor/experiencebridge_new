@@ -59,7 +59,7 @@ export function PortalPlaceholder({
         {presentationMode ? (
           <>This portal’s workflows are not implemented in the merged code yet.
           Private data and actions are unavailable in this local view.</>
-        ) : <>Authentication is enforced via Clerk, and portal context authorization is verified
+        ) : <>Authentication is enforced by the API, and portal context authorization is verified
         against FastAPI (<code className="rounded bg-white px-1.5 py-0.5 text-xs">GET /api/v1/me</code>).
         Domain workflows for the {title.toLowerCase()} portal remain gated behind their
         respective feature issues.</>}

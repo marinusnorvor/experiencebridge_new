@@ -17,6 +17,7 @@ test("admin API client forwards auth and queries admin stats", async (t) => {
   let capturedUrl = "";
   let capturedAuth = "";
   globalThis.fetch = async (req) => {
+    if (typeof req === "string") return Response.json({csrf_token:"synthetic"});
     capturedUrl = req.url;
     capturedAuth = req.headers.get("Authorization");
     return Response.json({
@@ -33,8 +34,8 @@ test("admin API client forwards auth and queries admin stats", async (t) => {
   const api = createPortalApi("admin-synthetic-jwt-token");
   const res = await api.getAdminStats();
 
-  assert.equal(capturedUrl, "http://127.0.0.1:8000/api/v1/admin/stats");
-  assert.equal(capturedAuth, "Bearer admin-synthetic-jwt-token");
+  assert.equal(capturedUrl, "http://localhost/api/v1/admin/stats");
+  assert.equal(capturedAuth, null);
   assert.equal(res.status, 200);
   assert.equal(res.data.organizations.total, 10);
   assert.equal(res.data.projects.total, 15);
@@ -53,6 +54,7 @@ test("admin audit logs query supports limit, offset, and event_type filters", as
 
   let capturedUrl = "";
   globalThis.fetch = async (req) => {
+    if (typeof req === "string") return Response.json({csrf_token:"synthetic"});
     capturedUrl = req.url;
     return Response.json({
       items: [
@@ -97,6 +99,7 @@ test("admin directory methods query organizations, projects, and users oversight
 
   const urls = [];
   globalThis.fetch = async (req) => {
+    if (typeof req === "string") return Response.json({csrf_token:"synthetic"});
     urls.push(req.url);
     if (req.url.includes("/admin/organizations")) {
       return Response.json({ items: [{ id: "org-1", display_name: "Tech Org", verification_status: "verified" }] });
@@ -138,6 +141,7 @@ test("admin moderation decisions include version precondition and explanation", 
   let capturedProjectDecision = null;
 
   globalThis.fetch = async (req) => {
+    if (typeof req === "string") return Response.json({csrf_token:"synthetic"});
     if (req.url.includes("/admin/organizations/")) {
       capturedOrgDecision = {
         headers: req.headers,

@@ -74,17 +74,13 @@ export type ValidationError = components["schemas"]["ValidationError"];
 export type HTTPValidationError = components["schemas"]["HTTPValidationError"];
 
 export interface ApiClientOptions {
-  accessToken?: string | null;
+  fetch?: typeof fetch;
 }
 
 export function createApiClient(baseUrl: string, options?: ApiClientOptions) {
-  const headers: Record<string, string> = {};
-  if (options?.accessToken) {
-    headers.Authorization = `Bearer ${options.accessToken}`;
-  }
-
   return createClient<paths>({
     baseUrl,
-    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    credentials: "include",
+    fetch: options?.fetch,
   });
 }

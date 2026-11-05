@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 from functools import lru_cache
@@ -29,27 +28,6 @@ ALLOWED_POSTGRES_SCHEMES = {
 REQUIRED_SSL_MODES = {"require", "verify-ca", "verify-full"}
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 EXPECTED_DEVELOPMENT_ROLE = "experiencebridge_development"
-
-
-def derive_clerk_issuer_from_publishable_key(publishable_key: str | None) -> str | None:
-    """Derive the Clerk Frontend API / OIDC issuer URL from a Clerk publishable key if valid."""
-    if not publishable_key:
-        return None
-    cleaned = publishable_key.strip()
-    for prefix in ("pk_test_", "pk_live_"):
-        if cleaned.startswith(prefix):
-            encoded = cleaned[len(prefix) :]
-            if not encoded:
-                return None
-            padding = "=" * (-len(encoded) % 4)
-            try:
-                decoded = base64.b64decode(encoded + padding).decode("utf-8").strip()
-            except Exception:
-                return None
-            domain = decoded.rstrip("$").strip()
-            if domain and "." in domain and "/" not in domain and " " not in domain:
-                return f"https://{domain}"
-    return None
 
 
 def redact_database_url(raw_url: str | SecretStr | None) -> str:
@@ -233,31 +211,12 @@ class Settings(BaseSettings):
         validation_alias="CORS_ALLOW_CREDENTIALS",
     )
 
-    # Clerk authentication settings (ADR-002)
-    clerk_issuer_url: str | None = Field(default=None, validation_alias="CLERK_ISSUER_URL")
-    clerk_jwks_url: str | None = Field(default=None, validation_alias="CLERK_JWKS_URL")
-    clerk_publishable_key: str | None = Field(
-        default=None,
-        validation_alias="CLERK_PUBLISHABLE_KEY",
-    )
-    clerk_secret_key: SecretStr | None = Field(
-        default=None,
-        validation_alias="CLERK_SECRET_KEY",
-    )
-    clerk_authorized_parties: Annotated[list[str], NoDecode] = Field(
-        default_factory=list,
-        validation_alias="CLERK_AUTHORIZED_PARTIES",
-    )
-    clerk_audience: str | None = Field(default=None, validation_alias="CLERK_AUDIENCE")
-    clerk_jwt_leeway_seconds: int = Field(
-        default=10,
-        ge=0,
-        le=120,
-        validation_alias="CLERK_JWT_LEEWAY_SECONDS",
-    )
-
     log_level: LogLevelName = Field(default="INFO", validation_alias="LOG_LEVEL")
     docs_enabled: bool = Field(default=True, validation_alias="DOCS_ENABLED")
+
+    super_admin_email: str | None = Field(default=None, validation_alias="SUPER_ADMIN_EMAIL")
+    super_admin_password: SecretStr | None = Field(default=None, validation_alias="SUPER_ADMIN_PASSWORD")
+    super_admin_name: str = Field(default="Super Administrator", validation_alias="SUPER_ADMIN_NAME")
 
     @field_validator("app_env", mode="before")
     @classmethod
@@ -287,15 +246,6 @@ class Settings(BaseSettings):
             value,
             setting_name="CORS_ALLOWED_ORIGINS",
             default=["http://localhost:3000", "http://127.0.0.1:3000"],
-        )
-
-    @field_validator("clerk_authorized_parties", mode="before")
-    @classmethod
-    def _parse_clerk_authorized_parties(cls, value: Any) -> list[str]:
-        return _parse_origin_list(
-            value,
-            setting_name="CLERK_AUTHORIZED_PARTIES",
-            default=[],
         )
 
     @model_validator(mode="after")
@@ -345,109 +295,19 @@ class Settings(BaseSettings):
                 is_unpooled=True,
             )
 
-        # 4. Clerk configuration normalization & safety checks
-        if self.clerk_publishable_key:
-            self.clerk_publishable_key = self.clerk_publishable_key.strip() or None
-            if (
-                self.app_env == "production"
-                and self.clerk_publishable_key
-                and self.clerk_publishable_key.startswith("pk_test_")
-            ):
-                raise ValueError(
-                    "Production environment must not use a development Clerk publishable key (pk_test_)."
-                )
-            if (
-                self.app_env in {"development", "test"}
-                and self.clerk_publishable_key
-                and self.clerk_publishable_key.startswith("pk_live_")
-            ):
-                raise ValueError(
-                    "Local development and test environments must not use a live Clerk publishable key (pk_live_)."
-                )
-
-        if self.clerk_secret_key is not None:
-            raw_secret = self.clerk_secret_key.get_secret_value().strip()
-            if not raw_secret:
-                self.clerk_secret_key = None
-            else:
-                if self.app_env == "production" and raw_secret.startswith("sk_test_"):
-                    raise ValueError(
-                        "Production environment must not use a development Clerk secret key (sk_test_)."
-                    )
-                if self.app_env in {"development", "test"} and raw_secret.startswith("sk_live_"):
-                    raise ValueError(
-                        "Local development and test environments must not use a live Clerk secret key (sk_live_)."
-                    )
-
-        if self.clerk_issuer_url:
-            cleaned_issuer = self.clerk_issuer_url.strip().rstrip("/")
-            self.clerk_issuer_url = cleaned_issuer or None
-        elif self.clerk_publishable_key:
-            self.clerk_issuer_url = derive_clerk_issuer_from_publishable_key(
-                self.clerk_publishable_key
-            )
-
-        if self.clerk_issuer_url:
-            parsed_issuer = urlsplit(self.clerk_issuer_url)
-            if parsed_issuer.scheme not in {"http", "https"} or not parsed_issuer.netloc:
-                raise ValueError("CLERK_ISSUER_URL must be a valid HTTP(S) URL.")
-            if self.app_env in {"staging", "production"} and parsed_issuer.scheme != "https":
-                raise ValueError("CLERK_ISSUER_URL must use https:// in staging and production.")
-
-        if self.clerk_jwks_url:
-            cleaned_jwks = self.clerk_jwks_url.strip()
-            self.clerk_jwks_url = cleaned_jwks or None
-        elif self.clerk_issuer_url:
-            self.clerk_jwks_url = f"{self.clerk_issuer_url}/.well-known/jwks.json"
-
-        if self.clerk_jwks_url:
-            parsed_jwks = urlsplit(self.clerk_jwks_url)
-            if parsed_jwks.scheme not in {"http", "https"} or not parsed_jwks.netloc:
-                raise ValueError("CLERK_JWKS_URL must be a valid HTTP(S) URL.")
-            if self.app_env in {"staging", "production"} and parsed_jwks.scheme != "https":
-                raise ValueError("CLERK_JWKS_URL must use https:// in staging and production.")
-
-        for party in self.clerk_authorized_parties:
-            parsed_party = urlsplit(party)
-            if parsed_party.scheme not in {"http", "https"} or not parsed_party.netloc:
-                raise ValueError(f"Invalid CLERK_AUTHORIZED_PARTIES origin URL: {party!r}")
-
-        if self.clerk_audience is not None:
-            self.clerk_audience = self.clerk_audience.strip() or None
-
+        # Production origins must be exact HTTPS origins even without an identity provider.
         if self.app_env == "production":
-            # Local production-mode processes and Vercel use the same trust rules.
-            # Never infer a production identity from a development key or arbitrary JWKS.
-            key = self.clerk_publishable_key or ""
-            if self.clerk_secret_key is not None and not self.clerk_secret_key.get_secret_value().startswith("sk_live_"):
-                raise ValueError("Production CLERK_SECRET_KEY must be a live key when configured.")
-            issuer = derive_clerk_issuer_from_publishable_key(key)
-            if not key.startswith("pk_live_") or not issuer:
-                raise ValueError("Production requires a valid live CLERK_PUBLISHABLE_KEY.")
-            parsed = urlsplit(issuer)
-            if (parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment
-                    or not parsed.hostname or parsed.hostname in LOCAL_HOSTS or parsed.port):
-                raise ValueError("Production Clerk key must identify an HTTPS domain origin.")
-            if self.clerk_issuer_url != issuer:
-                raise ValueError("Production CLERK_ISSUER_URL must match CLERK_PUBLISHABLE_KEY.")
-            if self.clerk_jwks_url != f"{issuer}/.well-known/jwks.json":
-                raise ValueError("Production CLERK_JWKS_URL must match the Clerk issuer JWKS endpoint.")
-            if not self.cors_allowed_origins or not self.clerk_authorized_parties:
-                raise ValueError("Production requires explicit CORS_ALLOWED_ORIGINS and CLERK_AUTHORIZED_PARTIES.")
-            for origin in self.cors_allowed_origins + self.clerk_authorized_parties:
+            if not self.cors_allowed_origins:
+                raise ValueError("Production requires explicit CORS_ALLOWED_ORIGINS.")
+            for origin in self.cors_allowed_origins:
                 parsed = urlsplit(origin)
                 if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
                         or parsed.path or parsed.query or parsed.fragment or "*" in origin):
-                    raise ValueError("Production CORS and Clerk authorized parties must be exact HTTPS origins without paths or credentials.")
+                    raise ValueError("Production CORS origins must be exact HTTPS origins without paths or credentials.")
+
+        # Password authentication configuration is validated at application startup.
 
         return self
-
-    @property
-    def effective_clerk_authorized_parties(self) -> list[str]:
-        """Return the explicit CLERK_AUTHORIZED_PARTIES list, or fall back to CORS_ALLOWED_ORIGINS."""
-        if self.clerk_authorized_parties:
-            return list(self.clerk_authorized_parties)
-        return [origin for origin in self.cors_allowed_origins if origin != "*"]
 
     @property
     def is_serverless(self) -> bool:

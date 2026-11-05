@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { Suspense } from "react";
 import { StudentApplicationDetailView } from "@/features/student/components/student-application-detail-view";
 
@@ -20,9 +21,9 @@ export default function StudentApplicationDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading application details...</div>}>
       <ApplicationContent paramsPromise={params} />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }

@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { Suspense } from "react";
 import { StudentParticipationWorkspaceView } from "@/features/student/components/student-participation-workspace-view";
 
@@ -20,9 +21,9 @@ export default function StudentProjectWorkspacePage({
 }: {
   params: Promise<{ participationId: string }>;
 }) {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading project workspace...</div>}>
       <WorkspaceContent paramsPromise={params} />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }

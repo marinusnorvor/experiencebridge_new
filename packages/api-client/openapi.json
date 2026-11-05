@@ -28,13 +28,302 @@
         }
       }
     },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Service liveness check",
+        "description": "Return service liveness metadata without exposing database diagnostics.",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/csrf": {
+      "get": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Csrf",
+        "operationId": "csrf_api_v1_auth_csrf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Register",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Verify",
+        "operationId": "verify_api_v1_auth_verify_email_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Handler",
+        "operationId": "handler_api_v1_auth_resend_verification_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Handler",
+        "operationId": "handler_api_v1_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Password Authentication"
+        ],
+        "summary": "Reset",
+        "operationId": "reset_api_v1_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me": {
       "get": {
         "tags": [
           "Identity & Authorization"
         ],
         "summary": "Get authenticated user profile and effective contexts",
-        "description": "Verify the caller's Clerk session token, resolve or provision the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).",
+        "description": "Verify the caller's session and resolve the internal ExperienceBridge user record in PostgreSQL, and return the user's profile, active role grants, and effective portal contexts (API-ID-01).",
         "operationId": "get_current_user_profile_api_v1_me_get",
         "responses": {
           "200": {
@@ -48,7 +337,7 @@
             }
           },
           "401": {
-            "description": "Missing, invalid, or expired Clerk authentication credentials."
+            "description": "Missing, invalid, or expired authentication credentials."
           },
           "403": {
             "description": "Authenticated user account is suspended or disabled."
@@ -56,7 +345,79 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me/student-profile": {
+      "get": {
+        "tags": [
+          "Identity & Authorization"
+        ],
+        "summary": "Get authenticated student profile",
+        "description": "Return the authenticated student's editable profile fields together with account identity attributes.",
+        "operationId": "get_my_student_profile_api_v1_me_student_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentProfileRead"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Identity & Authorization"
+        ],
+        "summary": "Update authenticated student profile",
+        "description": "Persist editable student profile fields (display_name, headline, bio, academic details, availability, links, self-reported skills, and top projects) while keeping email and identity subject governed by the account.",
+        "operationId": "put_my_student_profile_api_v1_me_student_profile_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentProfileUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentProfileRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
           }
         ]
       }
@@ -102,7 +463,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -128,7 +489,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -142,7 +503,7 @@
         "operationId": "get_organization_api_v1_organizations__org_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -190,7 +551,7 @@
         "operationId": "submit_organization_api_v1_organizations__org_id__submit_verification_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -260,7 +621,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -274,7 +635,7 @@
         "operationId": "organization_decision_api_v1_admin_organizations__org_id__decisions_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -323,6 +684,537 @@
         }
       }
     },
+    "/api/v1/admin/stats": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin Stats",
+        "description": "Live aggregate counts read directly from the database (no cached or synthetic values).",
+        "operationId": "admin_stats_api_v1_admin_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStats"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin Audit Logs",
+        "operationId": "admin_audit_logs_api_v1_admin_audit_logs_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Type"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/organizations": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin All Organizations",
+        "operationId": "admin_all_organizations_api_v1_admin_organizations_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "verified",
+                    "changes_requested",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/projects": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin All Projects",
+        "description": "Every project across lifecycle states. Drafts carry no terms; none are invented.",
+        "operationId": "admin_all_projects_api_v1_admin_projects_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "pending_review",
+                    "changes_requested",
+                    "rejected",
+                    "open",
+                    "in_progress",
+                    "completed",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProjectPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/oversight/users": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin Oversight Users",
+        "operationId": "admin_oversight_users_api_v1_admin_oversight_users_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "student",
+                    "mentor_candidate",
+                    "platform_admin"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserOversightPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/oversight/applications": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin Oversight Applications",
+        "description": "Selection metadata only; motivation text and links stay with the organization review.",
+        "operationId": "admin_oversight_applications_api_v1_admin_oversight_applications_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "submitted",
+                    "under_review",
+                    "shortlisted",
+                    "rejected",
+                    "offered",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminApplicationOversightPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/oversight/participations": {
+      "get": {
+        "tags": [
+          "Supervisor workflow"
+        ],
+        "summary": "Admin Oversight Participations",
+        "description": "Progress metadata only: submission counts by status, never evidence contents.",
+        "operationId": "admin_oversight_participations_api_v1_admin_oversight_participations_get",
+        "security": [
+          {
+            "SessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "active",
+                    "under_review",
+                    "completed",
+                    "partially_completed",
+                    "withdrawn",
+                    "cancelled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminParticipationOversightPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{org_id}/projects": {
       "post": {
         "tags": [
@@ -332,7 +1224,7 @@
         "operationId": "create_project_api_v1_organizations__org_id__projects_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -388,7 +1280,7 @@
         "operationId": "organization_projects_api_v1_organizations__org_id__projects_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -436,7 +1328,7 @@
         "operationId": "edit_project_api_v1_projects__project_id__patch",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -492,7 +1384,7 @@
         "operationId": "get_project_api_v1_projects__project_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -607,7 +1499,7 @@
         "operationId": "create_terms_api_v1_projects__project_id__terms_versions_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -665,7 +1557,7 @@
         "operationId": "get_terms_api_v1_projects__project_id__terms_versions__version_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -723,7 +1615,7 @@
         "operationId": "submit_project_api_v1_projects__project_id__submit_review_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -793,7 +1685,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -807,7 +1699,7 @@
         "operationId": "project_decision_api_v1_admin_projects__project_id__decisions_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -865,7 +1757,7 @@
         "operationId": "start_project_api_v1_projects__project_id__start_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -923,7 +1815,7 @@
         "operationId": "complete_project_api_v1_projects__project_id__complete_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -981,7 +1873,7 @@
         "operationId": "submit_application_api_v1_projects__project_id__applications_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1037,7 +1929,7 @@
         "operationId": "project_applications_api_v1_projects__project_id__applications_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1097,7 +1989,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -1111,7 +2003,7 @@
         "operationId": "get_application_api_v1_applications__application_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1159,7 +2051,7 @@
         "operationId": "start_application_review_api_v1_applications__application_id__start_review_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1217,7 +2109,7 @@
         "operationId": "shortlist_application_api_v1_applications__application_id__shortlist_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1275,7 +2167,7 @@
         "operationId": "reject_application_api_v1_applications__application_id__reject_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1333,7 +2225,7 @@
         "operationId": "withdraw_application_api_v1_applications__application_id__withdraw_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1391,7 +2283,7 @@
         "operationId": "create_offer_api_v1_applications__application_id__offer_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1461,7 +2353,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -1475,7 +2367,7 @@
         "operationId": "get_offer_api_v1_offers__offer_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1523,7 +2415,7 @@
         "operationId": "revoke_offer_api_v1_offers__offer_id__revoke_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1581,7 +2473,7 @@
         "operationId": "decline_offer_api_v1_offers__offer_id__decline_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1639,7 +2531,7 @@
         "operationId": "accept_offer_api_v1_offers__offer_id__accept_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1709,7 +2601,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -1723,7 +2615,7 @@
         "operationId": "project_participations_api_v1_projects__project_id__participations_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1771,7 +2663,7 @@
         "operationId": "get_participation_api_v1_participations__participation_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1819,7 +2711,7 @@
         "operationId": "withdraw_participation_api_v1_participations__participation_id__withdraw_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1877,7 +2769,7 @@
         "operationId": "mark_ready_for_review_api_v1_participations__participation_id__mark_ready_for_review_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -1935,7 +2827,7 @@
         "operationId": "finalize_participation_api_v1_participations__participation_id__finalize_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2005,7 +2897,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       },
@@ -2049,7 +2941,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -2063,7 +2955,7 @@
         "operationId": "decide_mentor_eligibility_api_v1_admin_mentors__mentor_user_id__eligibility_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2121,7 +3013,7 @@
         "operationId": "propose_mentor_assignment_api_v1_participations__participation_id__mentor_assignments_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2177,7 +3069,7 @@
         "operationId": "participation_mentor_assignments_api_v1_participations__participation_id__mentor_assignments_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2237,7 +3129,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -2251,7 +3143,7 @@
         "operationId": "get_mentor_assignment_api_v1_mentor_assignments__assignment_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2299,7 +3191,7 @@
         "operationId": "accept_mentor_assignment_api_v1_mentor_assignments__assignment_id__accept_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2357,7 +3249,7 @@
         "operationId": "decline_mentor_assignment_api_v1_mentor_assignments__assignment_id__decline_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2415,7 +3307,7 @@
         "operationId": "end_mentor_assignment_api_v1_mentor_assignments__assignment_id__end_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2485,7 +3377,7 @@
         },
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ]
       }
@@ -2499,7 +3391,7 @@
         "operationId": "organization_mentor_directory_api_v1_organizations__org_id__mentors_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2547,7 +3439,7 @@
         "operationId": "create_submission_api_v1_participations__participation_id__submissions_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2603,7 +3495,7 @@
         "operationId": "list_participation_submissions_api_v1_participations__participation_id__submissions_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2651,7 +3543,7 @@
         "operationId": "get_submission_api_v1_submissions__submission_id__get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2697,7 +3589,7 @@
         "operationId": "patch_submission_api_v1_submissions__submission_id__patch",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2755,7 +3647,7 @@
         "operationId": "add_artifact_api_v1_submissions__submission_id__external_artifacts_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2813,7 +3705,7 @@
         "operationId": "delete_artifact_api_v1_submissions__submission_id__external_artifacts__artifact_id__delete",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2864,7 +3756,7 @@
         "operationId": "submit_submission_api_v1_submissions__submission_id__submit_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2922,7 +3814,7 @@
         "operationId": "create_mentor_review_api_v1_submissions__submission_id__mentor_reviews_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -2978,7 +3870,7 @@
         "operationId": "list_mentor_reviews_api_v1_submissions__submission_id__mentor_reviews_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -3026,7 +3918,7 @@
         "operationId": "create_organization_review_api_v1_submissions__submission_id__organization_reviews_post",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -3082,7 +3974,7 @@
         "operationId": "list_organization_reviews_api_v1_submissions__submission_id__organization_reviews_get",
         "security": [
           {
-            "ClerkBearer": []
+            "SessionCookie": []
           }
         ],
         "parameters": [
@@ -3194,6 +4086,446 @@
           "data_origin"
         ],
         "title": "AcceptanceRead"
+      },
+      "AdminApplicationOversight": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "project_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Title"
+          },
+          "student_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Student User Id"
+          },
+          "student_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Email"
+          },
+          "student_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "offer_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Status"
+          },
+          "weekly_minutes_available": {
+            "type": "integer",
+            "title": "Weekly Minutes Available"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "student_user_id",
+          "status",
+          "weekly_minutes_available",
+          "created_at",
+          "row_version"
+        ],
+        "title": "AdminApplicationOversight"
+      },
+      "AdminApplicationOversightPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminApplicationOversight"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AdminApplicationOversightPage"
+      },
+      "AdminParticipationOversight": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Project Id"
+          },
+          "project_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Title"
+          },
+          "student_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Student User Id"
+          },
+          "student_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Email"
+          },
+          "student_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "submission_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Submission Counts",
+            "default": {}
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "student_user_id",
+          "status",
+          "created_at",
+          "row_version"
+        ],
+        "title": "AdminParticipationOversight"
+      },
+      "AdminParticipationOversightPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminParticipationOversight"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AdminParticipationOversightPage"
+      },
+      "AdminProjectItem": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectRead"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TermsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Name"
+          },
+          "organization_verification_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Verification Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "title": "AdminProjectItem"
+      },
+      "AdminProjectPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminProjectItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AdminProjectPage"
+      },
+      "AdminStats": {
+        "properties": {
+          "organizations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Organizations"
+          },
+          "projects": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Projects"
+          },
+          "mentors": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Mentors"
+          },
+          "applications": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Applications"
+          },
+          "offers": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Offers",
+            "default": {}
+          },
+          "participations": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Participations"
+          },
+          "submissions": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Submissions",
+            "default": {}
+          },
+          "users": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Users"
+          },
+          "total_audit_events": {
+            "type": "integer",
+            "title": "Total Audit Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "organizations",
+          "projects",
+          "mentors",
+          "applications",
+          "participations",
+          "users",
+          "total_audit_events"
+        ],
+        "title": "AdminStats"
+      },
+      "AdminUserOversight": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "account_status": {
+            "type": "string",
+            "title": "Account Status",
+            "default": "active"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "roles",
+          "created_at"
+        ],
+        "title": "AdminUserOversight"
+      },
+      "AdminUserOversightPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUserOversight"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "AdminUserOversightPage"
       },
       "ApplicationCreate": {
         "properties": {
@@ -3915,6 +5247,112 @@
         ],
         "title": "AssignmentRead"
       },
+      "AuditLogItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "actor_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Actor User Id"
+          },
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "actor_user_id",
+          "event_type",
+          "entity_id",
+          "request_id",
+          "details",
+          "created_at",
+          "row_version"
+        ],
+        "title": "AuditLogItem"
+      },
+      "AuditLogPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AuditLogPage"
+      },
       "DecisionInput": {
         "properties": {
           "decision": {
@@ -3965,6 +5403,22 @@
           "explanation"
         ],
         "title": "DecisionInput"
+      },
+      "EmailBody": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "EmailBody"
       },
       "Empty": {
         "properties": {},
@@ -4031,6 +5485,29 @@
         "type": "object",
         "title": "HealthResponse",
         "description": "Response model for the public service liveness endpoint."
+      },
+      "LoginBody": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginBody"
       },
       "MentorEligibilityInput": {
         "properties": {
@@ -5623,13 +7100,30 @@
             "$ref": "#/components/schemas/ProjectRead"
           },
           "terms": {
-            "$ref": "#/components/schemas/TermsRead"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TermsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Name"
           }
         },
         "type": "object",
         "required": [
-          "project",
-          "terms"
+          "project"
         ],
         "title": "ProjectReviewItem"
       },
@@ -5685,6 +7179,36 @@
         ],
         "title": "ReadyRequest"
       },
+      "RegistrationBody": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "title": "Password"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Display Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "display_name"
+        ],
+        "title": "RegistrationBody"
+      },
       "RequiredReason": {
         "properties": {
           "explanation": {
@@ -5700,6 +7224,379 @@
           "explanation"
         ],
         "title": "RequiredReason"
+      },
+      "ResetBody": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 20,
+            "title": "Token"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "title": "New Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "ResetBody"
+      },
+      "StudentProfileProjectDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Summary",
+            "default": ""
+          },
+          "role": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Role",
+            "default": "Contributor"
+          },
+          "link_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "StudentProfileProjectDTO",
+        "description": "Highlighted project entry persisted in the student profile."
+      },
+      "StudentProfileRead": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "identity_issuer": {
+            "type": "string",
+            "title": "Identity Issuer"
+          },
+          "identity_subject": {
+            "type": "string",
+            "title": "Identity Subject"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline",
+            "default": ""
+          },
+          "bio": {
+            "type": "string",
+            "title": "Bio",
+            "default": ""
+          },
+          "institution": {
+            "type": "string",
+            "title": "Institution",
+            "default": ""
+          },
+          "program_of_study": {
+            "type": "string",
+            "title": "Program Of Study",
+            "default": ""
+          },
+          "graduation_year": {
+            "type": "integer",
+            "title": "Graduation Year",
+            "default": 2026
+          },
+          "weekly_hours_available": {
+            "type": "integer",
+            "title": "Weekly Hours Available",
+            "default": 10
+          },
+          "preferred_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Preferred Domains"
+          },
+          "portfolio_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Url"
+          },
+          "github_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "self_reported_skills": {
+            "items": {
+              "$ref": "#/components/schemas/StudentSelfReportedSkillDTO"
+            },
+            "type": "array",
+            "title": "Self Reported Skills"
+          },
+          "top_projects": {
+            "items": {
+              "$ref": "#/components/schemas/StudentProfileProjectDTO"
+            },
+            "type": "array",
+            "title": "Top Projects"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "row_version": {
+            "type": "integer",
+            "title": "Row Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "identity_issuer",
+          "identity_subject",
+          "display_name",
+          "updated_at",
+          "row_version"
+        ],
+        "title": "StudentProfileRead",
+        "description": "Response model for GET/PUT /api/v1/me/student-profile."
+      },
+      "StudentProfileUpsert": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "headline": {
+            "type": "string",
+            "maxLength": 240,
+            "title": "Headline",
+            "default": ""
+          },
+          "bio": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Bio",
+            "default": ""
+          },
+          "institution": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Institution",
+            "default": ""
+          },
+          "program_of_study": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Program Of Study",
+            "default": ""
+          },
+          "graduation_year": {
+            "type": "integer",
+            "maximum": 2100.0,
+            "minimum": 1950.0,
+            "title": "Graduation Year",
+            "default": 2026
+          },
+          "weekly_hours_available": {
+            "type": "integer",
+            "maximum": 80.0,
+            "minimum": 1.0,
+            "title": "Weekly Hours Available",
+            "default": 10
+          },
+          "preferred_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Preferred Domains"
+          },
+          "portfolio_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Url"
+          },
+          "github_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "self_reported_skills": {
+            "items": {
+              "$ref": "#/components/schemas/StudentSelfReportedSkillDTO"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Self Reported Skills"
+          },
+          "top_projects": {
+            "items": {
+              "$ref": "#/components/schemas/StudentProfileProjectDTO"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Top Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name"
+        ],
+        "title": "StudentProfileUpsert",
+        "description": "Editable student profile fields saved via PUT /api/v1/me/student-profile."
+      },
+      "StudentSelfReportedSkillDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Category",
+            "default": "General"
+          },
+          "proficiency": {
+            "type": "string",
+            "enum": [
+              "beginner",
+              "intermediate",
+              "advanced"
+            ],
+            "title": "Proficiency",
+            "default": "intermediate"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "StudentSelfReportedSkillDTO",
+        "description": "Self-reported student skill entry persisted in the student profile."
       },
       "SubmissionCreate": {
         "properties": {
@@ -6050,6 +7947,22 @@
         ],
         "title": "TermsRead"
       },
+      "TokenBody": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 20,
+            "title": "Token"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "TokenBody"
+      },
       "UserSelf": {
         "properties": {
           "id": {
@@ -6206,9 +8119,10 @@
       }
     },
     "securitySchemes": {
-      "ClerkBearer": {
-        "type": "http",
-        "scheme": "bearer"
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-eb_session"
       }
     }
   }

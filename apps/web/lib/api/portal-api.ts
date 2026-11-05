@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useCallback } from "react";
-import { getAuthenticatedApiClient, getApiClient } from "./client";
+import { getApiClient } from "./client";
 import type {
   OrganizationRead,
   OrganizationCreate,
@@ -168,8 +168,8 @@ function apiError(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-export function createPortalApi(token?: string | null) {
-  const client = token ? getAuthenticatedApiClient(token) : getApiClient();
+export function createPortalApi() {
+  const client = getApiClient();
 
   function headers(rowVersion?: number): Record<string, string> {
     const h: Record<string, string> = {
@@ -1064,6 +1064,45 @@ export function createPortalApi(token?: string | null) {
       }
     },
 
+    async createAdminUser(data: { email: string; password: string; display_name: string; role?: string }): Promise<ApiResult<AdminUserOversightItem>> {
+      try {
+        const raw = client as unknown as { POST: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.POST("/api/v1/admin/users", { body: data, headers: headers() });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to create user (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as AdminUserOversightItem, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async grantUserRole(userId: string, role: string, reason?: string): Promise<ApiResult<AdminUserOversightItem>> {
+      try {
+        const raw = client as unknown as { POST: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.POST(`/api/v1/admin/users/${userId}/roles`, { body: { role, reason }, headers: headers() });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to grant role (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as AdminUserOversightItem, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
+    async revokeUserRole(userId: string, role: string): Promise<ApiResult<AdminUserOversightItem>> {
+      try {
+        const raw = client as unknown as { DELETE: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
+        const res = await raw.DELETE(`/api/v1/admin/users/${userId}/roles/${role}`, { headers: headers() });
+        if (!res.response.ok || !res.data) {
+          return { data: null, error: apiError(res.error, `Failed to revoke role (${res.response.status})`), status: res.response.status };
+        }
+        return { data: res.data as AdminUserOversightItem, error: null, status: res.response.status };
+      } catch (e) {
+        return { data: null, error: e instanceof Error ? e.message : "Network error", status: 0 };
+      }
+    },
+
     async getAdminOversightUsers(role?: string): Promise<ApiResult<AdminUserOversightItem[]>> {
       try {
         const raw = client as unknown as { GET: (p: string, init?: Record<string, unknown>) => Promise<{ response: Response; data?: unknown; error?: unknown }> };
@@ -1111,26 +1150,22 @@ export function createPortalApi(token?: string | null) {
 export interface PortalAuthContextValue {
   isLoaded: boolean;
   isSignedIn: boolean;
-  getToken: () => Promise<string | null>;
 }
 
 const defaultPortalAuth: PortalAuthContextValue = {
   isLoaded: true,
   isSignedIn: false,
-  getToken: async () => null,
 };
 
 export const PortalAuthContext = createContext<PortalAuthContextValue>(defaultPortalAuth);
 
 export function usePortalApi() {
-  const { getToken, isSignedIn, isLoaded } = useContext(PortalAuthContext);
+  const { isSignedIn, isLoaded } = useContext(PortalAuthContext);
 
   const getApi = useCallback(async () => {
-    if (!isLoaded || !isSignedIn) throw new Error("Sign in with Clerk before using the live API.");
-    const token = await getToken();
-    if (!token) throw new Error("Clerk did not provide an access token. Sign in again.");
-    return createPortalApi(token);
-  }, [getToken, isSignedIn, isLoaded]);
+    if (!isLoaded || !isSignedIn) throw new Error("Sign in before using the live API.");
+    return createPortalApi();
+  }, [isSignedIn, isLoaded]);
 
   return { getApi, isSignedIn, isLoaded };
 }

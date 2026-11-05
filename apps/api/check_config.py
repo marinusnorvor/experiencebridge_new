@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
+from dotenv import dotenv_values
 from pydantic import ValidationError
 
 from app.core.config import Settings
@@ -26,12 +28,19 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     missing = [name for name, value in (
         ("DATABASE_URL", settings.database_url),
-        ("CLERK_ISSUER_URL", settings.clerk_issuer_url),
-        ("CLERK_JWKS_URL", settings.clerk_jwks_url),
-        ("CLERK_AUTHORIZED_PARTIES", settings.effective_clerk_authorized_parties),
     ) if not value]
     if missing:
         print("Configuration check failed: missing " + ", ".join(missing) + ".")
+        return 1
+    from app.identity.auth_config import AuthConfig
+    file_values = dotenv_values(args.env_file) if args.env_file is not None else {}
+    for key, value in file_values.items():
+        if value is not None and key not in os.environ:
+            os.environ[key] = value
+    try:
+        AuthConfig.from_environment(settings.app_env)
+    except ValueError as exc:
+        print("Configuration check failed: " + str(exc))
         return 1
     print(f"Configuration valid: APP_ENV={settings.app_env}, NEON_BRANCH={settings.neon_branch}. No network or database checks performed.")
     if settings.app_env not in {"development", "test"}:

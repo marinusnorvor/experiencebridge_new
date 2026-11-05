@@ -1,3 +1,4 @@
+import { PortalBoundary } from "@/components/layouts/portal-boundary";
 import { Suspense } from "react";
 
 import { SubmissionReview } from "@/features/mentor/components/submission-review";
@@ -10,11 +11,11 @@ type MentorSubmissionReviewPageProps = {
 export default function MentorSubmissionReviewPage({
   params,
 }: MentorSubmissionReviewPageProps) {
-  return (
+  return <PortalBoundary>{(
     <Suspense fallback={<RouteLoadingState />}>
       <SubmissionReviewPage params={params} />
     </Suspense>
-  );
+  )}</PortalBoundary>;
 }
 
 async function SubmissionReviewPage({ params }: MentorSubmissionReviewPageProps) {
