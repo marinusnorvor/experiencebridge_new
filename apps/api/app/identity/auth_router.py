@@ -138,25 +138,44 @@ def require_csrf(request: Request, db: Session, config: AuthConfig) -> None:
         raise AppError(status_code=403, code="FORBIDDEN", message="Request verification failed.")
 
 
+def _trusted_client_ip(request: Request, config: AuthConfig) -> str:
+    """Return the client IP used for rate limiting.
+
+    Staging/production normally require the signed headers added by the Next.js
+    gateway. When Vercel Services routes ``/api/*`` straight to this function the
+    gateway never runs, so on Vercel (``VERCEL=1``) an unsigned request falls back
+    to Vercel's edge-set ``x-vercel-forwarded-for`` header.
+    """
+    ip = request.client.host if request.client else "unknown"
+    if config.environment not in {"staging", "production"}:
+        return ip
+    forbidden = AppError(status_code=403, code="FORBIDDEN", message="Request verification failed.")
+    if not request.headers.get("x-eb-proxy-signature") and os.environ.get("VERCEL") == "1":
+        forwarded = request.headers.get("x-vercel-forwarded-for", "").split(",")[0].strip()
+        try:
+            return str(ipaddress.ip_address(forwarded))
+        except ValueError:
+            raise forbidden
+    client_ip = request.headers.get("x-eb-client-ip", "")
+    timestamp = request.headers.get("x-eb-proxy-time", "")
+    signature = request.headers.get("x-eb-proxy-signature", "")
+    try:
+        ipaddress.ip_address(client_ip)
+        if abs(int(time.time()) - int(timestamp)) > 60 or not config.proxy_secret:
+            raise ValueError("Untrusted proxy identity")
+        expected = hmac.new(config.proxy_secret.encode(), f"{timestamp}.{client_ip}.{request.method}.{request.url.path}".encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected):
+            raise ValueError("Untrusted proxy identity")
+    except (ValueError, TypeError):
+        raise forbidden
+    return client_ip
+
+
 def _limit(db: Session, request: Request, config: AuthConfig, *, email: str, scope: str) -> bool:
     """Persist limits even if later validation or authentication fails."""
     normalized = normalize_email(email)
     interval, per_email, per_ip = (900, 5, 30) if scope == "login" else (3600, 3, 20)
-    ip = request.client.host if request.client else "unknown"
-    if config.environment in {"staging", "production"}:
-        client_ip = request.headers.get("x-eb-client-ip", "")
-        timestamp = request.headers.get("x-eb-proxy-time", "")
-        signature = request.headers.get("x-eb-proxy-signature", "")
-        try:
-            ipaddress.ip_address(client_ip)
-            if abs(int(time.time()) - int(timestamp)) > 60 or not config.proxy_secret:
-                raise ValueError("Untrusted proxy identity")
-            expected = hmac.new(config.proxy_secret.encode(), f"{timestamp}.{client_ip}.{request.method}.{request.url.path}".encode(), hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(signature, expected):
-                raise ValueError("Untrusted proxy identity")
-        except (ValueError, TypeError):
-            raise AppError(status_code=403, code="FORBIDDEN", message="Request verification failed.")
-        ip = client_ip
+    ip = _trusted_client_ip(request, config)
     email_count = increment_rate_limit(db, secret=config.rate_limit_secret, scope=f"{scope}:email", identity=normalized, window_seconds=interval)
     ip_count = increment_rate_limit(db, secret=config.rate_limit_secret, scope=f"{scope}:ip", identity=ip, window_seconds=interval)
     db.commit()
