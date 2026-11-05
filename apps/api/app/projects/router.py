@@ -24,6 +24,10 @@ from app.projects.schemas import (
 
 
 def demonstration_environment(settings=Depends(get_active_settings)):
+    # EB_BUILD_DEMO_WORKFLOWS is an explicit, default-off opt-in approved by the team
+    # for the XANIX BUILD judging deployment, which holds synthetic demo data only.
+    if getattr(settings, "build_demo_workflows", False) is True:
+        return
     if settings.app_env not in {"development", "test"} or settings.neon_branch not in {"development", "test"}:
         fail("FORBIDDEN", "This synthetic supervisor workflow is available only in development/test.", 403)
 

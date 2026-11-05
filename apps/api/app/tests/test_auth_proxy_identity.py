@@ -32,6 +32,33 @@ def test_rate_limit_rejects_spoofed_and_accepts_signed_ip(monkeypatch):
     assert seen[-1] == ip
 
 
+def test_vercel_services_routing_uses_vercel_forwarded_for(monkeypatch):
+    config = AuthConfig("production", "https://app.example.invalid", "https://id.example.invalid", "s" * 32, "key", "sender@example.invalid", "p" * 32)
+    class DB:
+        def commit(self): pass
+    seen = []
+    monkeypatch.setattr(auth_router, "increment_rate_limit", lambda db, **kw: seen.append(kw["identity"]) or 1)
+    def request(headers):
+        return Request({"type": "http", "method": "POST", "path": "/api/v1/auth/login", "headers": [(k.encode(), v.encode()) for k, v in headers.items()], "client": ("127.0.0.1", 1)})
+    # Outside Vercel the unsigned request is still rejected.
+    monkeypatch.delenv("VERCEL", raising=False)
+    with pytest.raises(AppError) as error:
+        auth_router._limit(DB(), request({"x-vercel-forwarded-for": "203.0.113.7"}), config, email="test@example.invalid", scope="login")
+    assert error.value.status_code == 403
+    monkeypatch.setenv("VERCEL", "1")
+    for bad in ({}, {"x-vercel-forwarded-for": ""}, {"x-vercel-forwarded-for": "not-an-ip"}):
+        with pytest.raises(AppError) as error:
+            auth_router._limit(DB(), request(bad), config, email="test@example.invalid", scope="login")
+        assert error.value.status_code == 403
+    assert not seen
+    assert auth_router._limit(DB(), request({"x-vercel-forwarded-for": "203.0.113.7, 10.0.0.1"}), config, email="test@example.invalid", scope="login")
+    assert seen[-1] == "203.0.113.7"
+    # A present (forged) gateway signature still goes through HMAC verification on Vercel.
+    with pytest.raises(AppError) as error:
+        auth_router._limit(DB(), request({"x-vercel-forwarded-for": "203.0.113.7", "x-eb-client-ip": "203.0.113.7", "x-eb-proxy-time": str(int(time.time())), "x-eb-proxy-signature": "forged"}), config, email="test@example.invalid", scope="login")
+    assert error.value.status_code == 403
+
+
 def test_direct_backend_cannot_spoof_proxy_or_bypass_csrf(staging_workflow):
     from fastapi.testclient import TestClient
     from app.tests.auth_workflow_helpers import ORIGIN, PASSWORD, register_actor

@@ -43,7 +43,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Configuration check failed: " + str(exc))
         return 1
     print(f"Configuration valid: APP_ENV={settings.app_env}, NEON_BRANCH={settings.neon_branch}. No network or database checks performed.")
-    if settings.app_env not in {"development", "test"}:
+    if settings.build_demo_workflows:
+        print("EB_BUILD_DEMO_WORKFLOWS=true: synthetic demo workflows are ENABLED in this environment.")
+    elif settings.app_env not in {"development", "test"}:
         print("Synthetic supervisor workflows remain disabled in this environment.")
     return 0
 
