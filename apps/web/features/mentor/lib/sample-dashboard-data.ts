@@ -29,7 +29,27 @@ export type MentorDashboardData = {
       title: string;
       description: string;
       dueDate: string;
-      status: string;
+      availabilityStatus: "planned" | "active" | "archived";
+      status?: string;
+      submissions: {
+        id: string;
+        revisionNumber: number;
+        summary: string;
+        status: "draft" | "submitted" | "revision_requested" | "withdrawn";
+        submittedAt: string | null;
+        evidenceReferences: {
+          id: string;
+          name: string;
+          kind: "external_url" | "text_excerpt";
+        }[];
+      }[];
+    }[];
+    mentorReviews: {
+      id: string;
+      submissionId: string;
+      decision: "reviewed" | "revision_requested" | "unable_to_assess";
+      rubricVersion: string;
+      createdAt: string;
     }[];
   }[];
   pendingReviews: {
@@ -104,21 +124,63 @@ export const sampleMentorDashboard: MentorDashboardData = {
           title: "Sample milestone: Outline",
           description: "Prepare a proposed page outline using sample content.",
           dueDate: "2026-10-30",
-          status: "Complete · sample status",
+          availabilityStatus: "active",
+          submissions: [
+            {
+              id: "sample-submission-1a-r1",
+              revisionNumber: 1,
+              summary: "A sample outline using fictional page titles and content.",
+              status: "submitted",
+              submittedAt: "2026-10-27",
+              evidenceReferences: [
+                {
+                  id: "sample-artifact-1a",
+                  name: "Synthetic text excerpt: sample page outline",
+                  kind: "text_excerpt",
+                },
+              ],
+            },
+          ],
         },
         {
           id: "sample-milestone-1b",
           title: "Sample milestone: First page draft",
           description: "Create a first responsive page draft for mentor discussion.",
           dueDate: "2026-11-03",
-          status: "In progress · sample status",
+          availabilityStatus: "active",
+          submissions: [
+            {
+              id: "sample-submission-1b-r1",
+              revisionNumber: 1,
+              summary: "A fictional first-page draft for sample review.",
+              status: "revision_requested",
+              submittedAt: "2026-10-26",
+              evidenceReferences: [
+                {
+                  id: "sample-artifact-1b",
+                  name: "Synthetic external evidence reference: sample page preview",
+                  kind: "external_url",
+                },
+              ],
+            },
+          ],
         },
         {
           id: "sample-milestone-1c",
           title: "Sample milestone: Final guide handoff",
           description: "Prepare a final sample guide and handoff notes.",
           dueDate: "2026-11-07",
-          status: "Upcoming · sample status",
+          availabilityStatus: "planned",
+          submissions: [],
+        },
+      ],
+      mentorReviews: [
+        {
+          id: "sample-mentor-review-1",
+          submissionId: "sample-submission-1b-r1",
+          decision: "revision_requested",
+          rubricVersion: "synthetic-sample-rubric-v1",
+          createdAt: "2026-10-27",
         },
       ],
     },
@@ -139,27 +201,37 @@ export const sampleMentorDashboard: MentorDashboardData = {
           title: "Sample milestone: Dataset review",
           description: "Inspect the fictional dataset and record possible quality issues.",
           dueDate: "2026-11-02",
-          status: "Complete · sample status",
+          availabilityStatus: "archived",
+          submissions: [],
         },
         {
           id: "sample-milestone-2b",
           title: "Sample milestone: Data quality notes",
           description: "Summarize sample cleanup steps and remaining limitations.",
           dueDate: "2026-11-06",
-          status: "In progress · sample status",
+          availabilityStatus: "active",
+          submissions: [
+            {
+              id: "sample-submission-2b-r1",
+              revisionNumber: 1,
+              summary: "A sample summary of fictional dataset cleanup notes.",
+              status: "submitted",
+              submittedAt: "2026-10-26",
+              evidenceReferences: [
+                {
+                  id: "sample-artifact-2b",
+                  name: "Synthetic text excerpt: data quality notes",
+                  kind: "text_excerpt",
+                },
+              ],
+            },
+          ],
         },
       ],
+      mentorReviews: [],
     },
   ],
   pendingReviews: [
-    {
-      id: "sample-review-1",
-      projectTitle: "Sample project: Mobile-friendly resource guide",
-      learnerLabel: "Synthetic learner C",
-      milestone: "Sample milestone: First page draft",
-      submittedDate: "2026-10-25",
-      reviewDue: "2026-10-30",
-    },
     {
       id: "sample-review-2",
       projectTitle: "Sample project: Public dataset cleanup",
