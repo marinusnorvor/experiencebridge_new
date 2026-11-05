@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { usePortalResource, requireData } from "@/lib/api/use-portal-resource";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { mapApplication, termsSnapshot } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
@@ -26,10 +29,20 @@ export function StudentApplicationDetailView({
 }: StudentApplicationDetailViewProps) {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
+  const preview = isDevPreview || isPortalPresentationMode();
+  const live = usePortalResource(useCallback(async api => {
+    const record = requireData(await api.getApplication(applicationId));
+    const offer = record.latest_offer ? requireData(await api.getOffer(record.latest_offer.id)) : null;
+    return { record, offer, view: mapApplication(record, offer) };
+  }, [applicationId]), !preview);
+  const [actionError, setActionError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const acting = useRef(false);
   const basePath = isDevPreview ? "/dev/student" : "/student";
 
   // Load applications from localStorage or fallback to synthetic mock data
   const [applications, setApplications] = useState<StudentApplicationDetails[]>(() => {
+    if (!preview) return [];
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
@@ -48,11 +61,12 @@ export function StudentApplicationDetailView({
 
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isAcceptModalOpen, setIsAcceptModalOpen] = useState(false);
+  const [decliningOffer, setDecliningOffer] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState("");
   const [actionSuccessMessage, setActionSuccessMessage] = useState<string | null>(null);
 
   // Find the target application
-  const currentApp = applications.find((a) => a.id === applicationId);
+  const currentApp = preview ? applications.find((a) => a.id === applicationId) : live.data?.view;
 
   const saveApplicationsToStorage = (updatedApps: StudentApplicationDetails[]) => {
     setApplications(updatedApps);
@@ -66,7 +80,22 @@ export function StudentApplicationDetailView({
   };
 
   // Handle Offer Acceptance (§6.4 Affirmative Offer Acceptance)
-  const handleAcceptOffer = () => {
+  const handleAcceptOffer = async () => {
+    if (!preview) {
+      if (acting.current || !live.data?.offer) return;
+      acting.current = true; setBusy(true); setActionError("");
+      try {
+        const offer = live.data.offer;
+        if (offer.status !== "offered") throw new Error("This offer is no longer available for acceptance.");
+        const api = await live.getApi();
+        requireData(await api.acceptOffer(offer.id, offer.row_version, offer.terms_version_id, offer.terms_hash));
+        await live.reload(); setIsAcceptModalOpen(false);
+        setActionSuccessMessage("Offer acceptance and participation confirmed by the API. Mentor acceptance remains separate.");
+      } catch (e) { setActionError(e instanceof Error ? e.message : "Acceptance could not be confirmed. Refresh before retrying."); }
+      finally { acting.current = false; setBusy(false); }
+      return;
+    }
+    setIsAcceptModalOpen(false);
     if (!currentApp) return;
 
     const timestamp = new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
@@ -130,7 +159,25 @@ export function StudentApplicationDetailView({
   };
 
   // Handle Withdrawal
-  const handleConfirmWithdrawal = () => {
+  const handleConfirmWithdrawal = async () => {
+    if (!preview) {
+      if (acting.current || !live.data) return;
+      acting.current = true; setBusy(true); setActionError("");
+      try {
+        const api = await live.getApi();
+        if (decliningOffer) {
+          const offer = live.data.offer;
+          if (!offer || offer.status !== "offered") throw new Error("This offer is no longer available.");
+          requireData(await api.declineOffer(offer.id, offer.row_version, withdrawReason.trim() || undefined));
+          if (requireData(await api.getOffer(offer.id)).status !== "declined") throw new Error("Offer decline could not be confirmed.");
+        } else {
+          requireData(await api.withdrawApplication(applicationId, live.data.record.row_version, withdrawReason.trim() || "Withdrawn by the student."));
+        }
+        await live.reload(); setIsWithdrawModalOpen(false); setActionSuccessMessage(decliningOffer ? "Offer declined." : "Application withdrawn.");
+      } catch (e) { setActionError(e instanceof Error ? e.message : "Withdrawal failed."); }
+      finally { acting.current = false; setBusy(false); }
+      return;
+    }
     if (!currentApp) return;
 
     const timestamp = new Date().toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
@@ -159,10 +206,11 @@ export function StudentApplicationDetailView({
     setActionSuccessMessage("Application has been successfully withdrawn.");
   };
 
+  if (!preview && (live.loading || live.error)) return <main className="mx-auto max-w-5xl p-6"><p role={live.error ? "alert" : "status"}>{live.error || "Loading application..."}</p><button onClick={() => void live.reload().catch(() => {})}>Refresh records</button></main>;
   if (!currentApp) {
     return (
       <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-        <StudentPortalHeader studentName="Stella Appiok" isSynthetic={true} />
+        <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
         <main className="mx-auto max-w-4xl px-4 sm:px-6 pt-12 text-center space-y-4">
           <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -195,31 +243,36 @@ export function StudentApplicationDetailView({
       ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
       : currentApp.status === "under_review"
       ? "bg-blue-50 text-blue-900 border-blue-200"
+      : currentApp.status === "rejected"
+      ? "bg-red-50 text-red-900 border-red-200 font-semibold"
       : currentApp.status === "withdrawn"
       ? "bg-slate-100 text-slate-600 border-slate-200"
       : "bg-slate-100 text-slate-800 border-slate-200";
 
   const statusLabel =
     currentApp.status === "offered"
-      ? "Offer Extended • Action Required"
+      ? (currentApp.offerStatus && currentApp.offerStatus !== "offered" ? `Offer ${currentApp.offerStatus}` : "Offer Extended • Action Required")
       : currentApp.status === "accepted"
       ? "Offer Accepted • Active Project"
       : currentApp.status === "shortlisted"
       ? "Shortlisted for Final Placement"
       : currentApp.status === "under_review"
       ? "Under Technical Review"
+      : currentApp.status === "rejected"
+      ? "Not Selected"
       : currentApp.status === "withdrawn"
       ? "Withdrawn"
       : "Submitted • In Review Queue";
 
-  const canWithdraw = currentApp.status === "submitted" || currentApp.status === "under_review";
-  const participationLink = `${basePath}/projects/${currentApp.participationId || "part-101"}`;
+  const canWithdraw = ["submitted", "under_review", "shortlisted", "offered"].includes(currentApp.status);
+  const participationLink = currentApp.participationId ? `${basePath}/projects/${currentApp.participationId}` : `${basePath}/projects`;
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName="Stella Appiok" isSynthetic={true} />
+      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-6 space-y-6">
+        {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
         {/* Navigation Breadcrumb */}
         <div className="flex items-center justify-between">
           <Link
@@ -295,7 +348,7 @@ export function StudentApplicationDetailView({
               {canWithdraw && (
                 <button
                   type="button"
-                  onClick={() => setIsWithdrawModalOpen(true)}
+                  onClick={() => { setDecliningOffer(false); setActionError(""); setIsWithdrawModalOpen(true); }}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition shadow-2xs"
                 >
                   <span>Withdraw Application</span>
@@ -305,7 +358,7 @@ export function StudentApplicationDetailView({
           </div>
 
           {/* URGENT OFFER ACCEPTANCE CALLOUT BANNER (§6.4) */}
-          {currentApp.status === "offered" && (
+          {currentApp.status === "offered" && (preview || live.data?.offer?.status === "offered") && (
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-5 space-y-3.5 shadow-xs">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -342,7 +395,7 @@ export function StudentApplicationDetailView({
 
                 <button
                   type="button"
-                  onClick={() => setIsWithdrawModalOpen(true)}
+                  onClick={() => { setDecliningOffer(true); setActionError(""); setIsWithdrawModalOpen(true); }}
                   className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                 >
                   Decline Offer
@@ -351,6 +404,7 @@ export function StudentApplicationDetailView({
             </div>
           )}
 
+          {!preview && currentApp.offerStatus && currentApp.offerStatus !== "offered" && currentApp.offerStatus !== "accepted" && <p role="status">Offer {currentApp.offerStatus}. You can check back for a new offer.</p>}
           {/* ACCEPTED BANNER */}
           {currentApp.status === "accepted" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
@@ -612,10 +666,10 @@ export function StudentApplicationDetailView({
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Withdraw Application
+                  {decliningOffer ? "Decline Offer" : "Withdraw Application"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Are you sure you want to withdraw your application for &quot;{currentApp.projectTitle}&quot;?
+                  Are you sure you want to {decliningOffer ? "decline the offer" : "withdraw your application"} for &quot;{currentApp.projectTitle}&quot;?
                 </p>
               </div>
               <button
@@ -627,9 +681,10 @@ export function StudentApplicationDetailView({
               </button>
             </div>
 
+            {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-slate-700">
-                Reason for Withdrawal (Optional)
+                Reason (Optional)
               </label>
               <textarea
                 rows={3}
@@ -650,10 +705,10 @@ export function StudentApplicationDetailView({
               </button>
               <button
                 type="button"
-                onClick={handleConfirmWithdrawal}
+                disabled={busy} onClick={handleConfirmWithdrawal}
                 className="rounded-lg bg-rose-700 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-800 transition"
               >
-                Confirm Withdrawal
+                {decliningOffer ? "Confirm Decline" : "Confirm Withdrawal"}
               </button>
             </div>
           </div>
@@ -689,7 +744,7 @@ export function StudentApplicationDetailView({
 
             <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 text-xs text-slate-700 leading-relaxed space-y-2">
               <span className="font-bold text-teal-900 block uppercase tracking-wider text-[10px]">
-                Statutory Acceptance Declaration
+                Offer acceptance
               </span>
               <p>
                 You are accepting project terms version{" "}
@@ -705,6 +760,14 @@ export function StudentApplicationDetailView({
               </p>
             </div>
 
+            {!preview && live.data?.offer && <div className="text-xs space-y-2">
+              <p>{live.data.offer.consent_statement}</p>
+              <p>Scope: {termsSnapshot(live.data.offer.terms).scope.scope_in}</p>
+              <p>Compensation: {termsSnapshot(live.data.offer.terms).terms.currency} {termsSnapshot(live.data.offer.terms).terms.fee_amount} ? {termsSnapshot(live.data.offer.terms).terms.payment_terms}</p>
+              <p>IP: {termsSnapshot(live.data.offer.terms).terms.ip_ownership_terms}</p>
+              <p>Confidentiality: {termsSnapshot(live.data.offer.terms).terms.confidentiality_terms}</p>
+            </div>}
+            {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
@@ -716,12 +779,11 @@ export function StudentApplicationDetailView({
               <button
                 type="button"
                 onClick={() => {
-                  setIsAcceptModalOpen(false);
-                  handleAcceptOffer();
+                  void handleAcceptOffer();
                 }}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-teal-900 transition"
               >
-                <span>Confirm &amp; Accept Terms</span>
+                <span>{busy ? "Saving..." : "Confirm & Accept Terms"}</span>
                 <span aria-hidden="true">✓</span>
               </button>
             </div>

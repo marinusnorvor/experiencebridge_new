@@ -2,6 +2,7 @@
 export function isPortalPresentationMode(): boolean {
   return (
     process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_PORTAL_PREVIEW === "true" &&
     !process.env.VERCEL &&
     (!process.env.NEXT_PUBLIC_APP_ENV ||
       process.env.NEXT_PUBLIC_APP_ENV === "development")

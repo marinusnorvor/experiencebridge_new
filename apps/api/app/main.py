@@ -13,7 +13,7 @@ from app.api.router import api_v1_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
-from app.database.session import dispose_engine
+from app.database.session import ApplicationDatabase
 
 
 @asynccontextmanager
@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        dispose_engine()
+        app.state.database.dispose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -54,6 +54,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.state.settings = active_settings
+    application.state.database = ApplicationDatabase(active_settings)
 
     application.add_middleware(
         CORSMiddleware,

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import { syntheticOrganizationData } from "../../data/synthetic-organization-data";
 import { useOrganizationDemo } from "../../hooks/organization-demo-context";
@@ -11,14 +11,15 @@ import { OrganizationBadge, OrganizationButton, OrganizationIcon } from "../ui/o
 import styles from "./organization-shell.module.css";
 
 export function OrganizationPortalShell({ children }: { children: ReactNode }) {
-  const { state } = useOrganizationDemo();
+  const { state, organizations, orgId, selectOrganization } = useOrganizationDemo();
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const drawer = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const presentationMode = isPortalPresentationMode();
   const activeItem = getActiveOrganizationNavItem(pathname);
-  const organizationName = presentationMode ? state.profile.name : "Organization workspace";
+  const organizationName = state.profile.name;
 
   // A native modal makes the background inert and contains keyboard focus.
   useEffect(() => {
@@ -66,7 +67,7 @@ export function OrganizationPortalShell({ children }: { children: ReactNode }) {
       <div className={styles.frame}>
         <aside aria-label="Organization portal sidebar" className={styles.sidebar}>
           {identity}{navigation()}
-          <div className={styles.note}><p className={styles.name}>Your next opportunity starts here.</p><p className={styles.caption}>Bring a focused challenge to emerging talent. Sample decisions stay in this session.</p></div>
+          <div className={styles.note}><p className={styles.name}>Your next opportunity starts here.</p><p className={styles.caption}>Bring a focused challenge to emerging talent. Changes are saved to your organization workspace.</p></div>
         </aside>
         <div className={styles.content}>
           <header className={styles.header}>
@@ -74,6 +75,7 @@ export function OrganizationPortalShell({ children }: { children: ReactNode }) {
               <OrganizationButton ref={trigger} className={styles.mobileToggle} aria-label="Open organization navigation" aria-expanded={mobileMenuOpen} aria-controls="organization-navigation-drawer" onClick={() => setMobileMenuOpen(true)}><OrganizationIcon name="menu" /></OrganizationButton>
               <div><p className={styles.eyebrow}>Organization workspace</p><p className={styles.heading}>{activeItem?.label ?? "Project workspace"}</p></div>
             </div>
+            {!presentationMode && organizations.length > 1 && <label className="text-xs">Organization<select aria-label="Current organization" className="ml-2 rounded border p-2" value={orgId ?? ""} disabled={pathname.endsWith("/new") || pathname.endsWith("/edit")} onChange={e => {router.push("/organization/dashboard");selectOrganization(e.target.value);}}>{organizations.map(org => <option key={org.id} value={org.id}>{org.display_name}</option>)}</select></label>}
             {presentationMode && <div className="flex items-center gap-3"><Link className={styles.navLink} href="/organization/notifications" aria-label={`Notifications: ${state.events.filter((event) => !event.read).length} unread`}><OrganizationIcon name="messages" /><span>{state.events.filter((event) => !event.read).length}</span></Link><span className={styles.previewTag}><OrganizationBadge>Synthetic preview</OrganizationBadge></span></div>}
           </header>
           <div id="organization-content" tabIndex={-1} className={styles.content}>{children}</div>

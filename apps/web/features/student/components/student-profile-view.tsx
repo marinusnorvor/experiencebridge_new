@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
+import { usePortalApi } from "@/lib/api/portal-api";
+import { loadStudentPassportAndDecisions } from "../lib/api-records";
 import { syntheticStudentProfile } from "../lib/mock-data";
 import type { SelfReportedSkill, StudentProfileDetails, TopProjectItem } from "../lib/types";
 import { StudentPortalHeader } from "./student-portal-header";
@@ -42,8 +46,151 @@ function getInitialTimestamp(): string | null {
   return null;
 }
 
+const EMPTY_LIVE_PROFILE: StudentProfileDetails = {
+  id: "",
+  displayName: "Student",
+  headline: "Authenticated ExperienceBridge Student",
+  bio: "",
+  institution: "",
+  programOfStudy: "",
+  graduationYear: "2026",
+  email: "",
+  weeklyHoursAvailable: 10,
+  preferredDomains: [],
+  portfolioUrl: "",
+  githubUrl: "",
+  linkedinUrl: "",
+  verificationBadge: { isVerified: false, provider: "", verifiedAt: "" },
+  assessedSkills: [],
+  selfReportedSkills: [],
+  topProjects: [],
+  isSyntheticDemo: false,
+};
+
+function parseGraduationYear(raw: string | number | undefined): number {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return Math.min(2100, Math.max(1950, Math.round(raw)));
+  }
+  const match = String(raw ?? "").match(/\b(19\d{2}|20\d{2})\b/);
+  if (match) {
+    return Math.min(2100, Math.max(1950, Number(match[1])));
+  }
+  return 2026;
+}
+
 export function StudentProfileView() {
-  const [profile, setProfile] = useState<StudentProfileDetails>(getInitialProfile);
+  const pathname = usePathname();
+  const preview = Boolean(pathname?.startsWith("/dev/student")) || isPortalPresentationMode();
+  const { getApi, isSignedIn } = usePortalApi();
+  const [unavailable, setUnavailable] = useState("");
+  function requirePhotoUploadApi() {
+    if (preview) return true;
+    setUnavailable("Binary photo uploads are not stored in relational profile metadata. Text profile fields, skills, and project links save directly to the database.");
+    return false;
+  }
+  const [profile, setProfile] = useState<StudentProfileDetails>(() =>
+    preview ? getInitialProfile() : EMPTY_LIVE_PROFILE
+  );
+  useEffect(() => {
+    let active = true;
+    async function loadLiveProfile() {
+      if (preview) return;
+      if (!isSignedIn) {
+        if (active) {
+          setProfile(EMPTY_LIVE_PROFILE);
+          setUnavailable("");
+        }
+        return;
+      }
+      try {
+        const api = await getApi();
+        const [profileRes, { passport }] = await Promise.all([
+          api.getStudentProfile(),
+          loadStudentPassportAndDecisions(api),
+        ]);
+        if (!active) return;
+        const dto = profileRes.data;
+        const savedSkills: SelfReportedSkill[] = (dto?.self_reported_skills ?? []).map((s) => ({
+          id: s.id,
+          name: s.name,
+          proficiencyLevel: s.proficiency,
+          yearsOfExperience: s.category || "1-2 years",
+          contextOrProject: s.notes ?? undefined,
+        }));
+        const seenSkillNames = new Set(savedSkills.map((s) => s.name.toLowerCase()));
+        for (const extraSkill of passport.selfReportedSkills) {
+          if (!seenSkillNames.has(extraSkill.name.toLowerCase())) {
+            seenSkillNames.add(extraSkill.name.toLowerCase());
+            savedSkills.push(extraSkill);
+          }
+        }
+
+        const savedProjects: TopProjectItem[] = (dto?.top_projects ?? []).map((p) => ({
+          id: p.id,
+          title: p.title,
+          role: p.role,
+          summary: p.summary,
+          timeframe: "2026",
+          technologies: ["Verified Profile Entry"],
+          githubUrl: p.link_url ?? undefined,
+          projectUrl: p.link_url ?? undefined,
+        }));
+        const assertionProjects: TopProjectItem[] = passport.projectAssertions.map((assertion) => ({
+          id: assertion.id,
+          title: assertion.projectTitle,
+          role: assertion.evidenceTiers.deliverableAccepted
+            ? "Accepted Participant"
+            : "Project Participant",
+          organization: assertion.organizationName,
+          isVerifiedOrgProject: assertion.organizationVerified,
+          timeframe: assertion.timeframe,
+          summary: assertion.contributionStatement,
+          technologies: assertion.deliverables,
+          participationId: assertion.participationId,
+        }));
+        const seenProjectIds = new Set(savedProjects.map((p) => p.id));
+        const combinedProjects = [
+          ...savedProjects,
+          ...assertionProjects.filter((p) => !seenProjectIds.has(p.id)),
+        ];
+
+        setUnavailable("");
+        setProfile({
+          id: dto?.user_id || passport.student.id,
+          displayName: dto?.display_name || passport.student.displayName || "Student",
+          email: dto?.email ?? passport.student.email ?? "",
+          headline: dto?.headline || "Authenticated ExperienceBridge Student",
+          bio: dto?.bio ?? "",
+          institution: dto?.institution ?? "",
+          programOfStudy: dto?.program_of_study ?? "",
+          graduationYear: String(dto?.graduation_year ?? 2026),
+          weeklyHoursAvailable: dto?.weekly_hours_available ?? 10,
+          preferredDomains: dto?.preferred_domains ?? [],
+          portfolioUrl: dto?.portfolio_url ?? "",
+          githubUrl: dto?.github_url ?? "",
+          linkedinUrl: dto?.linkedin_url ?? "",
+          verificationBadge: {
+            isVerified: true,
+            provider: "Clerk Authenticated Identity",
+            verifiedAt: dto?.updated_at?.slice(0, 10) || "Active",
+          },
+          assessedSkills: passport.assessedSkills,
+          selfReportedSkills: savedSkills,
+          topProjects: combinedProjects,
+          isSyntheticDemo: false,
+        });
+      } catch (e) {
+        if (active)
+          setUnavailable(
+            e instanceof Error ? e.message : "Unable to load authenticated student profile."
+          );
+      }
+    }
+    void loadLiveProfile();
+    return () => {
+      active = false;
+    };
+  }, [preview, isSignedIn, getApi]);
   const [viewMode, setViewMode] = useState<"view" | "edit">("view");
 
   // Modals for Photo and Cover Photo
@@ -72,12 +219,92 @@ export function StudentProfileView() {
   // Saving / Loading Animation State
   const [isSaving, setIsSaving] = useState(false);
   const [isSavedFeedback, setIsSavedFeedback] = useState(false);
-  const [lastSavedTime, setLastSavedTime] = useState<string | null>(getInitialTimestamp);
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(() => preview ? getInitialTimestamp() : null);
 
-  // Save changes to localStorage and transition directly to LinkedIn-style view
-  const handleSave = (e: React.FormEvent) => {
+  async function persistLiveProfileToBackend(nextProfile: StudentProfileDetails): Promise<boolean> {
+    if (!nextProfile.displayName.trim()) {
+      setUnavailable("Display name cannot be blank.");
+      return false;
+    }
+    try {
+      const api = await getApi();
+      const res = await api.upsertStudentProfile({
+        display_name: nextProfile.displayName.trim(),
+        headline: nextProfile.headline.trim(),
+        bio: nextProfile.bio.trim(),
+        institution: nextProfile.institution.trim(),
+        program_of_study: nextProfile.programOfStudy.trim(),
+        graduation_year: parseGraduationYear(nextProfile.graduationYear),
+        weekly_hours_available: Math.min(80, Math.max(1, Number(nextProfile.weeklyHoursAvailable) || 10)),
+        preferred_domains: nextProfile.preferredDomains,
+        portfolio_url: nextProfile.portfolioUrl?.trim() || null,
+        github_url: nextProfile.githubUrl?.trim() || null,
+        linkedin_url: nextProfile.linkedinUrl?.trim() || null,
+        self_reported_skills: (nextProfile.selfReportedSkills ?? []).map((s) => ({
+          id: s.id,
+          name: s.name.trim(),
+          category: s.yearsOfExperience?.trim() || "General",
+          proficiency: s.proficiencyLevel,
+          notes: s.contextOrProject?.trim() || null,
+        })),
+        top_projects: (nextProfile.topProjects ?? [])
+          .filter((p) => !p.participationId)
+          .map((p) => ({
+            id: p.id,
+            title: p.title.trim(),
+            summary: p.summary.trim(),
+            role: p.role.trim() || "Contributor",
+            link_url: p.githubUrl?.trim() || p.projectUrl?.trim() || null,
+          })),
+      });
+      if (!res.data) {
+        setUnavailable(res.error ?? "Failed to save student profile.");
+        return false;
+      }
+      setUnavailable("");
+      const timestamp = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      setLastSavedTime(timestamp);
+      setProfile((current) => ({
+        ...current,
+        displayName: res.data!.display_name,
+        email: res.data!.email ?? current.email,
+        headline: res.data!.headline || current.headline,
+        bio: res.data!.bio,
+        institution: res.data!.institution,
+        programOfStudy: res.data!.program_of_study,
+        graduationYear: String(res.data!.graduation_year),
+        weeklyHoursAvailable: res.data!.weekly_hours_available,
+        preferredDomains: res.data!.preferred_domains,
+        portfolioUrl: res.data!.portfolio_url ?? "",
+        githubUrl: res.data!.github_url ?? "",
+        linkedinUrl: res.data!.linkedin_url ?? "",
+        isSyntheticDemo: false,
+      }));
+      return true;
+    } catch (e) {
+      setUnavailable(e instanceof Error ? e.message : "Failed to save student profile.");
+      return false;
+    }
+  }
+
+  // Save changes to backend (live mode) or localStorage (preview mode)
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    if (!preview) {
+      const ok = await persistLiveProfileToBackend(profile);
+      setIsSaving(false);
+      if (ok) {
+        setViewMode("view");
+        setIsSavedFeedback(true);
+        setTimeout(() => setIsSavedFeedback(false), 4000);
+      }
+      return;
+    }
 
     setTimeout(() => {
       try {
@@ -102,6 +329,7 @@ export function StudentProfileView() {
 
   // Profile photo crop complete
   const handlePhotoCropComplete = (croppedDataUrl: string) => {
+    if (!requirePhotoUploadApi()) return;
     const updatedProfile = { ...profile, avatarUrl: croppedDataUrl };
     setProfile(updatedProfile);
     try {
@@ -113,6 +341,7 @@ export function StudentProfileView() {
 
   // Cover photo apply
   const handleCoverApply = (newCoverUrl: string | undefined) => {
+    if (!requirePhotoUploadApi()) return;
     const updatedProfile = { ...profile, coverUrl: newCoverUrl };
     setProfile(updatedProfile);
     try {
@@ -145,10 +374,14 @@ export function StudentProfileView() {
     const updatedProfile = { ...profile, selfReportedSkills: updatedSkills };
     setProfile(updatedProfile);
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
-    } catch {
-      // Ignored
+    if (!preview) {
+      void persistLiveProfileToBackend(updatedProfile);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+      } catch {
+        // Ignored
+      }
     }
 
     setSkillName("");
@@ -163,10 +396,14 @@ export function StudentProfileView() {
     const updatedSkills = (profile?.selfReportedSkills ?? []).filter((s) => s.id !== id);
     const updatedProfile = { ...profile, selfReportedSkills: updatedSkills };
     setProfile(updatedProfile);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
-    } catch {
-      // Ignored
+    if (!preview) {
+      void persistLiveProfileToBackend(updatedProfile);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+      } catch {
+        // Ignored
+      }
     }
   };
 
@@ -188,7 +425,7 @@ export function StudentProfileView() {
       title: projectTitle.trim(),
       role: projectRole.trim(),
       organization: projectOrg.trim() || undefined,
-      isVerifiedOrgProject: projectIsVerified,
+      isVerifiedOrgProject: preview ? projectIsVerified : false,
       timeframe: projectTimeframe.trim() || "2026",
       summary: projectSummary.trim(),
       technologies: techs.length > 0 ? techs : ["TypeScript", "React"],
@@ -200,10 +437,14 @@ export function StudentProfileView() {
     const updatedProfile = { ...profile, topProjects: updatedProjects };
     setProfile(updatedProfile);
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
-    } catch {
-      // Ignored
+    if (!preview) {
+      void persistLiveProfileToBackend(updatedProfile);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+      } catch {
+        // Ignored
+      }
     }
 
     setProjectTitle("");
@@ -223,10 +464,14 @@ export function StudentProfileView() {
     const updatedProjects = (profile?.topProjects ?? []).filter((p) => p.id !== id);
     const updatedProfile = { ...profile, topProjects: updatedProjects };
     setProfile(updatedProfile);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
-    } catch {
-      // Ignored
+    if (!preview) {
+      void persistLiveProfileToBackend(updatedProfile);
+    } else {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedProfile, null, 2));
+      } catch {
+        // Ignored
+      }
     }
   };
 
@@ -241,9 +486,16 @@ export function StudentProfileView() {
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
       {/* Sub-navigation & Header */}
+      {!preview && (
+        <p role="status" className="mx-auto max-w-6xl p-4 text-xs text-slate-600">
+          Authenticated student identity, editable profile attributes, mentor-assessed competencies,
+          and project assertions synchronized with the API.
+        </p>
+      )}
+      {unavailable && <p role="alert" className="mx-auto max-w-6xl p-4 text-red-700">{unavailable}</p>}
       <StudentPortalHeader
         studentName={profile?.displayName}
-        isSynthetic={profile?.isSyntheticDemo}
+        isSynthetic={preview}
       />
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-6 space-y-6">
@@ -394,13 +646,20 @@ export function StudentProfileView() {
                       id="email"
                       type="email"
                       value={profile.email}
-                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                      readOnly={!preview}
+                      onChange={(e) => {
+                        if (preview) setProfile({ ...profile, email: e.target.value });
+                      }}
                       placeholder="e.g. yourname@university.edu"
-                      className="mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
-                      required
+                      className={`mt-1.5 block w-full rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-teal-800 focus:ring-1 focus:ring-teal-800 ${
+                        !preview ? "bg-slate-100 text-slate-600 cursor-not-allowed" : ""
+                      }`}
+                      required={preview}
                     />
                     <span className="text-[10px] text-slate-500">
-                      Organizations and mentors contact you at this address
+                      {preview
+                        ? "Organizations and mentors contact you at this address"
+                        : "Governed by your authenticated Clerk account"}
                     </span>
                   </div>
 

@@ -18,7 +18,7 @@ export interface DashboardProject {
   title: string;
   summary: string;
   discipline: string;
-  state: "Active" | "Recruiting";
+  state: "Active" | "Recruiting" | "Draft" | "Needs revision" | "In review" | "Published" | "Completed" | "Closed";
   completedMilestones: number;
   totalMilestones: number;
   nextMilestone: string;

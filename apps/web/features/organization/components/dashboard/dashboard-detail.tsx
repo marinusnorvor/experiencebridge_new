@@ -22,8 +22,9 @@ export function DashboardDetail({ snapshot, view, recordId, emptyPreview }: { sn
   const missing = !!recordId && !project && !record;
   const title = missing ? "This preview isn’t available" : project?.title ?? record?.title ?? titles[view];
   const records = selectDashboardRecords(snapshot, view, query);
-  const projects = snapshot.projects.filter((item) => item.state === "Active" && `${item.title} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase()));
-  const count = view === "projects" ? projects.length : records.length;
+  const activeProjects = snapshot.projects.filter((item) => item.state === "Active" && `${item.title} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const projects = activeProjects.length > 0 || emptyPreview ? activeProjects : snapshot.projects.filter((item) => `${item.title} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const count = view === "projects" ? (projects.length || records.length) : records.length;
   const close = () => router.replace(`/organization/dashboard${emptyPreview ? "?sample=empty" : ""}`, { scroll: false });
 
   useEffect(() => {

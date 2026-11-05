@@ -63,3 +63,7 @@ class AssignmentPage(Input):
     items: list[AssignmentRead]
     next_offset: int | None = None
     next_cursor: str | None = None
+
+
+class MentorProfilePage(Input):
+    items: list[MentorProfileRead]

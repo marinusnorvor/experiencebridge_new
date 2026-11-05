@@ -593,9 +593,8 @@ def project_participations(project_id: UUID, response: Response, db: DB, user: A
 @router.get("/participations/{participation_id}", response_model=ParticipationDetail)
 def get_participation(participation_id: UUID, response: Response, db: DB, user: Actor):
     part = read_record(db, Participation, participation_id)
-    project = read_record(db, Project, part.project_id)
-    if part.student_user_id != user.id:
-        require_member(db, project.organization_id, user, ["owner", "project_manager", "reviewer"])
+    from app.assessments.router import require_workspace
+    require_workspace(db, part, user)
     data = serialize_participation(db, part)
     terms = read_record(db, TermsVersion, part.accepted_terms_version_id)
     data["agreed_terms"] = serialize(terms)
@@ -658,6 +657,9 @@ def mark_ready_for_review(
             fail("INVALID_STATE", f"Cannot mark ready for review when participation is in status {part.status}.")
         if project.status != "in_progress":
             fail("INVALID_STATE", "Project is not in progress.")
+        if body.requested_outcome == "completed":
+            from app.assessments.service import require_complete_evidence
+            require_complete_evidence(db, part, project)
         part.status = "under_review"
         part.row_version += 1
         audit(db, user, request, "participation.ready_for_review", part, requested_outcome=body.requested_outcome)
@@ -683,8 +685,6 @@ def finalize_participation(
         require_manager(db, read_record(db, Project, part.project_id), user)
 
     def action():
-        from app.assessments.models import MentorReview, OrganizationReview, Submission
-
         part = read_record(db, Participation, participation_id, lock=True)
         project = read_record(db, Project, part.project_id)
         precondition(request, part)
@@ -692,33 +692,8 @@ def finalize_participation(
             fail("INVALID_STATE", f"Only participations under review can be finalized (current: {part.status}).")
 
         if body.outcome == "completed":
-            milestones = project.scope.get("milestones", [])
-            for idx in range(len(milestones)):
-                subs = db.scalars(
-                    select(Submission).where(
-                        Submission.participation_id == part.id,
-                        Submission.milestone_index == idx,
-                    )
-                ).all()
-                qualifying = False
-                for sub in subs:
-                    org_rev = db.scalar(
-                        select(OrganizationReview).where(
-                            OrganizationReview.submission_id == sub.id,
-                            OrganizationReview.decision == "accepted",
-                        )
-                    )
-                    mentor_rev = db.scalar(
-                        select(MentorReview).where(
-                            MentorReview.submission_id == sub.id,
-                            MentorReview.decision == "reviewed",
-                        )
-                    )
-                    if org_rev and mentor_rev:
-                        qualifying = True
-                        break
-                if not qualifying:
-                    fail("COMPLETION_BLOCKED", f"Milestone {idx + 1} does not have both mentor evaluation and organization acceptance.")
+            from app.assessments.service import require_complete_evidence
+            require_complete_evidence(db, part, project)
 
         part.status = body.outcome
         part.row_version += 1

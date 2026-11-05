@@ -22,6 +22,7 @@ from app.mentorship.schemas import (
     AssignmentRead,
     MentorEligibilityInput,
     MentorProfileRead,
+    MentorProfilePage,
     MentorProfileWrite,
 )
 from app.projects.models import Project
@@ -43,10 +44,10 @@ Actor = Annotated[User, Depends(get_current_user)]
 
 
 def serialize_assignment(assignment: MentorAssignment) -> dict:
-    now = datetime.now(timezone.utc)
-    if assignment.status == "proposed" and ensure_utc(assignment.expires_at) <= now:
-        assignment.status = "expired"
-    return serialize(assignment)
+    data = serialize(assignment)
+    if assignment.status == "proposed" and ensure_utc(assignment.expires_at) <= datetime.now(timezone.utc):
+        data["status"] = "expired"
+    return data
 
 
 # ==================== MENTOR PROFILES ====================
@@ -81,6 +82,8 @@ def put_my_mentor_profile(
             eligibility_status="pending",
         )
         db.add(profile)
+        db.flush()
+        audit(db, user, request, "mentor.profile_created", profile, directory_opt_in=body.directory_opt_in)
         db.commit()
         response.status_code = 201
         headers(response, profile)
@@ -93,6 +96,7 @@ def put_my_mentor_profile(
     profile.weekly_review_capacity = body.weekly_review_capacity
     profile.directory_opt_in = body.directory_opt_in
     profile.row_version += 1
+    audit(db, user, request, "mentor.profile_updated", profile, directory_opt_in=body.directory_opt_in)
     db.commit()
     headers(response, profile)
     return serialize(profile)
@@ -112,17 +116,7 @@ def decide_mentor_eligibility(
     def action():
         profile = db.scalar(select(MentorProfile).where(MentorProfile.user_id == mentor_user_id))
         if not profile:
-            profile = MentorProfile(
-                user_id=mentor_user_id,
-                bio="Synthetic approved mentor profile.",
-                skills=["Mentorship", "Software Engineering"],
-                availability_text="10 hrs/week",
-                weekly_review_capacity=5,
-                directory_opt_in=True,
-                eligibility_status="pending",
-            )
-            db.add(profile)
-            db.flush()
+            fail("NOT_FOUND", "Mentor must create their own profile before eligibility review.", 404)
         precondition(request, profile)
         profile.eligibility_status = {"approve": "approved", "reject": "rejected", "suspend": "suspended"}[body.decision]
         profile.row_version += 1
@@ -164,7 +158,7 @@ def propose_mentor_assignment(
             fail("FORBIDDEN", "Mentor must be independent from the host organization and participant.", 403)
 
         mentor_profile = db.scalar(select(MentorProfile).where(MentorProfile.user_id == body.mentor_user_id))
-        if mentor_profile and mentor_profile.eligibility_status != "approved":
+        if not mentor_profile or mentor_profile.eligibility_status != "approved":
             fail("MENTOR_NOT_ELIGIBLE", "Mentor candidate is not approved for supervision.")
 
         existing = db.scalar(
@@ -173,7 +167,11 @@ def propose_mentor_assignment(
                 MentorAssignment.status.in_(["proposed", "accepted"]),
             )
         )
-        if existing:
+        if existing and existing.status == "proposed" and ensure_utc(existing.expires_at) <= datetime.now(timezone.utc):
+            existing.status = "expired"
+            existing.row_version += 1
+            audit(db, user, request, "mentor.expired", existing)
+        elif existing:
             fail("INVALID_STATE", "Participation already has an active or proposed mentor assignment.")
 
         now = datetime.now(timezone.utc)
@@ -214,8 +212,8 @@ def get_mentor_assignment(assignment_id: UUID, response: Response, db: DB, user:
     assignment = read_record(db, MentorAssignment, assignment_id)
     part = read_record(db, Participation, assignment.participation_id)
     project = read_record(db, Project, assignment.project_id)
-    if user.id not in {assignment.mentor_user_id, part.student_user_id, project.project_manager_user_id, project.org_reviewer_user_id}:
-        require_member(db, project.organization_id, user, ["owner", "project_manager"])
+    if user.id not in {assignment.mentor_user_id, part.student_user_id}:
+        require_member(db, project.organization_id, user, ["owner", "project_manager", "reviewer"])
     headers(response, assignment)
     return serialize_assignment(assignment)
 
@@ -249,6 +247,11 @@ def accept_mentor_assignment(
         if not body.confidentiality_acknowledged:
             fail("VALIDATION_ERROR", "Must acknowledge confidentiality obligations.", 422)
 
+        part = read_record(db, Participation, assignment.participation_id)
+        project = read_record(db, Project, part.project_id)
+        require_eligible_mentor(db, project, part.student_user_id, user.id)
+        if part.status not in {"active", "under_review"}:
+            fail("INVALID_STATE", "This participation no longer accepts mentor assignments.")
         assignment.status = "accepted"
         assignment.conflict_declared = False
         assignment.confidentiality_acknowledged = True
@@ -324,3 +327,44 @@ def end_mentor_assignment(
         response,
         execute(db, user, request, body.model_dump(mode="json"), authorize, action),
     )
+
+
+def require_eligible_mentor(db, project, student_id, mentor_id):
+    profile = db.scalar(select(MentorProfile).where(MentorProfile.user_id == mentor_id))
+    mentor = db.get(User, mentor_id)
+    if not profile or profile.eligibility_status != "approved" or not mentor or mentor.account_status != "active":
+        fail("MENTOR_NOT_ELIGIBLE", "Mentor must have current approved eligibility.", 403)
+    if mentor_id in {student_id, project.project_manager_user_id, project.org_reviewer_user_id} or membership(db, project.organization_id, mentor_id):
+        fail("FORBIDDEN", "Mentor must remain independent of the organization and participant.", 403)
+
+
+@router.get("/admin/mentors", response_model=MentorProfilePage)
+def mentor_eligibility_queue(response: Response, db: DB, user: Actor):
+    require_admin(user)
+    response.headers["Cache-Control"] = "no-store, private"
+    profiles = db.scalars(select(MentorProfile).order_by(MentorProfile.created_at.desc())).all()
+    return {"items": [serialize(p) for p in profiles]}
+
+
+@router.get("/organizations/{org_id}/mentors", response_model=MentorProfilePage)
+def organization_mentor_directory(org_id: UUID, response: Response, db: DB, user: Actor):
+    require_member(db, org_id, user, ["owner", "project_manager"])
+    response.headers["Cache-Control"] = "no-store, private"
+    profiles = db.scalars(select(MentorProfile).join(User, User.id == MentorProfile.user_id).where(
+        MentorProfile.eligibility_status == "approved", MentorProfile.directory_opt_in.is_(True), User.account_status == "active",
+    ).order_by(MentorProfile.created_at.desc())).all()
+    return {"items": [serialize(p) for p in profiles if not membership(db, org_id, p.user_id)]}
+
+
+@router.get("/participations/{participation_id}/mentor-assignments", response_model=AssignmentPage)
+def participation_mentor_assignments(participation_id: UUID, response: Response, db: DB, user: Actor):
+    part = read_record(db, Participation, participation_id)
+    project = read_record(db, Project, part.project_id)
+    if user.id != part.student_user_id:
+        if user.id in {project.project_manager_user_id, project.org_reviewer_user_id}:
+            require_member(db, project.organization_id, user, ["owner", "project_manager", "reviewer"])
+        else:
+            require_member(db, project.organization_id, user, ["owner"])
+    response.headers["Cache-Control"] = "no-store, private"
+    assignments = db.scalars(select(MentorAssignment).where(MentorAssignment.participation_id == part.id).order_by(MentorAssignment.created_at.desc())).all()
+    return {"items": [serialize_assignment(a) for a in assignments], "next_offset": None}

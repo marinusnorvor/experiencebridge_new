@@ -1,24 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
 import { syntheticStudentPassport } from "../lib/mock-data";
+import { loadStudentPassportAndDecisions } from "../lib/api-records";
+import { usePortalApi } from "@/lib/api/portal-api";
+import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import type { StudentPassportDetails } from "../lib/types";
 
 const PROFILE_STORAGE_KEY = "experiencebridge_student_profile_data";
 
+const EMPTY_LIVE_PASSPORT: StudentPassportDetails = {
+  student: { id: "", displayName: "Student", email: "", isSyntheticDemo: true },
+  overallAssertionHash: "Not issued",
+  issuedAt: "",
+  lastUpdated: "",
+  assessedSkills: [],
+  selfReportedSkills: [],
+  projectAssertions: [],
+  isSyntheticDemo: true,
+};
+
 export function StudentPassportView() {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
+  const preview = isDevPreview || isPortalPresentationMode();
   const basePath = isDevPreview ? "/dev/student" : "/student";
+  const { getApi, isSignedIn } = usePortalApi();
 
-  const [passport] = useState<StudentPassportDetails>(syntheticStudentPassport);
+  const [passport, setPassport] = useState<StudentPassportDetails>(() =>
+    preview ? syntheticStudentPassport : EMPTY_LIVE_PASSPORT
+  );
+  const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<"all" | "accepted" | "in_progress" | "skills">("all");
 
-  // Read student display name from profile localStorage if available
-  const [studentDisplayName] = useState<string>(() => {
+  // Read student display name from profile localStorage if available in preview mode
+  const [studentDisplayName, setStudentDisplayName] = useState<string>(() => {
+    if (!preview) return "Student";
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(PROFILE_STORAGE_KEY);
@@ -30,8 +51,40 @@ export function StudentPassportView() {
         // Fallback
       }
     }
-    return passport.student.displayName;
+    return syntheticStudentPassport.student.displayName;
   });
+
+  const reloadLivePassport = useCallback(async () => {
+    if (preview || !isSignedIn) return;
+    const api = await getApi();
+    const { passport: livePassport } = await loadStudentPassportAndDecisions(api);
+    setLoadError("");
+    setPassport(livePassport);
+    setStudentDisplayName(livePassport.student.displayName);
+  }, [preview, isSignedIn, getApi]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (preview) return;
+      if (!isSignedIn) {
+        if (active) {
+          setPassport(EMPTY_LIVE_PASSPORT);
+          setStudentDisplayName("Student");
+          setLoadError("");
+        }
+        return;
+      }
+      void reloadLivePassport().catch((e) => {
+        if (active) {
+          setPassport(EMPTY_LIVE_PASSPORT);
+          setLoadError(e instanceof Error ? e.message : "Passport records unavailable.");
+        }
+      });
+    }, 0);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [preview, isSignedIn, reloadLivePassport]);
+  useVisibleRefresh(reloadLivePassport, !preview && isSignedIn);
 
   const filteredAssertions = passport.projectAssertions.filter((assertion) => {
     if (filter === "accepted") {
@@ -45,9 +98,11 @@ export function StudentPassportView() {
 
   return (
     <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={studentDisplayName} isSynthetic={true} />
+      <StudentPortalHeader studentName={studentDisplayName} isSynthetic={preview} />
 
       <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
+        {loadError && <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-900">{loadError}</p>}
+        {!preview && <p role="status" className="text-xs text-slate-600">Live passport ledger derived from authenticated participation, submission, mentor review, and organization review records.</p>}
         {/* Navigation Breadcrumb & Context */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

@@ -153,11 +153,18 @@ def test_publish_and_retrieve_after_app_restart(workflow):
         actor(restarted, actors, "outsider")
         listing = restarted.get("/api/v1/projects").json()["items"]
         assert listing[0]["id"] == project["id"]
+        assert listing[0]["published_terms_version_id"] == terms["id"]
+        detail = restarted.get(f'/api/v1/projects/{project["id"]}').json()
+        assert detail["published_terms_version_id"] == terms["id"]
         assert listing[0]["data_origin"] == "synthetic"
         assert "org_reviewer_user_id" not in listing[0]
         read = restarted.get(f'/api/v1/projects/{project["id"]}/terms-versions/{terms["id"]}')
         assert read.status_code == 200
         assert read.json()["snapshot"]["terms"]["fee_amount"] == "450.00"
+        actor(restarted, actors, "owner")
+        org_projects = restarted.get(f'/api/v1/organizations/{project["organization_id"]}/projects').json()["items"]
+        assert org_projects[0]["published_terms_version_id"] == terms["id"]
+        assert org_projects[0]["submitted_terms_version_id"] == terms["id"]
 
 
 def test_auth_tenant_and_independent_moderation(workflow):
@@ -274,3 +281,148 @@ def test_migration_upgrade_downgrade_and_postgres_sql():
     assert "FOREIGN KEY" in output.getvalue()
     assert "DROP TABLE" not in output.getvalue()
     engine.dispose()
+
+
+def test_organization_portal_15_step_project_creation_and_relogin_persistence(workflow):
+    """Verifies Section 6 critical acceptance test: full 15-step Organization project lifecycle and re-login persistence."""
+    client, actors, sessions, make_app = workflow
+
+    # Steps 1-2: Sign in through Clerk token, open Organization Portal, verify organization identity & membership
+    org = verified_organization(workflow)
+    actor(client, actors, "owner")
+    me_res = client.get("/api/v1/me")
+    assert me_res.status_code == 200
+    assert "organization" in me_res.json()["effective_contexts"]
+    my_orgs = client.get("/api/v1/me/organizations")
+    assert my_orgs.status_code == 200
+    assert [item["id"] for item in my_orgs.json()["items"]] == [org["id"]]
+
+    # Initial dashboard state: 0 projects
+    assert client.get(f'/api/v1/organizations/{org["id"]}/projects').json()["items"] == []
+
+    # Steps 3-5: Create a project with valid details, save as draft, and capture backend-generated project ID
+    initial_payload = {
+        "title": "Synthetic Accessibility Audit Portal",
+        "description": "Audit keyboard navigation and screen reader landmarks across synthetic components.",
+        "capacity": 2,
+        "org_reviewer_user_id": actors["owner"]["id"],
+        "scope_in": "Audit main navigation, forms, and status banners.",
+        "scope_out": "No production customer data or live third-party integrations.",
+        "estimated_minutes": 240,
+        "start_on": "2026-11-05",
+        "due_on": "2026-11-20",
+        "milestones": [
+            {
+                "title": "Milestone 1: Keyboard navigation audit",
+                "acceptance_criteria": ["Tab order documented", "Focus traps resolved"],
+                "due_on": "2026-11-12",
+            },
+            {
+                "title": "Milestone 2: Remediation verification report",
+                "acceptance_criteria": ["WCAG AA checklist completed"],
+                "due_on": "2026-11-19",
+            },
+        ],
+    }
+    created_res = post(client, f'/organizations/{org["id"]}/projects', initial_payload, org["row_version"])
+    assert created_res.status_code == 201, created_res.text
+    created_project = created_res.json()
+    project_id = created_project["id"]
+    assert UUID(project_id)
+    assert created_project["status"] == "draft"
+    assert created_project["row_version"] == 1
+
+    # Steps 6-8: Refresh the page, reopen the project, and confirm all supported fields persisted in the database
+    refreshed_list = client.get(f'/api/v1/organizations/{org["id"]}/projects')
+    assert refreshed_list.status_code == 200
+    assert len(refreshed_list.json()["items"]) == 1
+    reopened = client.get(f"/api/v1/projects/{project_id}")
+    assert reopened.status_code == 200
+    reopened_data = reopened.json()
+    for field in ("title", "description", "capacity", "org_reviewer_user_id"):
+        assert reopened_data[field] == initial_payload[field]
+    for scope_field in ("scope_in", "scope_out", "estimated_minutes", "start_on", "due_on"):
+        assert reopened_data["scope"][scope_field] == initial_payload[scope_field]
+    assert len(reopened_data["scope"]["milestones"]) == len(initial_payload["milestones"])
+    for actual_ms, expected_ms in zip(reopened_data["scope"]["milestones"], initial_payload["milestones"]):
+        assert UUID(actual_ms["id"])
+        assert actual_ms["title"] == expected_ms["title"]
+        assert actual_ms["acceptance_criteria"] == expected_ms["acceptance_criteria"]
+        assert actual_ms["due_on"] == expected_ms["due_on"]
+
+    # Steps 9-10: Edit the project, save, refresh, and confirm the edits persisted
+    edited_payload = {
+        **initial_payload,
+        "title": "Synthetic Accessibility & Contrast Audit Portal",
+        "description": "Updated scope: includes WCAG 2.1 AA contrast verification and keyboard landmark audit.",
+        "estimated_minutes": 300,
+    }
+    patch_res = client.patch(
+        f"/api/v1/projects/{project_id}",
+        json=edited_payload,
+        headers={"If-Match": f'"{reopened_data["row_version"]}"'},
+    )
+    assert patch_res.status_code == 200, patch_res.text
+    reopened_after_edit = client.get(f"/api/v1/projects/{project_id}").json()
+    assert reopened_after_edit["title"] == edited_payload["title"]
+    assert reopened_after_edit["description"] == edited_payload["description"]
+    assert reopened_after_edit["scope"]["estimated_minutes"] == 300
+    assert reopened_after_edit["row_version"] == 2
+
+    # Steps 11-12: Create terms version, submit project for moderation, and confirm pending_review status is saved
+    terms_res = post(
+        client,
+        f"/projects/{project_id}/terms-versions",
+        terms_body(),
+        reopened_after_edit["row_version"],
+    )
+    assert terms_res.status_code == 201, terms_res.text
+    terms = terms_res.json()
+
+    submit_res = post(
+        client,
+        f"/projects/{project_id}/submit-review",
+        {"terms_version_id": terms["id"]},
+        3,
+    )
+    assert submit_res.status_code == 200, submit_res.text
+    submitted_data = submit_res.json()
+    assert submitted_data["status"] == "pending_review"
+    assert submitted_data["submitted_terms_version_id"] == terms["id"]
+
+    # Step 13: Return to the dashboard and verify project counts update (1 total, 1 pending_review, 0 draft)
+    dashboard_projects = client.get(f'/api/v1/organizations/{org["id"]}/projects').json()["items"]
+    assert len(dashboard_projects) == 1
+    assert dashboard_projects[0]["id"] == project_id
+    assert dashboard_projects[0]["status"] == "pending_review"
+    assert dashboard_projects[0]["submitted_terms_version_id"] == terms["id"]
+
+    # Steps 14-15: Sign out and sign back in with a fresh session/token; confirm same org, project, and approval status remain visible
+    fresh_owner_token = _mint_jwt(sub="user_supervisor_owner")
+    with TestClient(make_app()) as relogin_client:
+        relogin_client.headers["Authorization"] = f"Bearer {fresh_owner_token}"
+        me_relogin = relogin_client.get("/api/v1/me")
+        assert me_relogin.status_code == 200
+        assert me_relogin.json()["id"] == actors["owner"]["id"]
+
+        orgs_relogin = relogin_client.get("/api/v1/me/organizations").json()["items"]
+        assert len(orgs_relogin) == 1
+        assert orgs_relogin[0]["id"] == org["id"]
+        assert orgs_relogin[0]["verification_status"] == "verified"
+
+        projects_relogin = relogin_client.get(f'/api/v1/organizations/{org["id"]}/projects').json()["items"]
+        assert len(projects_relogin) == 1
+        assert projects_relogin[0]["id"] == project_id
+        assert projects_relogin[0]["title"] == edited_payload["title"]
+        assert projects_relogin[0]["status"] == "pending_review"
+        assert projects_relogin[0]["submitted_terms_version_id"] == terms["id"]
+
+        terms_relogin = relogin_client.get(f'/api/v1/projects/{project_id}/terms-versions/{terms["id"]}')
+        assert terms_relogin.status_code == 200
+        assert terms_relogin.json()["snapshot"]["title"] == edited_payload["title"]
+
+        # Verify another user without membership cannot access this organization's private records
+        relogin_client.headers["Authorization"] = f'Bearer {actors["outsider"]["token"]}'
+        assert relogin_client.get(f'/api/v1/organizations/{org["id"]}/projects').status_code == 404
+        assert relogin_client.get(f"/api/v1/projects/{project_id}").status_code == 404
+

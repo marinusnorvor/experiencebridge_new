@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MentorReviewPanel } from "./mentor-review-panel";
 
 import type { MentorDashboardData } from "../lib/sample-dashboard-data";
 
@@ -6,8 +7,10 @@ type AcceptedAssignment = MentorDashboardData["acceptedAssignments"][number];
 
 export function ParticipationContext({
   assignment,
+  preview = true,
 }: {
   assignment: AcceptedAssignment;
+  preview?: boolean;
 }) {
   const submissionCount = assignment.milestones.reduce(
     (count, milestone) => count + milestone.submissions.length,
@@ -39,10 +42,9 @@ export function ParticipationContext({
         aria-label="Sample data notice"
         className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
       >
-        <p className="font-semibold">Synthetic sample participation</p>
+        <p className="font-semibold">Development participation</p>
         <p>
-          All project, organization, learner, milestone, and status information on this page is
-          fictional sample data.
+          Development records are synthetic and do not certify real-world outcomes.
         </p>
       </aside>
 
@@ -89,7 +91,7 @@ export function ParticipationContext({
             Learner progress and milestones
           </h2>
           <span className="text-sm text-slate-500">
-            {assignment.milestones.length} sample{" "}
+            {assignment.milestones.length}{" "}
             {assignment.milestones.length === 1 ? "milestone" : "milestones"}
           </span>
         </div>
@@ -110,7 +112,7 @@ export function ParticipationContext({
 
         {assignment.milestones.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm leading-6 text-slate-600">
-            No sample milestones are listed for this participation.
+            No milestones are listed for this participation.
           </p>
         ) : (
           <ol className="space-y-4">
@@ -243,20 +245,7 @@ export function ParticipationContext({
         <h2 id="coming-soon-title" className="text-xl font-semibold tracking-tight text-slate-900">
           Review and feedback
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">
-          These screens are not available yet. No review or feedback can be submitted or viewed
-          here.
-        </p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <ComingSoonPlaceholder
-            title="Submission review"
-            description="Review a learner submission using an approved rubric."
-          />
-          <ComingSoonPlaceholder
-            title="Mentor feedback"
-            description="View feedback and review history for this participation."
-          />
-        </div>
+        {preview ? <p className="mt-2 text-sm leading-6 text-slate-600">Assessment submission is unavailable in the synthetic presentation preview.</p> : <MentorReviewPanel participationId={assignment.participationId} />}
       </section>
     </main>
   );
@@ -271,29 +260,8 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ComingSoonPlaceholder({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled
-      className="w-full cursor-not-allowed rounded-lg border border-dashed border-slate-300 bg-white p-4 text-left opacity-80"
-    >
-      <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-        Coming soon
-      </span>
-      <span className="mt-2 block font-semibold text-slate-900">{title}</span>
-      <span className="mt-1 block text-sm leading-6 text-slate-600">{description}</span>
-    </button>
-  );
-}
-
 function formatDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date || "Not scheduled";
   return new Intl.DateTimeFormat("en-GH", {
     day: "numeric",
     month: "short",

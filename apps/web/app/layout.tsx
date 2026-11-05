@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 import { SiteHeader } from "@/components/layouts/site-header";
 import { AuthProvider } from "@/components/layouts/auth-provider";
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description: "A foundation for evidence-backed experience.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const content = <><SiteHeader />{children}</>;
 
   return (

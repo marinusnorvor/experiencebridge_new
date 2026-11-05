@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@experiencebridge/api-client": [
+        "../../packages/api-client/src/index.ts"
       ]
     }
   },

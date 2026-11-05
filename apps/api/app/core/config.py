@@ -115,8 +115,15 @@ def validate_database_url_safety(
     parsed = urlsplit(normalized)
     hostname = (parsed.hostname or "").lower()
     username = unquote(parsed.username or "").lower()
-    query_params = parse_qs(parsed.query)
-    sslmode_values = [v.lower() for v in query_params.get("sslmode", [])]
+    query_params = parse_qs(parsed.query, keep_blank_values=True)
+    # libpq/SQLAlchemy query arguments can override the authority we validate above.
+    # Require one unambiguous target in the URL rather than validating a decoy host.
+    if parsed.fragment or any(len(values) != 1 for values in query_params.values()):
+        raise ValueError("Database URLs must not contain fragments or repeated query parameters.")
+    target_overrides = {"host", "hostaddr", "port", "user", "password", "dbname", "database", "service", "servicefile"}
+    if target_overrides.intersection(query_params):
+        raise ValueError("Database target and credentials must be specified in the URL authority/path, not query parameters.")
+    sslmode_values = query_params.get("sslmode", [])
 
     is_local_host = hostname in LOCAL_HOSTS
 
@@ -181,6 +188,7 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         populate_by_name=True,
+        hide_input_in_errors=True,
     )
 
     app_name: str = Field(default="ExperienceBridge API", validation_alias="APP_NAME")
@@ -201,13 +209,13 @@ class Settings(BaseSettings):
     )
 
     db_pool_mode: DatabasePoolMode = Field(default="auto", validation_alias="DB_POOL_MODE")
-    db_pool_size: int = Field(default=2, ge=1, le=20, validation_alias="DB_POOL_SIZE")
-    db_max_overflow: int = Field(default=0, ge=0, le=20, validation_alias="DB_MAX_OVERFLOW")
-    db_pool_timeout: int = Field(default=10, ge=1, le=60, validation_alias="DB_POOL_TIMEOUT")
-    db_pool_recycle: int = Field(default=300, ge=30, le=3600, validation_alias="DB_POOL_RECYCLE")
-    db_connect_timeout: int = Field(default=10, ge=1, le=60, validation_alias="DB_CONNECT_TIMEOUT")
+    db_pool_size: int = Field(default=5, ge=1, le=50, validation_alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=10, ge=0, le=50, validation_alias="DB_MAX_OVERFLOW")
+    db_pool_timeout: int = Field(default=30, ge=1, le=120, validation_alias="DB_POOL_TIMEOUT")
+    db_pool_recycle: int = Field(default=60, ge=10, le=3600, validation_alias="DB_POOL_RECYCLE")
+    db_connect_timeout: int = Field(default=30, ge=1, le=120, validation_alias="DB_CONNECT_TIMEOUT")
     db_statement_timeout_ms: int = Field(
-        default=15000,
+        default=30000,
         ge=1000,
         le=120000,
         validation_alias="DB_STATEMENT_TIMEOUT_MS",
@@ -407,6 +415,31 @@ class Settings(BaseSettings):
         if self.clerk_audience is not None:
             self.clerk_audience = self.clerk_audience.strip() or None
 
+        if self.app_env == "production":
+            # Local production-mode processes and Vercel use the same trust rules.
+            # Never infer a production identity from a development key or arbitrary JWKS.
+            key = self.clerk_publishable_key or ""
+            if self.clerk_secret_key is not None and not self.clerk_secret_key.get_secret_value().startswith("sk_live_"):
+                raise ValueError("Production CLERK_SECRET_KEY must be a live key when configured.")
+            issuer = derive_clerk_issuer_from_publishable_key(key)
+            if not key.startswith("pk_live_") or not issuer:
+                raise ValueError("Production requires a valid live CLERK_PUBLISHABLE_KEY.")
+            parsed = urlsplit(issuer)
+            if (parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment
+                    or not parsed.hostname or parsed.hostname in LOCAL_HOSTS or parsed.port):
+                raise ValueError("Production Clerk key must identify an HTTPS domain origin.")
+            if self.clerk_issuer_url != issuer:
+                raise ValueError("Production CLERK_ISSUER_URL must match CLERK_PUBLISHABLE_KEY.")
+            if self.clerk_jwks_url != f"{issuer}/.well-known/jwks.json":
+                raise ValueError("Production CLERK_JWKS_URL must match the Clerk issuer JWKS endpoint.")
+            if not self.cors_allowed_origins or not self.clerk_authorized_parties:
+                raise ValueError("Production requires explicit CORS_ALLOWED_ORIGINS and CLERK_AUTHORIZED_PARTIES.")
+            for origin in self.cors_allowed_origins + self.clerk_authorized_parties:
+                parsed = urlsplit(origin)
+                if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+                        or parsed.path or parsed.query or parsed.fragment or "*" in origin):
+                    raise ValueError("Production CORS and Clerk authorized parties must be exact HTTPS origins without paths or credentials.")
+
         return self
 
     @property
@@ -422,8 +455,8 @@ class Settings(BaseSettings):
         if self.vercel or bool(self.vercel_env):
             return True
         if self.database_url is not None:
-            raw = self.database_url.get_secret_value()
-            if "-pooler." in raw:
+            hostname = urlsplit(self.database_url.get_secret_value()).hostname or ""
+            if "-pooler." in hostname:
                 return True
         return False
 

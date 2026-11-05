@@ -1,4 +1,5 @@
 "use client";
+import { OrganizationTeamLive } from "./organization-team-live";
 import { useState } from "react";
 import { useOrganizationDemo } from "../hooks/organization-demo-context";
 import { useDemoAction } from "../hooks/use-demo-action";
@@ -6,6 +7,10 @@ import { inviteMentor } from "../lib/demo-transitions";
 import { ActionLink, Badge, Button, Empty, Field, Modal, PortalPage, portalStyles as s } from "../components/ui/portal-ui";
 
 export function OrganizationTeamContent({ projectId }: { projectId: string }) {
+  const { preview } = useOrganizationDemo();
+  return preview ? <PreviewTeamContent projectId={projectId} /> : <OrganizationTeamLive projectId={projectId} />;
+}
+function PreviewTeamContent({ projectId }: { projectId: string }) {
   const { state } = useOrganizationDemo();
   const project = state.projects.find((item) => item.id === projectId);
   const [query, setQuery] = useState("");

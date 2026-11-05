@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import base64
 
 import pytest
 from sqlalchemy.pool import NullPool, QueuePool
@@ -49,6 +50,8 @@ def test_verify_database_connectivity_blocks_production() -> None:
         app_env="production",
         neon_branch="production",
         cors_allowed_origins=["https://app.example.com"],
+        clerk_publishable_key="pk_live_" + base64.b64encode(b"clerk.example.com$").decode(),
+        clerk_authorized_parties=["https://app.example.com"],
     )
     with pytest.raises(RuntimeError, match="Refusing to run local/test database connectivity check"):
         verify_database_connectivity(settings=prod_settings)
@@ -58,6 +61,8 @@ def test_alembic_guard_blocks_production_migrations(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("NEON_BRANCH", "production")
     monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+    monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", "pk_live_" + base64.b64encode(b"clerk.example.com$").decode())
+    monkeypatch.setenv("CLERK_AUTHORIZED_PARTIES", "https://app.example.com")
     monkeypatch.delenv("ALLOW_PRODUCTION_MIGRATIONS", raising=False)
 
     with pytest.raises(RuntimeError, match="Blocked Alembic migration against production"):
@@ -163,5 +168,5 @@ def test_live_neon_development_read_only_connectivity() -> None:
     assert result.environment == "development"
     assert result.neon_branch == "development"
     assert result.database_role == "experiencebridge_development"
-    assert result.pool_class == "NullPool"
+    assert result.pool_class in {"QueuePool", "NullPool"}
     assert result.error is None

@@ -399,3 +399,56 @@ def test_applications_migration_upgrade_downgrade_and_postgres_sql():
     assert "CREATE TABLE terms_acceptances" in output.getvalue()
     assert "DROP TABLE" not in output.getvalue()
     engine.dispose()
+
+
+def test_published_project_is_discoverable_and_application_reaches_organization_after_restart(workflow):
+    client, actors, sessions, make_app = workflow
+    _, project, terms = submitted_project(workflow)
+    actor(client, actors, "student1")
+    assert client.get("/api/v1/projects").json()["items"] == []
+    assert client.get(f'/api/v1/projects/{project["id"]}').status_code == 404
+    blocked = post(client, f'/projects/{project["id"]}/applications', application_body(terms["id"]), project["row_version"])
+    assert blocked.status_code in (404, 409)
+
+    actor(client, actors, "admin")
+    approved = post(client, f'/admin/projects/{project["id"]}/decisions', {
+        "decision": "approve", "explanation": "Synthetic project approved for discovery test.",
+        "terms_version_id": terms["id"], "snapshot_hash": terms["content_hash"],
+    }, project["row_version"])
+    assert approved.status_code == 200, approved.text
+
+    actor(client, actors, "student1")
+    listing = client.get("/api/v1/projects?limit=100&offset=0").json()
+    assert len(listing["items"]) == 1
+    discovered = listing["items"][0]
+    assert discovered["id"] == project["id"]
+    assert discovered["published_terms_version_id"] == terms["id"]
+    seen = client.get(f'/api/v1/projects/{project["id"]}/terms-versions/{discovered["published_terms_version_id"]}')
+    assert seen.status_code == 200
+    assert seen.json()["snapshot"]["title"] == project["title"]
+    body = application_body(seen.json()["id"])
+    key = str(uuid4())
+    submitted = post(client, f'/projects/{project["id"]}/applications', body, discovered["row_version"], key)
+    assert submitted.status_code == 201, submitted.text
+    application_id = submitted.json()["id"]
+    replay = post(client, f'/projects/{project["id"]}/applications', body, discovered["row_version"], key)
+    assert replay.json()["id"] == application_id
+    duplicate = post(client, f'/projects/{project["id"]}/applications', body, discovered["row_version"])
+    assert duplicate.status_code == 409
+
+    with TestClient(make_app()) as restarted:
+        assert restarted.get("/api/v1/me/applications").status_code == 401
+        actor(restarted, actors, "student1")
+        assert restarted.get("/api/v1/me/applications").json()["items"][0]["id"] == application_id
+        actor(restarted, actors, "owner")
+        received = restarted.get(f'/api/v1/projects/{project["id"]}/applications')
+        assert received.status_code == 200
+        assert [a["id"] for a in received.json()["items"]] == [application_id]
+        assert received.json()["items"][0]["motivation"] == body["motivation"]
+        actor(restarted, actors, "student2")
+        assert restarted.get(f'/api/v1/applications/{application_id}').status_code in (403, 404)
+        assert restarted.get("/api/v1/me/applications").json()["items"] == []
+    with sessions() as db:
+        saved = db.get(Application, UUID(application_id))
+        assert saved.project_id == UUID(project["id"])
+        assert saved.seen_terms_version_id == UUID(terms["id"])

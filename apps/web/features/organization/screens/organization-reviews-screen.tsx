@@ -1,25 +1,52 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useOrganizationDemo } from "../hooks/organization-demo-context";
 import { useDemoAction } from "../hooks/use-demo-action";
+import { usePortalApi } from "@/lib/api/portal-api";
+import { requireData } from "@/lib/api/use-portal-resource";
 import { reviewSubmission } from "../lib/demo-transitions";
 import type { DemoSubmission } from "../types/portal";
 import { ActionLink, Badge, Button, Empty, Field, Modal, PortalPage, portalStyles as s } from "../components/ui/portal-ui";
 
 function SubmissionReview({ submission }: { submission: DemoSubmission }) {
+  const { preview, refetch, announce } = useOrganizationDemo();
+  const { getApi } = usePortalApi();
+  const [liveError, setLiveError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const acting = useRef(false);
   const [version, setVersion] = useState(submission.versions.at(-1)!.version);
   const [criteria, setCriteria] = useState(submission.criteria.map(() => false));
   const [rationale, setRationale] = useState("");
   const [decision, setDecision] = useState<"Accepted" | "Changes requested" | null>(null);
-  const { run, error, clearError } = useDemoAction();
+  const { run, error: previewError, clearError } = useDemoAction();
+  const error = liveError || previewError;
   const evidence = submission.versions.find((item) => item.version === version)!;
   const latest = version === submission.versions.at(-1)?.version;
+  async function saveReview() {
+    if (!decision || acting.current) return;
+    if (preview) {
+      if (run((state, context) => reviewSubmission(state, context, submission.id, version, decision, criteria, rationale), "Preview review saved locally.")) setDecision(null);
+      return;
+    }
+    acting.current = true; setBusy(true); setLiveError("");
+    try {
+      if (submission.rowVersion === undefined) throw new Error("Reload the current submission before reviewing.");
+      const api = await getApi();
+      const recorded = requireData(await api.submitOrganizationReview(submission.id, submission.rowVersion,
+        decision === "Accepted" ? "accepted" : "revisions_requested",
+        submission.criteria.map((criterion_text,index) => ({criterion_text,met:criteria[index],explanation:rationale})), rationale));
+      const reviews = requireData(await api.getOrganizationReviews(submission.id));
+      if (!reviews.some(r => r.id === recorded.id)) throw new Error("Review could not be confirmed.");
+      await refetch(); announce("Organization review confirmed by the API."); setDecision(null);
+    } catch (e) { setLiveError(e instanceof Error ? e.message : "Review failed."); }
+    finally { acting.current = false; setBusy(false); }
+  }
   return <div className={s.stack}><section className={s.card}><div className={s.cardTop}><div><p className={s.eyebrow}>Organization deliverable review</p><h2>{submission.title}</h2><p className={s.muted}>{submission.student} · synthetic evidence</p></div><Badge tone={submission.status === "Accepted" ? "positive" : "warning"}>{submission.status}</Badge></div><Field label="Submission version">{(props) => <select {...props} value={version} onChange={(event) => { setVersion(Number(event.target.value)); setCriteria(submission.criteria.map(() => false)); clearError(); }}>{submission.versions.map((item) => <option key={item.version} value={item.version}>Version {item.version} · {item.date}{item.version === submission.versions.at(-1)?.version ? " · latest" : " · history"}</option>)}</select>}</Field><p>{evidence.note}</p><div className={s.evidence}><p className={s.text}>{evidence.content}</p></div><p className={s.muted}>{submission.sharedMentorNote}</p><div className={s.cardFooter}><ActionLink href={`/organization/projects/${submission.projectId}/workspace?tab=deliverables`}>Project deliverables</ActionLink></div></section>
     <section className={s.card}><h2>Original acceptance criteria</h2>{submission.status === "Awaiting review" && latest ? <form className={s.stack} onSubmit={(event) => event.preventDefault()}>{submission.criteria.map((criterion, index) => <label className={s.check} key={criterion}><input type="checkbox" checked={criteria[index]} onChange={(event) => setCriteria((current) => current.map((value, position) => position === index ? event.target.checked : value))} />{criterion}</label>)}<Field label="Decision rationale" hint="Describe the evidence you reviewed or give actionable revision instructions (10–2,000 characters).">{(props) => <textarea {...props} minLength={10} maxLength={2000} value={rationale} onChange={(event) => setRationale(event.target.value)} />}</Field><p className={s.muted}>Acceptance records the organization’s business decision. It does not assess student skills, verify a passport, or approve public disclosure.</p><div className={s.actions}><Button primary disabled={!criteria.every(Boolean) || rationale.trim().length < 10} onClick={() => { clearError(); setDecision("Accepted"); }}>Accept deliverable</Button><Button disabled={rationale.trim().length < 10} onClick={() => { clearError(); setDecision("Changes requested"); }}>Request changes</Button></div><p className={s.help}>To accept, check every criterion and add a rationale. To request changes, add actionable feedback.</p></form> : <><ul>{submission.criteria.map((criterion) => <li key={criterion}>{criterion}</li>)}</ul><p className={s.muted}>{!latest ? "Historical versions are read-only. Select the latest version to review." : "This version has a recorded decision. Further review requires a new student submission."}</p></>}</section>
     <section className={s.card}><h2>Decision history</h2>{submission.reviews.length ? <ul className={s.timeline}>{submission.reviews.map((review) => <li key={`${review.version}-${review.at}`}><Badge tone={review.decision === "Accepted" ? "positive" : "warning"}>{review.decision} · v{review.version}</Badge><p className={s.text}>{review.rationale}</p><small>{review.actor} · {review.at}</small><small>{review.criteria.filter(Boolean).length} / {submission.criteria.length} criteria confirmed</small></li>)}</ul> : <p className={s.muted}>No organization decision recorded for this sample.</p>}</section>
-    {decision && <Modal title={decision === "Accepted" ? "Accept this sample version?" : "Request a revised sample?"} onClose={() => setDecision(null)}><div className={s.stack}><p>{submission.title} · version {version}</p><p className={s.text}>{rationale}</p><p className={s.muted}>This decision will be attributed to the demo organization manager and preserved for this local session. It cannot be overwritten in this interface.</p>{error && <p role="alert" className={s.feedback} data-error="true">{error}</p>}<div className={s.actions}><Button onClick={() => setDecision(null)}>Keep reviewing</Button><Button primary onClick={() => { if (run((state, context) => reviewSubmission(state, context, submission.id, version, decision, criteria, rationale), `Sample deliverable: ${decision.toLowerCase()}. Mentor assessment and passport status are unchanged.`)) setDecision(null); }}>Confirm decision</Button></div></div></Modal>}
+    {decision && <Modal title={decision === "Accepted" ? "Accept this sample version?" : "Request a revised sample?"} onClose={() => setDecision(null)}><div className={s.stack}><p>{submission.title} · version {version}</p><p className={s.text}>{rationale}</p><p className={s.muted}>This decision will be attributed to the signed-in reviewer and recorded in the current workspace. It cannot be overwritten in this interface.</p>{error && <p role="alert" className={s.feedback} data-error="true">{error}</p>}<div className={s.actions}><Button onClick={() => setDecision(null)}>Keep reviewing</Button><Button primary disabled={busy} onClick={() => void saveReview()}>Confirm decision</Button></div></div></Modal>}
   </div>;
 }
 export function OrganizationReviewsScreen() {
@@ -29,5 +56,5 @@ export function OrganizationReviewsScreen() {
   const [query, setQuery] = useState("");
   const submissions = state.submissions.filter((item) => (filter === "All" || item.status === filter) && `${item.title} ${item.student}`.toLowerCase().includes(query.trim().toLowerCase()));
   const selected = params.has("submission") ? state.submissions.find((item) => item.id === params.get("submission")) : submissions[0];
-  return <PortalPage title="Thoughtful feedback moves work forward" description="Review the latest evidence against the original brief. Keep every decision traceable."><div className={s.toolbar}><label className={s.search}><span className={s.label}>Search deliverables</span><input type="search" className={s.input} value={query} onChange={(event) => setQuery(event.target.value)} /></label><label><span className={s.label}>Review status</span><select className={s.input} value={filter} onChange={(event) => setFilter(event.target.value)}>{["All", "Awaiting review", "Accepted", "Changes requested"].map((value) => <option key={value}>{value}</option>)}</select></label></div><div className={s.reviewLayout}><aside className={s.card}><h2>Review queue</h2><p className={s.muted}>{submissions.length} submissions in this view</p>{submissions.map((item) => <Link className={s.threadLink} aria-current={selected?.id === item.id ? "page" : undefined} href={`/organization/reviews?submission=${item.id}`} key={item.id}><strong>{item.title}</strong><p className={s.muted}>{state.projects.find((project) => project.id === item.projectId)?.title}</p><Badge>{item.status}</Badge></Link>)}{!submissions.length && <Empty title="Nothing in this queue" action={<Button onClick={() => { setFilter("All"); setQuery(""); }}>Clear filters</Button>}>Try a different status or search.</Empty>}</aside>{selected ? <SubmissionReview key={selected.id} submission={selected} /> : <Empty title={params.has("submission") ? "Submission unavailable" : "No submission selected"} action={<ActionLink href="/organization/reviews">Return to reviews</ActionLink>}>Choose a sample from the queue. Missing local records may have reset on refresh.</Empty>}</div></PortalPage>;
+  return <PortalPage title="Thoughtful feedback moves work forward" description="Review the latest evidence against the original brief. Keep every decision traceable."><div className={s.toolbar}><label className={s.search}><span className={s.label}>Search deliverables</span><input type="search" className={s.input} value={query} onChange={(event) => setQuery(event.target.value)} /></label><label><span className={s.label}>Review status</span><select className={s.input} value={filter} onChange={(event) => setFilter(event.target.value)}>{["All", "Awaiting review", "Accepted", "Changes requested", "Rejected"].map((value) => <option key={value}>{value}</option>)}</select></label></div><div className={s.reviewLayout}><aside className={s.card}><h2>Review queue</h2><p className={s.muted}>{submissions.length} submissions in this view</p>{submissions.map((item) => <Link className={s.threadLink} aria-current={selected?.id === item.id ? "page" : undefined} href={`/organization/reviews?submission=${item.id}`} key={item.id}><strong>{item.title}</strong><p className={s.muted}>{state.projects.find((project) => project.id === item.projectId)?.title}</p><Badge>{item.status}</Badge></Link>)}{!submissions.length && <Empty title="Nothing in this queue" action={<Button onClick={() => { setFilter("All"); setQuery(""); }}>Clear filters</Button>}>Try a different status or search.</Empty>}</aside>{selected ? <SubmissionReview key={selected.id} submission={selected} /> : <Empty title={params.has("submission") ? "Submission unavailable" : "No submission selected"} action={<ActionLink href="/organization/reviews">Return to reviews</ActionLink>}>Choose a submission from the queue. Reload if the record is unavailable.</Empty>}</div></PortalPage>;
 }

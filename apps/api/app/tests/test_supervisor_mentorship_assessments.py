@@ -129,7 +129,8 @@ def setup_approved_mentor(workflow):
     return approved
 
 
-def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
+@pytest.mark.parametrize("scenario", ["complete", "newer_revision", "partial"])
+def test_full_mentorship_submission_review_and_completion_lifecycle(workflow, scenario):
     client, actors, sessions, _ = workflow
     org, project, terms, part = setup_active_participation(workflow)
     setup_approved_mentor(workflow)
@@ -167,6 +168,10 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
     assert accept_assign.status_code == 200, accept_assign.text
     assert accept_assign.json()["status"] == "accepted"
 
+    assert client.get(f'/api/v1/participations/{part["id"]}').status_code == 200
+    actor(client, actors, "outsider")
+    assert client.get(f'/api/v1/participations/{part["id"]}').status_code == 404
+
     # 4. PM starts project -> in_progress
     actor(client, actors, "owner")
     started = post(client, f'/projects/{project["id"]}/start', {}, project["row_version"])
@@ -176,6 +181,11 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
     # 5. Student creates draft submission
     actor(client, actors, "student")
     part = client.get(f'/api/v1/participations/{part["id"]}').json()
+    early_ready = post(client, f'/participations/{part["id"]}/mark-ready-for-review',
+        {"requested_outcome": "completed", "explanation": "Synthetic premature completion request."}, part["row_version"])
+    assert early_ready.status_code == 409
+    assert early_ready.json()["error"]["code"] == "COMPLETION_BLOCKED"
+    assert client.get(f'/api/v1/participations/{part["id"]}').json()["status"] == "active"
     sub_res = post(
         client,
         f'/participations/{part["id"]}/submissions',
@@ -258,13 +268,27 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
     assert o_rev.status_code == 201, o_rev.text
     assert o_rev.json()["decision"] == "accepted"
 
+    outcome = "partially_completed" if scenario == "partial" else "completed"
     # 11. Student marks ready for review
     actor(client, actors, "student")
     part = client.get(f'/api/v1/participations/{part["id"]}').json()
+    if scenario == "newer_revision":
+        revision = post(client, f'/participations/{part["id"]}/submissions', {
+            "milestone_index": 0, "summary": "Synthetic new unfinished revision of deliverable.",
+            "contribution_statement": "Synthetic new work not independently reviewed yet.",
+        }, part["row_version"])
+        assert revision.status_code == 201
+        assert revision.json()["revision_no"] == 2
+        blocked = post(client, f'/participations/{part["id"]}/mark-ready-for-review', {
+            "requested_outcome": "completed", "explanation": "Synthetic completion with an unfinished revision.",
+        }, part["row_version"])
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "COMPLETION_BLOCKED"
+        return
     ready = post(
         client,
         f'/participations/{part["id"]}/mark-ready-for-review',
-        {"requested_outcome": "completed", "explanation": "All deliverables completed and reviewed."},
+        {"requested_outcome": outcome, "explanation": "Synthetic completion outcome requested by the student."},
         part["row_version"],
     )
     assert ready.status_code == 200, ready.text
@@ -275,11 +299,11 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
     finalized = post(
         client,
         f'/participations/{part["id"]}/finalize',
-        {"outcome": "completed", "explanation": "Student demonstrated excellent execution across all milestones."},
+        {"outcome": outcome, "explanation": "Synthetic participation outcome recorded by the manager."},
         ready.json()["row_version"],
     )
     assert finalized.status_code == 200, finalized.text
-    assert finalized.json()["status"] == "completed"
+    assert finalized.json()["status"] == outcome
 
     # 13. PM completes project
     proj_completed = post(
@@ -288,6 +312,12 @@ def test_full_mentorship_submission_review_and_completion_lifecycle(workflow):
         {"explanation": "Project deliverables fulfilled and verified."},
         started.json()["row_version"],
     )
+    if scenario == "partial":
+        assert proj_completed.status_code == 409
+        assert proj_completed.json()["error"]["code"] == "COMPLETION_BLOCKED"
+        with sessions() as db:
+            assert db.get(Participation, UUID(part["id"])).status == "partially_completed"
+        return
     assert proj_completed.status_code == 200, proj_completed.text
     assert proj_completed.json()["status"] == "completed"
 
@@ -362,3 +392,61 @@ def test_mentorship_assessments_migration_upgrade_downgrade_and_postgres_sql():
     assert "CREATE TABLE organization_reviews" in output.getvalue()
     assert "DROP TABLE" not in output.getvalue()
     engine.dispose()
+
+
+def test_mentor_directory_eligibility_and_assignment_recovery(workflow):
+    client, actors, sessions, _ = workflow
+    org, project, terms, part = setup_active_participation(workflow)
+    actor(client, actors, "admin")
+    missing = post(client, f'/admin/mentors/{actors["mentor"]["id"]}/eligibility',
+        {"decision": "approve", "explanation": "Synthetic profile must exist before review."}, 1)
+    assert missing.status_code == 404
+    profile = setup_approved_mentor(workflow)
+    assert any(p["id"] == profile["id"] for p in client.get("/api/v1/admin/mentors").json()["items"])
+    actor(client, actors, "outsider")
+    assert client.get("/api/v1/admin/mentors").status_code == 403
+    assert client.get(f'/api/v1/organizations/{org["id"]}/mentors').status_code in (403, 404)
+    assert client.get(f'/api/v1/participations/{part["id"]}/mentor-assignments').status_code in (403, 404)
+    actor(client, actors, "owner")
+    directory = client.get(f'/api/v1/organizations/{org["id"]}/mentors')
+    assert directory.status_code == 200
+    assert [p["user_id"] for p in directory.json()["items"]] == [actors["mentor"]["id"]]
+    body = {"mentor_user_id": actors["mentor"]["id"], "context": "Synthetic independent milestone mentoring.",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()}
+    assignment = post(client, f'/participations/{part["id"]}/mentor-assignments', body, part["row_version"])
+    assert assignment.status_code == 201
+    duplicate = post(client, f'/participations/{part["id"]}/mentor-assignments', body, part["row_version"])
+    assert duplicate.status_code == 409
+    with sessions() as db:
+        row = db.get(MentorAssignment, UUID(assignment.json()["id"]))
+        row.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+        db.commit()
+    replacement = post(client, f'/participations/{part["id"]}/mentor-assignments', body, part["row_version"])
+    assert replacement.status_code == 201, replacement.text
+    actor(client, actors, "student")
+    assignments = client.get(f'/api/v1/participations/{part["id"]}/mentor-assignments')
+    assert {a["status"] for a in assignments.json()["items"]} == {"proposed", "expired"}
+    actor(client, actors, "admin")
+    suspended = post(client, f'/admin/mentors/{actors["mentor"]["id"]}/eligibility',
+        {"decision": "suspend", "explanation": "Synthetic eligibility recheck test."}, profile["row_version"])
+    assert suspended.status_code == 200
+    actor(client, actors, "mentor")
+    blocked = post(client, f'/mentor-assignments/{replacement.json()["id"]}/accept',
+        {"conflict_declared": False, "confidentiality_acknowledged": True}, replacement.json()["row_version"])
+    assert blocked.status_code == 403
+    actor(client, actors, "owner")
+    assert client.get(f'/api/v1/organizations/{org["id"]}/mentors').json()["items"] == []
+    from app.organizations.models import OrganizationMembership
+    with sessions() as db:
+        membership = db.scalar(select(OrganizationMembership).where(OrganizationMembership.organization_id == UUID(org["id"]), OrganizationMembership.user_id == UUID(actors["owner"]["id"])))
+        membership.status = "removed"
+        db.commit()
+    assert client.get(f'/api/v1/participations/{part["id"]}').status_code == 404
+    assert client.get(f'/api/v1/mentor-assignments/{replacement.json()["id"]}').status_code in (403, 404)
+
+
+def test_review_criteria_accept_the_same_length_as_project_milestones():
+    from app.assessments.schemas import MentorObservation, OrganizationCriterionResult
+    criterion = "Synthetic criterion " + "x" * 950
+    assert MentorObservation(criterion_text=criterion, observation="Synthetic observation").criterion_text == criterion
+    assert OrganizationCriterionResult(criterion_text=criterion, met=True, explanation="Synthetic acceptance").criterion_text == criterion
