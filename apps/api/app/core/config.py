@@ -211,6 +211,10 @@ class Settings(BaseSettings):
         validation_alias="CORS_ALLOW_CREDENTIALS",
     )
 
+    # Default-off opt-in that enables the synthetic workflow routes outside development/test
+    # (XANIX BUILD judging deployment only; synthetic data only).
+    build_demo_workflows: bool = Field(default=False, validation_alias="EB_BUILD_DEMO_WORKFLOWS")
+
     log_level: LogLevelName = Field(default="INFO", validation_alias="LOG_LEVEL")
     docs_enabled: bool = Field(default=True, validation_alias="DOCS_ENABLED")
 

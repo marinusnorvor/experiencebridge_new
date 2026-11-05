@@ -56,3 +56,25 @@ def test_explicit_production_never_loads_development_file(tmp_path,monkeypatch):
     target=tmp_path/"development.env"; target.write_text("DATABASE_URL=must-not-be-read\n",encoding="utf-8")
     monkeypatch.setenv("APP_ENV","production")
     assert "must-not-be-read" not in load_settings(env_file=target,overrides=production_values()).sqlalchemy_database_uri
+
+
+def test_build_demo_workflows_opt_in_is_default_off_and_works_in_production(monkeypatch):
+    from app.core.errors import AppError
+    from app.projects.router import demonstration_environment
+    configure_auth(monkeypatch)
+    monkeypatch.delenv("EB_BUILD_DEMO_WORKFLOWS", raising=False)
+    default = Settings(_env_file=None, **production_values())
+    assert default.build_demo_workflows is False
+    with TestClient(create_app(default)) as client:
+        assert client.get("/api/v1/projects").status_code == 403
+    with pytest.raises(AppError) as error:
+        demonstration_environment(default)
+    assert error.value.status_code == 403
+    for value in ("false", "0", ""):
+        monkeypatch.setenv("EB_BUILD_DEMO_WORKFLOWS", value)
+        if value:
+            assert Settings(_env_file=None, **production_values()).build_demo_workflows is False
+    monkeypatch.setenv("EB_BUILD_DEMO_WORKFLOWS", "true")
+    enabled = Settings(_env_file=None, **production_values())
+    assert enabled.build_demo_workflows is True
+    assert demonstration_environment(enabled) is None
