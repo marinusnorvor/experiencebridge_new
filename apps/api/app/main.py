@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.super_admin_email and settings.super_admin_password:
         try:
             from app.identity.super_admin import bootstrap_super_admin
-            with app.state.database.session_factory() as session:
+            with app.state.database.session_factory()() as session:
                 bootstrap_super_admin(session, settings)
         except Exception as exc:
             logger.error("Failed to bootstrap super admin account: %s", exc, exc_info=True)
