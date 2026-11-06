@@ -3,6 +3,8 @@ import { Suspense } from "react";
 
 import { SubmissionReview } from "@/features/mentor/components/submission-review";
 import { sampleMentorDashboard } from "@/features/mentor/lib/sample-dashboard-data";
+import { SubmissionRedirect } from "@/features/mentor/components/submission-redirect";
+import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 
 type MentorSubmissionReviewPageProps = {
   params: Promise<{ id: string }>;
@@ -20,6 +22,7 @@ export default function MentorSubmissionReviewPage({
 
 async function SubmissionReviewPage({ params }: MentorSubmissionReviewPageProps) {
   const { id } = await params;
+  if (!isPortalPresentationMode()) return <SubmissionRedirect id={id} />;
   const reviewContext = sampleMentorDashboard.acceptedAssignments
     .flatMap((assignment) =>
       assignment.milestones.flatMap((milestone) =>
@@ -46,7 +49,7 @@ function RouteLoadingState() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
       <p role="status" className="text-sm text-slate-600">
-        Loading synthetic submission context…
+        Loading submission…
       </p>
     </main>
   );
@@ -61,7 +64,7 @@ function SubmissionNotFound() {
       >
         <h1 className="text-xl font-semibold">Submission not found</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          No temporary synthetic submission matches this ID.
+          No submission matches this link.
         </p>
       </div>
     </main>

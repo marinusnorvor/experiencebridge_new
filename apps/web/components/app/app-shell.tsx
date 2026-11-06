@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import { adminHref, useAdminBase } from "./admin-base";
 import { PORTAL_HOME, PORTAL_LABEL, portalNav, type NavItem, type Portal } from "./portal-nav";
 import { Logo } from "./logo";
+import { FeedbackButton } from "./feedback-button";
 
 const PORTAL_ICON = { student: UserRound, organization: Building2, mentor: GraduationCap, admin: ShieldCheck } as const;
 
@@ -57,10 +58,11 @@ export function AppShell({ portal, children, badges = {}, headerExtra, actionCen
             </nav>
           </aside>
         )}
-        <main id="main" tabIndex={-1} className={cn("min-w-0 flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 lg:px-10 lg:pb-16 lg:pt-8", portal === "admin" && "admin-content")}>
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 lg:px-10 lg:pb-16 lg:pt-8">
           <div className="mx-auto max-w-[1200px] animate-rise">{children}</div>
         </main>
       </div>
+      <FeedbackButton portal={portal} />
 
       {items.length > 1 && (
         <nav aria-label={`${PORTAL_LABEL[portal]} navigation`} className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">

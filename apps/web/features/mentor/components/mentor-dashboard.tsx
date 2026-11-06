@@ -108,16 +108,7 @@ function MentorDashboardContent({ data, onChanged }: { data: MentorDashboardData
         </p>
       </header>
 
-      <aside
-        aria-label="Sample data notice"
-        className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
-      >
-        <p className="font-semibold">Development workspace</p>
-        <p>
-          This development workspace uses synthetic records. Recorded assessments and
-          organization acceptance are separate decisions.
-        </p>
-      </aside>
+
 
       {isOverCapacity && (
         <section
@@ -363,10 +354,6 @@ function MentorDashboardContent({ data, onChanged }: { data: MentorDashboardData
         </section>
       </div>
 
-      <p className="mt-8 text-sm leading-6 text-slate-500">
-        Assignments and assessments are loaded from the API in authenticated mode.
-        Presentation mode uses separate synthetic fixtures.
-      </p>
     </main>
   );
 }
