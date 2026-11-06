@@ -2,14 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Building2, FolderKanban, GraduationCap, History } from "lucide-react";
 import { usePortalApi, type AdminDashboardStats, type AdminAuditLogItem } from "@/lib/api/portal-api";
+import { adminHref, useAdminBase } from "@/components/app/admin-base";
+import { Card, CardHeader, PageHeader, PageSkeleton, StatCard } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils/cn";
+
+/** "organization.verified" → "Organization verified" */
+export function humanizeEvent(eventType: string): string {
+  const text = eventType.replace(/[._]+/g, " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export function AdminDashboardView() {
   const { getApi, isSignedIn } = usePortalApi();
+  const base = useAdminBase();
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [recentLogs, setRecentLogs] = useState<AdminAuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -36,25 +49,16 @@ export function AdminDashboardView() {
     return () => {
       active = false;
     };
-  }, [getApi, isSignedIn]);
+  }, [getApi, isSignedIn, attempt]);
 
-  if (loading) {
-    return (
-      <div className="py-20 text-center text-slate-400">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-        <p className="mt-3 text-xs">Loading admin dashboard metrics...</p>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton />;
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-5 text-red-200">
-        <h3 className="text-sm font-bold text-red-300">Administrative Metrics Unavailable</h3>
-        <p className="mt-1 text-xs">{error}</p>
-        <p className="mt-3 text-[11px] text-red-400">
-          Ensure you are signed in with an authorized Platform Admin account.
-        </p>
+      <div role="alert" className="rounded-[var(--radius-card)] border border-danger/25 bg-danger-bg p-5">
+        <h2 className="text-sm font-semibold text-danger-text">We couldn&rsquo;t load the overview</h2>
+        <p className="mt-1 text-sm text-danger-text">Check your connection and that you&rsquo;re signed in with an admin account.</p>
+        <Button size="sm" variant="secondary" className="mt-4" onClick={() => { setLoading(true); setAttempt((n) => n + 1); }}>Try again</Button>
       </div>
     );
   }
@@ -62,186 +66,71 @@ export function AdminDashboardView() {
   const pendingOrgs = stats?.organizations?.submitted ?? 0;
   const pendingProjects = stats?.projects?.pending_review ?? 0;
   const pendingMentors = stats?.mentors?.pending ?? 0;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  const queues = [
+    { count: pendingOrgs, label: plural(pendingOrgs, "organisation"), action: "awaiting verification", href: "/admin/organizations", icon: Building2 },
+    { count: pendingProjects, label: plural(pendingProjects, "project"), action: "awaiting review", href: "/admin/projects", icon: FolderKanban },
+    { count: pendingMentors, label: plural(pendingMentors, "mentor"), action: "awaiting approval", href: "/admin/mentors", icon: GraduationCap },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Moderation Alert Banner */}
-      {(pendingOrgs > 0 || pendingProjects > 0 || pendingMentors > 0) && (
-        <section aria-labelledby="moderation-alert-heading" className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/40 via-amber-900/20 to-slate-900 p-5 shadow-sm">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 text-lg">⚠️</span>
-                <h2 id="moderation-alert-heading" className="text-sm font-bold text-amber-200">
-                  Pending Administrative Actions Require Review
-                </h2>
-              </div>
-              <p className="mt-1 text-xs text-amber-300/80">
-                Independent administrator verification is required before partner organizations and project terms go live.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {pendingOrgs > 0 && (
-                <Link
-                  href="/admin/organizations"
-                  className="rounded-lg bg-amber-600/30 hover:bg-amber-600/40 border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-200 transition"
-                >
-                  Verify {pendingOrgs} Organization{pendingOrgs === 1 ? "" : "s"}
-                </Link>
-              )}
-              {pendingProjects > 0 && (
-                <Link
-                  href="/admin/projects"
-                  className="rounded-lg bg-indigo-600/30 hover:bg-indigo-600/40 border border-indigo-500/40 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition"
-                >
-                  Moderate {pendingProjects} Project{pendingProjects === 1 ? "" : "s"}
-                </Link>
-              )}
-              {pendingMentors > 0 && (
-                <Link
-                  href="/admin/mentors"
-                  className="rounded-lg bg-teal-600/30 hover:bg-teal-600/40 border border-teal-500/40 px-3 py-1.5 text-xs font-semibold text-teal-200 transition"
-                >
-                  Vet {pendingMentors} Mentor{pendingMentors === 1 ? "" : "s"}
-                </Link>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
+    <div className="space-y-8">
+      <PageHeader eyebrow="Admin" title="Overview" description="Queues that need a decision first, then how the platform is doing." />
 
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Organizations Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Organizations</span>
-            <span className="text-lg">🏢</span>
-          </div>
-          <div className="mt-2 text-2xl font-bold text-white tracking-tight">
-            {stats?.organizations?.total ?? 0}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-850 pt-2 text-slate-400">
-            <span>Verified: <strong className="text-emerald-400">{stats?.organizations?.verified ?? 0}</strong></span>
-            <span>Pending: <strong className="text-amber-400">{pendingOrgs}</strong></span>
-          </div>
-        </div>
-
-        {/* Projects Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Projects</span>
-            <span className="text-lg">📁</span>
-          </div>
-          <div className="mt-2 text-2xl font-bold text-white tracking-tight">
-            {stats?.projects?.total ?? 0}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-850 pt-2 text-slate-400">
-            <span>Open/Active: <strong className="text-indigo-400">{(stats?.projects?.open ?? 0) + (stats?.projects?.in_progress ?? 0)}</strong></span>
-            <span>Completed: <strong className="text-emerald-400">{stats?.projects?.completed ?? 0}</strong></span>
-          </div>
-        </div>
-
-        {/* Mentors Card */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Mentors Pool</span>
-            <span className="text-lg">🎓</span>
-          </div>
-          <div className="mt-2 text-2xl font-bold text-white tracking-tight">
-            {stats?.mentors?.total ?? 0}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-850 pt-2 text-slate-400">
-            <span>Eligible: <strong className="text-emerald-400">{stats?.mentors?.eligible ?? 0}</strong></span>
-            <span>Vetting: <strong className="text-amber-400">{pendingMentors}</strong></span>
-          </div>
-        </div>
-
-        {/* Applications & Participations */}
-        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Student Talent</span>
-            <span className="text-lg">👥</span>
-          </div>
-          <div className="mt-2 text-2xl font-bold text-white tracking-tight">
-            {stats?.users?.total ?? 0}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] border-t border-slate-850 pt-2 text-slate-400">
-            <span>Applications: <strong className="text-sky-400">{stats?.applications?.total ?? 0}</strong></span>
-            <span>Active Workspaces: <strong className="text-emerald-400">{stats?.participations?.active ?? 0}</strong></span>
-          </div>
-        </div>
-      </div>
-
-      {/* Secondary Metrics & Quick Links */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* System Breakdown */}
-        <div className="lg:col-span-1 rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-4">
-          <h2 className="text-sm font-bold text-white">Platform Health & Coverage</h2>
-          <div className="space-y-3 text-xs">
-            <div className="flex items-center justify-between py-1.5 border-b border-slate-850 text-slate-300">
-              <span className="text-slate-400">Registered Students</span>
-              <span className="font-semibold">{stats?.users?.student ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-slate-850 text-slate-300">
-              <span className="text-slate-400">Completed Projects</span>
-              <span className="font-semibold text-emerald-400">{stats?.projects?.completed ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-slate-850 text-slate-300">
-              <span className="text-slate-400">Active Workspaces</span>
-              <span className="font-semibold text-indigo-400">{stats?.participations?.active ?? 0}</span>
-            </div>
-            <div className="flex items-center justify-between py-1.5 border-b border-slate-850 text-slate-300">
-              <span className="text-slate-400">Recorded Audit Events</span>
-              <span className="font-semibold text-amber-400">{stats?.total_audit_events ?? 0}</span>
-            </div>
-          </div>
-          <div className="pt-2">
-            <Link
-              href="/admin/audit"
-              className="block text-center rounded-xl border border-slate-800 bg-slate-900 py-2 text-xs font-semibold text-indigo-400 hover:bg-slate-850 transition"
-            >
-              View Complete Audit Trail →
+      <section aria-labelledby="queues-heading">
+        <h2 id="queues-heading" className="mb-3 text-[15px] font-semibold text-ink-900">Needs a decision</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {queues.map(({ count, label, action, href, icon: Icon }) => (
+            <Link key={href} href={adminHref(base, href)}
+              className={cn("group flex flex-col rounded-[var(--radius-card)] border p-5 shadow-card transition hover:-translate-y-0.5",
+                count > 0 ? "border-gold-500/40 bg-gold-50 hover:border-gold-500" : "border-line bg-surface hover:border-brand-600/40")}>
+              <span className={cn("grid size-10 place-items-center rounded-xl", count > 0 ? "bg-gold-100 text-gold-text" : "bg-canvas text-ink-500")}><Icon className="size-5" aria-hidden /></span>
+              <span className="mt-4 text-[28px] font-semibold tabular-nums tracking-tight text-ink-900">{count}</span>
+              <span className="text-sm text-ink-700">{count > 0 ? <>{label} {action}</> : <>Nothing {action}</>}</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-brand-600">
+                {count > 0 ? "Review now" : "Open queue"}<ArrowRight className="size-3.5 transition group-hover:translate-x-0.5" aria-hidden />
+              </span>
             </Link>
-          </div>
+          ))}
         </div>
+      </section>
 
-        {/* Recent Audit Events Stream */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-950 p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">Recent Attributed Operations</h2>
-            <Link href="/admin/audit" className="text-xs text-indigo-400 hover:underline">
-              All events ({stats?.total_audit_events ?? 0})
-            </Link>
-          </div>
+      <section aria-labelledby="stats-heading">
+        <h2 id="stats-heading" className="mb-3 text-[15px] font-semibold text-ink-900">Platform</h2>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard label="Organisations" value={stats?.organizations?.total ?? 0} hint={`${stats?.organizations?.verified ?? 0} verified`} />
+          <StatCard label="Projects" value={stats?.projects?.total ?? 0} hint={`${(stats?.projects?.open ?? 0) + (stats?.projects?.in_progress ?? 0)} open or in progress`} />
+          <StatCard label="Mentors" value={stats?.mentors?.total ?? 0} hint={`${stats?.mentors?.approved ?? stats?.mentors?.eligible ?? 0} approved`} />
+          <StatCard label="People with accounts" value={stats?.users?.total ?? 0} />
+          <StatCard label="Applications" value={stats?.applications?.total ?? 0} />
+          <StatCard label="Active participations" value={stats?.participations?.active ?? 0} />
+          <StatCard label="Completed projects" value={stats?.projects?.completed ?? 0} />
+          <StatCard label="Recorded decisions" value={stats?.total_audit_events ?? 0} />
+        </div>
+      </section>
 
-          <div className="space-y-2">
-            {recentLogs.length === 0 ? (
-              <p className="py-8 text-center text-xs text-slate-400">No recent audit events.</p>
-            ) : (
-              recentLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="rounded-xl border border-slate-850 bg-slate-900/50 p-3 flex items-center justify-between text-xs"
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-mono text-[11px] font-semibold text-indigo-300">
-                      {log.event_type}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      Actor: {log.actor_name || log.actor_email || log.actor_user_id.slice(0, 8)}
-                    </div>
-                  </div>
-                  <div className="text-right text-[11px] text-slate-400">
-                    <div>{new Date(log.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-                    <div className="font-mono text-[10px] text-slate-400">{log.entity_id.slice(0, 8)}...</div>
-                  </div>
+      <Card>
+        <CardHeader title="Recent activity" description="Every decision is recorded with who made it and when."
+          action={<Link href={adminHref(base, "/admin/audit")} className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-medium text-brand-600 hover:underline"><History className="size-3.5" aria-hidden />Audit log</Link>} />
+        {recentLogs.length === 0 ? (
+          <p className="px-5 py-10 text-center text-sm text-ink-500">No decisions recorded yet.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {recentLogs.map((log) => (
+              <li key={log.id} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-ink-900">{humanizeEvent(log.event_type)}</p>
+                  <p className="truncate text-[13px] text-ink-500">by {log.actor_name || log.actor_email || "a team member"}</p>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+                <time dateTime={log.created_at} className="shrink-0 text-[13px] tabular-nums text-ink-500">
+                  {new Date(log.created_at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </time>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

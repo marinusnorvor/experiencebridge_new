@@ -21,10 +21,21 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
    then redeploy. Neon is in `eu-west-2` (London). Measured tonight: one DB round trip ≈ 106 ms from Ghana, and one
    `/me` request makes ~25 of them (≈ 3 s). If the API runs in Vercel's default US region every request pays the
    transatlantic hop ≈ 2 s; in London it's a few ms. No code change needed.
-2. (B1) `ADMIN_PATH_SECRET` — add to Vercel Production (server-only, NOT `NEXT_PUBLIC_`), 24+ random letters/digits.
-   Generate: `-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | % {[char]$_})`. Admin URL becomes
-   `https://experiencebridgenew.vercel.app/<secret>/dashboard`; `/admin` then returns 404. Bookmark it.
-   Without the variable, `/admin` keeps working as today.
+2. **Approve or revert the rate-limit commit** `feat(api): configurable per-IP auth limits … (NEEDS APPROVAL)`.
+   Defaults are unchanged. If approved, set in Vercel Production: `AUTH_LOGIN_PER_IP_PER_15MIN=300`,
+   `AUTH_REGISTER_PER_IP_PER_HOUR=300`. To reject: `git revert <that commit>` before merging.
+3. **Feedback form:** create a Tally/Google Form, then set `NEXT_PUBLIC_FEEDBACK_URL=<form url>` in Vercel Production
+   (it's public by design) and redeploy. The button sends `page`, `role`, `rating`, `trying`, `wrong`, `email` as
+   query params — in Tally add hidden fields with those names to capture them. Without the variable the button is hidden.
+4. **Unlisted admin URL (optional):** `ADMIN_PATH_SECRET` in Vercel Production (server-only, NOT `NEXT_PUBLIC_`),
+   24+ letters/digits: `-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | % {[char]$_})`.
+   Admin URL becomes `https://experiencebridgenew.vercel.app/<secret>/dashboard`; `/admin` returns 404. Bookmark it.
+   Without the variable `/admin` keeps working (still protected server-side).
+5. **Decision (after the user test): show applicant/mentor names to organisations.** The API returns only user IDs on
+   applications/participations/assignments, so organisations see "Applicant 6C83F7". Proposal: add the user's
+   `display_name` to those read DTOs for the org that owns the project (privacy decision — student applied to them).
+   Same for the organisation name on the student's Passport/project cards (`ProjectRead` has no org name; the Passport
+   shows "Organisation"). Not built — needs your approval (PRODUCT-PLAN §0.7).
 
 ## Notes for test day
 
