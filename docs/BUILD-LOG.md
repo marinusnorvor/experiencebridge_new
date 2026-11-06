@@ -11,9 +11,9 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
 | B0 setup | DONE | tag pushed, branch, stack, tokens + Geist, Vercel Analytics, `docs/GAP-ANALYSIS.md` |
 | B1 shell + components | DONE | AppShell (sidebar + mobile bottom tabs), account menu + workspace switcher, no-access page, unlisted admin URL, `/app` redirect, Action Centre v1 (pulled forward from B4) |
 | B2 marketing + auth + onboarding | DONE | `/`, `/about`, `/how-it-works`; new sign-up/sign-in/forgot/reset; `/onboarding` for all 3 paths. **Verified in a real browser:** landing → sign up → onboarding → home for student (375px), organisation and mentor |
-| B3 org + admin journeys | TODO | |
-| B4 student + mentor + Action Centre + feedback + rate limit | TODO | |
-| B5 Playwright + mobile + jargon + final checks | TODO | |
+| B3 org + admin journeys | DONE | Org: loading/error inside shell, first-load bug fixed, verification hints, copy. Admin: light brand, queues first, 3 bugs fixed |
+| B4 student + mentor + Action Centre + feedback + rate limit | MOSTLY DONE | Passport redesign, mentor rubric review, mentor home, feedback button, rate-limit (awaiting approval). Student screens polish in progress (subagent) |
+| B5 Playwright + mobile + jargon + final checks | IN PROGRESS | e2e full journey PASSES locally (3.2 min, 4 browser contexts) |
 
 ## Needs Marinus
 
@@ -44,6 +44,27 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
   (or have them create a new account).
 
 ## Log
+
+### B4 (≈04:30)
+- **Passport** (`components/passport/experience-passport.tsx`): passport-document hero, verified entries only when the org
+  accepted the work AND finalised the participation; in-progress and self-reported skills clearly separated; print/PDF.
+  Fixed a fabricated label: the loader used to name every organisation "Verified Host Organization" (now "Organisation";
+  the API doesn't give students the org name — see Needs Marinus #5).
+- **Mentor review** now records a 1–5 rubric per acceptance criterion. Before tonight the live form always sent
+  `observations: []`, so real reviews could never show "skills proven" on a Passport.
+- `/mentor/submissions/[id]/review` (sample data only) now redirects to the live participation page.
+- Mentor home: approval status first, profile collapsible.
+- Feedback button (`components/app/feedback-button.tsx`) — hidden until `NEXT_PUBLIC_FEEDBACK_URL` is set.
+- Rate limits: env-configurable per-IP ceilings, separate commit, defaults unchanged, test added — **needs approval**.
+
+### B3 (≈03:45)
+- Org portal: the background refresh cancelled the first data load, so the org pages could stay on "Loading…" when
+  requests were slow (locally ~30 s+). Fixed. Loading/error now render inside the AppShell with a retry.
+- Org settings: StatusBadge + NextStepHint for every verification status. Removed API IDs, "synthetic", "Live API",
+  "sample brief", the developer disclosure banner. Applicants shown as "Applicant 6C83F7" (no names in the API).
+- Admin (subagent): light theme, queues-first overview, StatusBadge, toasts, tables scroll inside cards at 375 px,
+  links via the unlisted base. Bugs fixed: mentor suspend always failed; admin-created passwords < 12 chars always
+  rejected by the API; application filter offered a non-existent status.
 
 ### B2 (≈02:40)
 - Marketing site built by a parallel subagent on the same branch (files: `app/(public)/page.tsx`, `about/`, `how-it-works/`,
