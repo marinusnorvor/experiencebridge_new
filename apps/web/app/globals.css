@@ -145,3 +145,11 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Temporary (B1→B3): admin views were built for a dark shell; keep them readable until restyled. */
+.admin-content > div {
+  background: var(--ink-900);
+  color: #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+}

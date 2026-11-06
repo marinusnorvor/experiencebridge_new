@@ -4,8 +4,8 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Analytics } from "@vercel/analytics/next";
 
-import { SiteHeader } from "@/components/layouts/site-header";
 import { AuthProvider } from "@/components/layouts/auth-provider";
+import { AppProviders } from "@/components/app/providers";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import "./globals.css";
 
@@ -17,8 +17,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#0f766e", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const content = <><SiteHeader />{children}</>;
-
+  const content = <AppProviders>{children}</AppProviders>;
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}>
       <body className="min-h-full">
