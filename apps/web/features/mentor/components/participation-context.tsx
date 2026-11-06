@@ -38,17 +38,17 @@ export function ParticipationContext({
         </h1>
       </header>
 
+      {preview && (
       <aside
         aria-label="Sample data notice"
         className="mt-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
       >
-        <p className="font-semibold">{preview ? "Synthetic sample participation" : "Development participation"}</p>
+        <p className="font-semibold">Preview: sample data</p>
         <p>
-          {preview
-            ? "All project, organization, learner, milestone, and status information on this page is fictional sample data."
-            : "Development records are synthetic and do not certify real-world outcomes."}
+          Everything on this page is sample data for local design work.
         </p>
       </aside>
+      )}
 
       <section
         aria-labelledby="project-context-title"

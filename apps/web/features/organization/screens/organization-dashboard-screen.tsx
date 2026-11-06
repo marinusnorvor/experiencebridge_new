@@ -178,7 +178,7 @@ function SyntheticDashboard() {
           })}</ol>{!snapshot.activity.length && <p className={styles.muted}>No activity yet. Project updates will appear here as work progresses.</p>}</section>
         </aside>
       </div>
-      <p className={styles.footnote}><span>{preview ? `Synthetic snapshot · ${formatDashboardDate(snapshot.asOf)} 2026 · no live or verified activity` : `Authenticated API snapshot · ${formatDashboardDate(snapshot.asOf)} · scoped to ${state.profile.name}`}</span><span>Organization acceptance and mentor assessment remain separate.</span></p>
+      <p className={styles.footnote}><span>{preview ? `Synthetic snapshot · ${formatDashboardDate(snapshot.asOf)} 2026 · no live or verified activity` : `Updated ${formatDashboardDate(snapshot.asOf)} · ${state.profile.name}`}</span><span>Organization acceptance and mentor assessment remain separate.</span></p>
       {emptyPreview && <Link href="/organization/dashboard" className={styles.textLink}>Restore sample overview <OrganizationIcon name="arrow" /></Link>}
       {view && <DashboardDetail key={view} snapshot={snapshot} view={view} recordId={params.get("record")} emptyPreview={emptyPreview} />}
     </main>

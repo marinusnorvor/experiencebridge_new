@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { termsSnapshot } from "../../student/lib/api-records";
 import { usePortalApi, type AdminProjectItem, type AdminProjectReviewItem } from "@/lib/api/portal-api";
+import { toast } from "sonner";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/primitives";
 
 export function AdminProjectsView() {
   const { getApi, isSignedIn } = usePortalApi();
@@ -29,11 +32,11 @@ export function AdminProjectsView() {
         if (!active) return;
         if (pendingRes.data) setPendingProjects(pendingRes.data);
         if (allRes.data) setAllProjects(allRes.data);
-      } catch (e) {
+      } catch {
         if (!active) return;
         setNotification({
           type: "error",
-          message: e instanceof Error ? e.message : "Failed to load projects.",
+          message: "We couldn't load projects. Check your connection and refresh the page.",
         });
       } finally {
         if (active) setLoading(false);
@@ -51,7 +54,7 @@ export function AdminProjectsView() {
   ) => {
     const reason = decisionReasons[item.project.id]?.trim() ?? "";
     if (reason.length < 10) {
-      setNotification({ type: "error", message: "A rationale of at least 10 characters is required for project moderation." });
+      setNotification({ type: "error", message: "Write a short reason (at least 10 characters). The organisation sees it." });
       return;
     }
 
@@ -70,15 +73,12 @@ export function AdminProjectsView() {
       if (res.error) {
         setNotification({ type: "error", message: res.error });
       } else {
-        setNotification({
-          type: "success",
-          message: `Project "${item.project.title}" decision recorded: ${decision}.`,
-        });
+        toast.success(decision === "approve" ? `${item.project.title} is now live for students` : decision === "request_changes" ? "Changes requested" : "Project rejected");
         setDecisionReasons((prev) => ({ ...prev, [item.project.id]: "" }));
         setRefreshTrigger((prev) => prev + 1);
       }
-    } catch (e) {
-      setNotification({ type: "error", message: e instanceof Error ? e.message : "Project decision failed." });
+    } catch {
+      setNotification({ type: "error", message: "That decision didn't save. Check your connection and try again." });
     } finally {
       setActionBusy(false);
     }
@@ -93,19 +93,14 @@ export function AdminProjectsView() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Project Moderation & Oversight</h2>
-        <p className="text-xs text-slate-400">
-          Review scope, compensation disclosures, IP terms, and milestones before opening opportunities to students.
-        </p>
-      </div>
+      <PageHeader eyebrow="Admin" title="Projects" description="Check the scope, pay, ownership terms and milestones before a project goes live to students." />
 
       {notification && (
         <div
-          className={`rounded-xl border p-4 text-xs ${
+          role="alert" className={`rounded-xl border p-4 text-sm ${
             notification.type === "success"
-              ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-200"
-              : "border-red-500/30 bg-red-950/20 text-red-200"
+              ? "border-success/25 bg-success-bg text-success-text"
+              : "border-danger/25 bg-danger-bg text-danger-text"
           }`}
         >
           {notification.message}
@@ -113,91 +108,91 @@ export function AdminProjectsView() {
       )}
 
       {/* Moderation Queue */}
-      <section aria-labelledby="project-queue-heading" className="rounded-2xl border border-slate-800 bg-slate-950 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-850 pb-4">
+      <section aria-labelledby="project-queue-heading" className="rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card sm:p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <div>
-            <h3 id="project-queue-heading" className="text-sm font-bold text-white">
-              Projects Awaiting Publication Review
+            <h3 id="project-queue-heading" className="text-sm font-bold text-ink-900">
+              Awaiting review
             </h3>
-            <p className="text-xs text-slate-400">
-              Submitted project definitions requiring independent terms approval
+            <p className="text-xs text-ink-500">
+              Approve to publish, ask for changes, or reject. Your reason is shared with the organisation.
             </p>
           </div>
-          <span className="rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-bold">
-            {pendingProjects.length} pending
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-brand-50 text-brand-600 border border-brand-600/30 px-2.5 py-0.5 text-xs font-bold">
+            {pendingProjects.length} waiting
           </span>
         </div>
 
         {loading ? (
-          <p className="py-8 text-center text-xs text-slate-400">Loading project queue...</p>
+          <p className="py-8 text-center text-xs text-ink-500">Loading…</p>
         ) : pendingProjects.length === 0 ? (
-          <p className="py-8 text-center text-xs text-slate-400">
-            No projects currently awaiting publication review.
+          <p className="py-8 text-center text-xs text-ink-500">
+            Nothing waiting. Submitted projects appear here.
           </p>
         ) : (
           <div className="space-y-6">
             {pendingProjects.map((item) => {
               const snapshot = item.terms ? termsSnapshot(item.terms) : null;
               return (
-                <div key={item.project.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
+                <div key={item.project.id} className="rounded-xl border border-line bg-canvas p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                     <div>
                       {item.organization_name && (
-                        <div className="text-[11px] font-semibold text-indigo-400 mb-0.5">
+                        <div className="text-[11px] font-semibold text-brand-600 mb-0.5">
                           {item.organization_name}
                         </div>
                       )}
-                      <h4 className="font-semibold text-white text-base">{item.project.title}</h4>
-                      <p className="text-xs text-slate-400 mt-1">{item.project.description}</p>
+                      <h4 className="font-semibold text-ink-900 text-base">{item.project.title}</h4>
+                      <p className="text-xs text-ink-500 mt-1">{item.project.description}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-mono px-2 py-0.5">
-                        Capacity: {item.project.capacity}
+                      <span className="rounded bg-brand-50 text-brand-600 border border-brand-600/30 text-[10px] font-mono px-2 py-0.5">
+                        {item.project.capacity} place{item.project.capacity === 1 ? "" : "s"}
                       </span>
-                      <span className="rounded bg-slate-800 text-slate-400 text-[10px] font-mono px-2 py-0.5">
-                        {item.terms ? `v${item.terms.version_no}` : "v-"}
+                      <span className="rounded bg-canvas text-ink-500 text-[10px] font-mono px-2 py-0.5">
+                        {item.terms ? `Terms v${item.terms.version_no}` : "No terms"}
                       </span>
                     </div>
                   </div>
 
                   {/* Terms Snapshot Inspection Details */}
                   {snapshot ? (
-                    <details className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
-                      <summary className="cursor-pointer font-semibold text-indigo-400 hover:text-indigo-300">
-                        Inspect Complete Terms & Milestones ({snapshot.scope?.milestones?.length ?? 0} milestones)
+                    <details className="rounded-lg border border-line bg-surface p-3 text-xs text-ink-700">
+                      <summary className="cursor-pointer font-semibold text-brand-600 hover:text-brand-600">
+                        Read the full brief and terms ({snapshot.scope?.milestones?.length ?? 0} milestone{(snapshot.scope?.milestones?.length ?? 0) === 1 ? "" : "s"})
                       </summary>
-                      <div className="mt-3 space-y-3 pt-3 border-t border-slate-800 text-xs">
+                      <div className="mt-3 space-y-3 pt-3 border-t border-line text-xs">
                         <div>
-                          <strong className="text-white">Included Scope:</strong> {snapshot.scope?.scope_in}
+                          <strong className="text-ink-900">In scope:</strong> {snapshot.scope?.scope_in}
                         </div>
                         <div>
-                          <strong className="text-white">Excluded Scope:</strong> {snapshot.scope?.scope_out}
+                          <strong className="text-ink-900">Out of scope:</strong> {snapshot.scope?.scope_out}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/40 p-2.5 rounded">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-canvas p-2.5 rounded">
                           <div>
-                            <strong className="text-slate-200">Compensation:</strong>{" "}
+                            <strong className="text-ink-900">Pay:</strong>{" "}
                             {snapshot.terms?.currency} {snapshot.terms?.fee_amount} ({snapshot.terms?.payment_terms})
                           </div>
                           <div>
-                            <strong className="text-slate-200">Timeline:</strong> {snapshot.scope?.start_on} to {snapshot.scope?.due_on}
+                            <strong className="text-ink-900">Timeline:</strong> {snapshot.scope?.start_on} to {snapshot.scope?.due_on}
                           </div>
                           <div>
-                            <strong className="text-slate-200">IP Terms:</strong> {snapshot.terms?.ip_ownership_terms}
+                            <strong className="text-ink-900">Ownership:</strong> {snapshot.terms?.ip_ownership_terms}
                           </div>
                           <div>
-                            <strong className="text-slate-200">Confidentiality:</strong> {snapshot.terms?.confidentiality_terms}
+                            <strong className="text-ink-900">Confidentiality:</strong> {snapshot.terms?.confidentiality_terms}
                           </div>
                         </div>
 
                         {snapshot.scope?.milestones && snapshot.scope.milestones.length > 0 && (
                           <div className="space-y-2">
-                            <strong className="text-white">Milestones:</strong>
+                            <strong className="text-ink-900">Milestones:</strong>
                             {(snapshot.scope.milestones as Array<{ title: string; due_on: string; acceptance_criteria?: string[] }>).map((m, idx: number) => (
-                              <div key={idx} className="rounded bg-slate-900 p-2 text-[11px] border border-slate-800">
-                                <div className="font-semibold text-slate-200">
+                              <div key={idx} className="rounded bg-canvas p-2 text-[11px] border border-line">
+                                <div className="font-semibold text-ink-900">
                                   {idx + 1}. {m.title} (Due: {m.due_on})
                                 </div>
-                                <ul className="mt-1 list-disc list-inside text-slate-400 space-y-0.5">
+                                <ul className="mt-1 list-disc list-inside text-ink-500 space-y-0.5">
                                   {m.acceptance_criteria?.map((crit: string, cIdx: number) => (
                                     <li key={cIdx}>{crit}</li>
                                   ))}
@@ -209,15 +204,15 @@ export function AdminProjectsView() {
                       </div>
                     </details>
                   ) : (
-                    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs text-slate-400 italic">
-                      No terms snapshot attached to this submission.
+                    <div className="rounded-lg border border-line bg-surface p-3 text-xs text-ink-500 italic">
+                      No terms were attached to this submission. Ask the organisation to add them.
                     </div>
                   )}
 
                   {/* Decision rationale */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                    <label htmlFor={`project-rationale-${item.project.id}`} className="block text-[11px] font-medium text-slate-300">
-                      Moderation Rationale (min 10 characters):
+                  <div className="space-y-1.5 pt-2 border-t border-line">
+                    <label htmlFor={`project-rationale-${item.project.id}`} className="block text-[11px] font-medium text-ink-700">
+                      Reason for your decision
                     </label>
                     <textarea
                       id={`project-rationale-${item.project.id}`}
@@ -226,9 +221,10 @@ export function AdminProjectsView() {
                       onChange={(e) =>
                         setDecisionReasons((prev) => ({ ...prev, [item.project.id]: e.target.value }))
                       }
-                      placeholder="Document compensation compliance, student safeguarding, and scope review..."
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                      placeholder="What you checked, or what needs to change (shared with the organisation)"
+                      className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-600 focus:outline-none"
                     />
+                    {(decisionReasons[item.project.id]?.trim().length ?? 0) < 10 && <p className="text-[11px] text-ink-500">At least 10 characters to enable the buttons.</p>}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -236,25 +232,25 @@ export function AdminProjectsView() {
                       type="button"
                       disabled={actionBusy || (decisionReasons[item.project.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleDecision(item, "approve")}
-                      className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition"
+                      className="rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition"
                     >
-                      Approve & Publish to Students
+                      Approve and publish
                     </button>
                     <button
                       type="button"
                       disabled={actionBusy || (decisionReasons[item.project.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleDecision(item, "request_changes")}
-                      className="rounded-lg border border-amber-600/40 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
+                      className="rounded-lg border border-warning/30 bg-warning-bg text-warning-text hover:bg-warning-bg disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
                     >
-                      Request Terms Changes
+                      Request changes
                     </button>
                     <button
                       type="button"
                       disabled={actionBusy || (decisionReasons[item.project.id]?.trim().length ?? 0) < 10}
                       onClick={() => handleDecision(item, "reject")}
-                      className="rounded-lg border border-red-600/40 bg-red-950/30 text-red-300 hover:bg-red-900/40 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
+                      className="rounded-lg border border-danger/25 bg-danger-bg text-danger-text hover:bg-danger-bg disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
                     >
-                      Reject Project
+                      Reject
                     </button>
                   </div>
                 </div>
@@ -265,13 +261,13 @@ export function AdminProjectsView() {
       </section>
 
       {/* Complete Projects Registry */}
-      <section aria-labelledby="all-projects-title" className="rounded-2xl border border-slate-800 bg-slate-950 p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-4">
+      <section aria-labelledby="all-projects-title" className="rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-line pb-4">
           <div>
-            <h3 id="all-projects-title" className="text-sm font-bold text-white">
-              All Projects Oversight Registry
+            <h3 id="all-projects-title" className="text-sm font-bold text-ink-900">
+              All projects
             </h3>
-            <p className="text-xs text-slate-400">Complete catalogue across all lifecycle statuses</p>
+            <p className="text-xs text-ink-500">Search and filter every project on the platform.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -280,19 +276,19 @@ export function AdminProjectsView() {
               placeholder="Search by title..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+              className="rounded-lg border border-line bg-canvas px-3 py-1.5 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-600/30 focus:outline-none"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+              className="rounded-lg border border-line bg-canvas px-3 py-1.5 text-xs text-ink-900 focus:border-brand-600/30 focus:outline-none"
             >
-              <option value="all">All Statuses</option>
-              <option value="open">Open (Published)</option>
-              <option value="in_progress">In Progress</option>
+              <option value="all">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
               <option value="completed">Completed</option>
-              <option value="pending_review">Pending Review</option>
-              <option value="changes_requested">Changes Requested</option>
+              <option value="pending_review">Awaiting review</option>
+              <option value="changes_requested">Changes requested</option>
               <option value="rejected">Rejected</option>
               <option value="draft">Draft</option>
             </select>
@@ -300,62 +296,40 @@ export function AdminProjectsView() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-800 text-slate-400">
+          <table className="w-full min-w-[640px] text-left text-xs">
+            <thead className="border-b border-line text-ink-500">
               <tr>
                 <th className="py-2.5 px-3">Title</th>
-                <th className="py-2.5 px-3">Organization</th>
+                <th className="py-2.5 px-3">Organisation</th>
                 <th className="py-2.5 px-3">Status</th>
                 <th className="py-2.5 px-3">Capacity</th>
-                <th className="py-2.5 px-3">Terms Version</th>
+                <th className="py-2.5 px-3">Terms</th>
                 <th className="py-2.5 px-3">Created</th>
-                <th className="py-2.5 px-3">Project ID</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850 text-slate-300">
+            <tbody className="divide-y divide-line text-ink-700">
               {filteredProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
-                    No projects match the selected criteria.
+                  <td colSpan={6} className="py-8 text-center text-ink-500">
+                    No projects match this search.
                   </td>
                 </tr>
               ) : (
                 filteredProjects.map((item) => (
-                  <tr key={item.project.id} className="hover:bg-slate-900/50">
-                    <td className="py-2.5 px-3 font-medium text-white">{item.project.title}</td>
-                    <td className="py-2.5 px-3 font-medium text-indigo-300">
-                      {item.organization_name || item.project.organization_id.slice(0, 8)}
+                  <tr key={item.project.id} className="hover:bg-canvas">
+                    <td className="py-2.5 px-3 font-medium text-ink-900">{item.project.title}</td>
+                    <td className="py-2.5 px-3 font-medium text-brand-600">
+                      {item.organization_name || "—"}
                     </td>
                     <td className="py-2.5 px-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                          item.project.status === "open"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                            : item.project.status === "in_progress"
-                            ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-300"
-                            : item.project.status === "completed"
-                            ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
-                            : item.project.status === "pending_review"
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                            : item.project.status === "changes_requested"
-                            ? "border-purple-500/30 bg-purple-500/10 text-purple-300"
-                            : item.project.status === "rejected"
-                            ? "border-red-500/30 bg-red-500/10 text-red-300"
-                            : "border-slate-700 bg-slate-800 text-slate-400"
-                        }`}
-                      >
-                        {item.project.status}
-                      </span>
+                      <StatusBadge status={item.project.status} />
                     </td>
                     <td className="py-2.5 px-3">{item.project.capacity}</td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-ink-500">
                       v{item.project.published_terms_version ?? item.project.submitted_terms_version ?? (item.terms?.version_no ?? "-")}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400">
+                    <td className="py-2.5 px-3 text-ink-500">
                       {new Date(item.project.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-[10px] text-slate-400">
-                      {item.project.id.slice(0, 8)}...
                     </td>
                   </tr>
                 ))

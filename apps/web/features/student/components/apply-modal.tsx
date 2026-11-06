@@ -185,7 +185,7 @@ export function ApplyModal({
             id: `evt-${Date.now()}`,
             status: "submitted",
             title: "Application Submitted",
-            description: `Application cryptographic receipt recorded with observed terms version ${selectedProject.termsVersion}.`,
+            description: `Application sent.`,
             timestamp: "Just now",
           },
         ],
@@ -206,14 +206,11 @@ export function ApplyModal({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-slate-900">
-                Apply for Project Opportunity
+                Apply to a project
               </h3>
-              <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                API-APP-01 Application Entry
-              </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Submit your motivation statement and review immutable project terms.
+              Tell the organisation why you want this project, and check its terms.
             </p>
           </div>
 
@@ -235,7 +232,7 @@ export function ApplyModal({
           <div className="flex items-center gap-1.5 text-slate-600 font-mono text-[11px]">
             <span>{applicant.email}</span>
             <span className="rounded bg-teal-50 text-teal-800 px-1.5 py-0.2 text-[10px] font-semibold border border-teal-200">
-              {preview ? "Synthetic profile" : "Signed in"}
+              {preview ? "Preview" : "Signed in"}
             </span>
           </div>
         </div>
@@ -245,9 +242,9 @@ export function ApplyModal({
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
             <span className="text-base shrink-0">⚠️</span>
             <div className="space-y-0.5">
-              <span className="font-bold">Duplicate Application Guard (§5.4)</span>
+              <span className="font-bold">You&apos;ve already applied</span>
               <p className="text-amber-900 leading-relaxed">
-                You already have an active application submitted for &quot;{selectedProject.title}&quot;. ExperienceBridge policy blocks duplicate submissions for the same opportunity.
+                You already have an application for &quot;{selectedProject.title}&quot;. You can follow it on the Find projects page.
               </p>
             </div>
           </div>
@@ -255,12 +252,12 @@ export function ApplyModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {(error || (!preview && live.error)) && <p role="alert" className="text-red-700">{error || live.error}</p>}
-          {!preview && live.loading && <p role="status">Loading published projects and terms...</p>}
-          {!preview && <label className="block text-xs font-semibold text-slate-700">Your weekly availability (hours)<input type="number" required min="1" max="168" value={weeklyHours} onChange={e => setWeeklyHours(Number(e.target.value))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2" /></label>}
+          {!preview && live.loading && <p role="status" className="text-sm text-ink-500">Loading open projects…</p>}
+          {!preview && <label className="block text-xs font-semibold text-slate-700">Hours per week you can give this project<input type="number" required min="1" max="168" value={weeklyHours} onChange={e => setWeeklyHours(Number(e.target.value))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2" /></label>}
           {/* Project Choice */}
           <div>
             <label className="block text-xs font-semibold text-slate-700">
-              Select Approved Project Opportunity *
+              Project *
             </label>
             <select
               value={choice}
@@ -275,12 +272,12 @@ export function ApplyModal({
             </select>
           </div>
 
-          {!preview && live.data?.opportunities[choice] && <div className="text-xs text-slate-700"><p>{termsSnapshot(live.data.opportunities[choice].terms).scope.scope_in}</p><p>Compensation: {termsSnapshot(live.data.opportunities[choice].terms).terms.currency} {termsSnapshot(live.data.opportunities[choice].terms).terms.fee_amount} ? {termsSnapshot(live.data.opportunities[choice].terms).terms.payment_terms}</p><p>Confidentiality: {selectedProject.confidentiality}</p><p>Mentorship: {termsSnapshot(live.data.opportunities[choice].terms).terms.mentor_plan}</p></div>}
+          {!preview && live.data?.opportunities[choice] && <div className="text-xs text-slate-700"><p>{termsSnapshot(live.data.opportunities[choice].terms).scope.scope_in}</p><p>Pay: {termsSnapshot(live.data.opportunities[choice].terms).terms.currency} {termsSnapshot(live.data.opportunities[choice].terms).terms.fee_amount} · {termsSnapshot(live.data.opportunities[choice].terms).terms.payment_terms}</p><p>Confidentiality: {selectedProject.confidentiality}</p><p>Mentorship: {termsSnapshot(live.data.opportunities[choice].terms).terms.mentor_plan}</p></div>}
           {/* REQUIRED PRE-SUBMIT TERMS DISCLOSURE (§5.4) */}
           <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-4 space-y-2.5">
             <div className="flex items-center justify-between border-b border-teal-100 pb-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-teal-900">
-                Mandatory Pre-Submit Terms Disclosure
+                Project terms
               </span>
               <span className="text-[10px] font-mono text-teal-800 bg-white px-2 py-0.5 rounded border border-teal-200">
                 {selectedProject.termsVersion}
@@ -289,17 +286,17 @@ export function ApplyModal({
 
             <div className="grid gap-2 grid-cols-2 text-xs">
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase">Organization</span>
+                <span className="text-[10px] text-slate-500 font-semibold uppercase">Organisation</span>
                 <p className="font-bold text-slate-800">{selectedProject.org}</p>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-semibold uppercase">Expected Time Commitment</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Time</span>
                 <p className="font-bold text-slate-800">
                   {preview ? selectedProject.weeklyHours : weeklyHours} hours/week available over {selectedProject.durationWeeks} weeks
                 </p>
               </div>
               <div className="col-span-2">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase">IP &amp; Evidence Sharing Rights</span>
+                <span className="text-[10px] text-slate-400 font-semibold uppercase">Who owns the work</span>
                 <p className="text-[11px] text-slate-600 leading-relaxed">{selectedProject.ipTerms}</p>
               </div>
             </div>
@@ -317,7 +314,7 @@ export function ApplyModal({
               <label htmlFor="termsAcknowledgment" className="text-xs text-slate-700 leading-relaxed cursor-pointer">
                 <strong>I have reviewed the project terms shown above.</strong>{" "}
                 <span className="text-[11px] text-slate-500">
-                  (This checkbox is an acknowledgment of terms viewed, not an employment agreement or project offer.)
+                  (This isn&apos;t a contract or an offer. You&apos;ll see the final terms again if you get an offer.)
                 </span>
               </label>
             </div>
@@ -327,7 +324,7 @@ export function ApplyModal({
           <div>
             <div className="flex items-center justify-between">
               <label className="block text-xs font-semibold text-slate-700">
-                Motivation &amp; Statement of Fit *
+                Why you want this project *
               </label>
               <span className={`text-[10px] ${motivation.length > 550 ? "text-amber-600 font-semibold" : "text-slate-400"}`}>
                 {motivation.length}/600 characters
@@ -409,12 +406,12 @@ export function ApplyModal({
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                   </svg>
-                  <span>Submitting application...</span>
+                  <span>Sending…</span>
                 </>
               ) : isAlreadyApplied ? (
-                <span>Already Applied (§5.4)</span>
+                <span>Already applied</span>
               ) : (
-                <span>Submit Application (API-APP-01)</span>
+                <span>Send application</span>
               )}
             </button>
           </div>

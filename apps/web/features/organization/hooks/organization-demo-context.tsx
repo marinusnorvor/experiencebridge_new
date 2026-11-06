@@ -12,6 +12,9 @@ import { termsSnapshot } from "../../student/lib/api-records";
 import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { loadOrganizationRecords } from "../lib/live-records";
 import { mapProjectReadToDemo } from "../lib/organization-api-sync";
+import { AppShell } from "@/components/app/app-shell";
+import { PageSkeleton } from "@/components/ui/primitives";
+import { Button } from "@/components/ui/button";
 
 function emptyLiveState(): DemoState {
   return { revision: 0, projects: [], applications: [], mentors: [], invitations: [], submissions: [], messages: [], events: [],
@@ -98,10 +101,13 @@ export function OrganizationDemoProvider({ children }: { children: ReactNode }) 
     const requestGeneration = generation;
     return () => { window.clearTimeout(timer); requestGeneration.current++; };
   }, [preview, isLoaded, isSignedIn, loadData]);
-  useVisibleRefresh(loadData, !preview && isLoaded && isSignedIn && ["/organization/applications", "/organization/reviews", "/organization/dashboard", "/organization/projects"].includes(pathname));
+  // Don't start background refreshes until the first load finishes: each call supersedes the in-flight one.
+  useVisibleRefresh(loadData, !preview && !loading && isLoaded && isSignedIn && ["/organization/applications", "/organization/reviews", "/organization/dashboard", "/organization/projects"].includes(pathname));
   return <DemoContext.Provider value={{ organizations, selectOrganization: id => { if (organizations.some(o => o.id === id)) { setLoading(true); setSelectedOrgId(id); try { window.sessionStorage.setItem("experiencebridge:selected-org-id", id); } catch { /* Ignore storage errors */ } } }, state, update, notice, announce, refetch: loadData, orgId: organization?.id ?? null, organization, preview, loading }}>
-    {!preview && (loading || !isLoaded) ? <p role="status" className="p-8">Loading authenticated organization records...</p>
-      : error ? <div role="alert" className="p-8"><p>{error}</p><button type="button" onClick={() => void loadData().catch(() => {})} className="mt-4 underline">Retry</button> | <Link href="/sign-in">Sign in</Link></div>
+    {/* Signed-out visitors fall through so the page boundary can send them to sign-in. */}
+    {!preview && isLoaded && !isSignedIn ? children
+      : !preview && (loading || !isLoaded) ? <AppShell portal="organization"><PageSkeleton /></AppShell>
+      : error ? <AppShell portal="organization"><div role="alert" className="mx-auto max-w-md py-16 text-center"><p className="text-lg font-semibold text-ink-900">We couldn&rsquo;t load your organisation</p><p className="mt-2 text-sm text-ink-500">Check your connection and try again.</p><div className="mt-6 flex justify-center gap-3"><Button onClick={() => void loadData().catch(() => {})}>Try again</Button><Button asChild variant="secondary"><Link href="/app">Go to my home</Link></Button></div></div></AppShell>
       : children}
   </DemoContext.Provider>;
 }

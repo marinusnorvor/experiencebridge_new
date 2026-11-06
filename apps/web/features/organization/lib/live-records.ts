@@ -4,7 +4,7 @@ import type { DemoApplication, DemoEvent, DemoInvitation, DemoMentor, DemoSubmis
 import { termsSnapshot } from "../../student/lib/api-records";
 
 export function mapOrganizationApplication(a: ApplicationRead): DemoApplication {
-  return { id: a.id, projectId: a.project_id, name: `Student ${a.student_user_id.slice(0,8)}`,
+  return { id: a.id, projectId: a.project_id, name: `Applicant ${a.student_user_id.slice(0, 6).toUpperCase()}`,
     skills: a.declared_skills, note: a.motivation, evidence: a.links.map(l => `${l.label}: ${l.url}`).join("\n"),
     availability: `${a.weekly_minutes_available / 60} hours/week`, termsVersion: 0,
     status: a.latest_offer?.status === "accepted" ? "Accepted" : a.status === "shortlisted" ? "Shortlisted" : a.status === "offered" ? "Offered" : a.status === "rejected" ? "Declined" : a.status === "withdrawn" ? "Withdrawn" : "New",
@@ -40,9 +40,9 @@ export async function loadOrganizationRecords(api: PortalApi, projects: ProjectR
         events.push({
           id: `app-${record.id}`,
           projectId: project.id,
-          title: `Application from Student ${record.student_user_id.slice(0, 8)} (${record.status})`,
+          title: `Application from applicant ${record.student_user_id.slice(0, 6).toUpperCase()} (${record.status})`,
           at: record.created_at,
-          actor: `Student ${record.student_user_id.slice(0, 8)}`,
+          actor: `Applicant ${record.student_user_id.slice(0, 6).toUpperCase()}`,
           href: `/organization/applications?application=${record.id}`,
           read: false,
         });
@@ -53,7 +53,7 @@ export async function loadOrganizationRecords(api: PortalApi, projects: ProjectR
     const partResult = await api.getProjectParticipations(project.id);
     if (partResult.status === 403 || partResult.status === 404) return;
     const parts = requireData(partResult);
-    participants[project.id] = parts.map(p => `Student ${p.student_user_id.slice(0,8)} (${p.status})`);
+    participants[project.id] = parts.map(p => `Applicant ${p.student_user_id.slice(0, 6).toUpperCase()} (${p.status})`);
     acceptedMilestones[project.id] = [];
 
     await Promise.all(parts.map(async part => {
@@ -73,7 +73,7 @@ export async function loadOrganizationRecords(api: PortalApi, projects: ProjectR
             if (!mentorsMap.has(a.mentor_user_id)) {
               mentorsMap.set(a.mentor_user_id, {
                 id: a.mentor_user_id,
-                name: `Mentor ${a.mentor_user_id.slice(0, 8)}`,
+                name: `Mentor ${a.mentor_user_id.slice(0, 6).toUpperCase()}`,
                 skills: "Assigned mentor",
                 availability: "",
                 eligible: true,
@@ -84,7 +84,7 @@ export async function loadOrganizationRecords(api: PortalApi, projects: ProjectR
               projectId: project.id,
               title: `Mentor invitation (${a.status})`,
               at: a.created_at,
-              actor: `Mentor ${a.mentor_user_id.slice(0, 8)}`,
+              actor: `Mentor ${a.mentor_user_id.slice(0, 6).toUpperCase()}`,
               href: `/organization/projects/${project.id}/team`,
               read: false,
             });
@@ -113,12 +113,12 @@ export async function loadOrganizationRecords(api: PortalApi, projects: ProjectR
           projectId: project.id,
           title: `${subTitle} v${sub.revision_no} (${last ? last.decision : "awaiting review"})`,
           at: sub.submitted_at ?? sub.created_at,
-          actor: `Student ${part.student_user_id.slice(0, 8)}`,
+          actor: `Applicant ${part.student_user_id.slice(0, 6).toUpperCase()}`,
           href: `/organization/reviews?submission=${sub.id}`,
           read: Boolean(last),
         });
         submissions.push({ id: sub.id, projectId: project.id, title: subTitle,
-          student: `Student ${part.student_user_id.slice(0,8)}`, criteria: milestones[sub.milestone_index]?.acceptance_criteria ?? [],
+          student: `Applicant ${part.student_user_id.slice(0, 6).toUpperCase()}`, criteria: milestones[sub.milestone_index]?.acceptance_criteria ?? [],
           versions: [{version: sub.revision_no, date: subDate, note: sub.summary,
             content: `${sub.contribution_statement}\n${(sub.artifacts ?? []).map(a => `${a.label}: ${a.url ?? a.excerpt ?? ""}`).join("\n")}`}],
           status: last?.decision === "accepted" ? "Accepted" : last?.decision === "rejected" ? "Rejected" : last ? "Changes requested" : "Awaiting review",

@@ -7,6 +7,10 @@ import { usePortalResource } from "@/lib/api/use-portal-resource";
 import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { loadOpportunities } from "../lib/api-records";
 import type { StudentApplicationDetails } from "../lib/types";
+import { Banknote, BadgeCheck, CalendarDays, Clock, FolderSearch, Search, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, EmptyState, Skeleton } from "@/components/ui/primitives";
+import { Pill, StatusBadge } from "@/components/ui/status-badge";
 
 export interface OpportunityRecord {
   title: string;
@@ -92,165 +96,81 @@ export function StudentOpportunities({
   const totalCount = Object.keys(opportunities).length;
 
   return (
-    <section
-      id="opportunities"
-      className="pt-4 border-t border-slate-200 space-y-4 animate-fade-in"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+    <section id="opportunities" aria-labelledby="opportunities-heading" className="scroll-mt-20 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-            Project Discovery
-          </span>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">
-            Browse Open Approved Projects ({entries.length} of {totalCount})
-          </h2>
-          <p className="text-xs text-slate-500">
-            Published opportunities from verified organizations with approved scope and terms.
+          <h2 id="opportunities-heading" className="text-lg font-semibold text-ink-900">Open projects</h2>
+          <p className="text-sm text-ink-500">
+            {totalCount ? `${entries.length} of ${totalCount} open project${totalCount === 1 ? "" : "s"} · every organisation is verified` : "Every organisation is verified before it can post."}
           </p>
         </div>
-
-        {/* Search, Filter & Sort Controls (§4) */}
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="search"
-            aria-label="Search published projects"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search title, scope, terms..."
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none"
-          />
-          <select
-            aria-label="Filter projects by application eligibility"
-            value={availabilityFilter}
-            onChange={(e) =>
-              setAvailabilityFilter(e.target.value as "all" | "eligible" | "applied")
-            }
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-teal-700 focus:outline-none"
-          >
-            <option value="all">All Published</option>
-            <option value="eligible">Eligible to Apply</option>
-            <option value="applied">Already Applied</option>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div className="relative col-span-2 sm:w-60">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
+            <input type="search" aria-label="Search open projects" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search projects"
+              className="h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface pl-9 pr-3 text-[16px] text-ink-900 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-100 sm:text-sm" />
+          </div>
+          <select aria-label="Show projects" value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value as "all" | "eligible" | "applied")}
+            className="h-10 rounded-[var(--radius-control)] border border-line-strong bg-surface px-2.5 text-sm text-ink-700">
+            <option value="all">All projects</option>
+            <option value="eligible">Not applied yet</option>
+            <option value="applied">Already applied</option>
           </select>
-          <select
-            aria-label="Sort published projects"
-            value={sortBy}
+          <select aria-label="Sort projects" value={sortBy}
             onChange={(e) => setSortBy(e.target.value as "newest" | "deadline" | "commitment")}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-teal-700 focus:outline-none"
-          >
-            <option value="newest">Sort: Newest</option>
-            <option value="deadline">Sort: Target Deadline</option>
-            <option value="commitment">Sort: Weekly Hours</option>
+            className="h-10 rounded-[var(--radius-control)] border border-line-strong bg-surface px-2.5 text-sm text-ink-700">
+            <option value="newest">Newest first</option>
+            <option value="deadline">Due soonest</option>
+            <option value="commitment">Fewest hours</option>
           </select>
         </div>
       </div>
 
-      {!suppliedOpportunities && live.loading && (
-        <p role="status" className="text-xs text-slate-500">
-          Loading published projects...
-        </p>
-      )}
       {!suppliedOpportunities && live.error && (
-        <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-          {live.error}
+        <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-3 text-sm text-danger-text">
+          We couldn&apos;t load open projects. <button type="button" className="font-medium underline" onClick={() => void live.reload().catch(() => {})}>Try again</button>
         </p>
       )}
 
-      {entries.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center space-y-2">
-          <p className="text-sm font-semibold text-slate-700">
-            {totalCount === 0
-              ? "No published projects are currently open for applications."
-              : "No published projects match your search or filter."}
-          </p>
-          {totalCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery("");
-                setAvailabilityFilter("all");
-              }}
-              className="text-xs font-semibold text-teal-800 hover:underline"
-            >
-              Reset discovery filters
-            </button>
-          )}
-        </div>
+      {!suppliedOpportunities && live.loading && !live.data ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-56" />)}</div>
+      ) : entries.length === 0 ? (
+        <EmptyState icon={FolderSearch}
+          title={totalCount === 0 ? "No open projects yet" : "No projects match"}
+          description={totalCount === 0 ? "New projects appear here as soon as they're approved. Check back soon." : "Try a different search or show all projects."}
+          action={totalCount > 0 ? <Button variant="secondary" onClick={() => { setSearchQuery(""); setAvailabilityFilter("all"); }}>Show all projects</Button> : undefined} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {entries.map(([projId, opp]) => {
-            const existingApp = applications.find(
-              (a) => a.projectId === projId && a.status !== "withdrawn"
-            );
-            const hasApplied = Boolean(existingApp);
+            const existingApp = applications.find((a) => a.projectId === projId && a.status !== "withdrawn");
+            const places = opp.project?.capacity;
             return (
-              <div
-                key={projId}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between gap-4"
-              >
-                <div className="space-y-2">
+              <Card key={projId} className="flex flex-col justify-between gap-4 p-5 transition hover:-translate-y-0.5 hover:border-brand-600/40">
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-slate-500">{opp.org}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                        hasApplied
-                          ? "bg-teal-50 text-teal-900 border-teal-200"
-                          : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      }`}
-                    >
-                      {hasApplied
-                        ? `Applied • ${existingApp?.status ?? "submitted"}`
-                        : "Eligible to Apply"}
-                    </span>
+                    <Pill tone="gold"><BadgeCheck className="size-3.5" aria-hidden />Verified organisation</Pill>
+                    {existingApp && <StatusBadge status={existingApp.status} />}
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900">{opp.title}</h3>
-                  {opp.description && (
-                    <p className="text-xs text-slate-600 line-clamp-2">{opp.description}</p>
-                  )}
-                  <div className="flex flex-wrap gap-1.5 pt-1 text-[10px] font-medium text-slate-600">
-                    <span className="rounded bg-slate-100 px-2 py-0.5">
-                      {opp.weeklyHours} hrs/wk
-                    </span>
-                    <span className="rounded bg-slate-100 px-2 py-0.5">
-                      {opp.durationWeeks} weeks
-                    </span>
-                    {opp.currency && opp.feeAmount && (
-                      <span className="rounded bg-teal-50 text-teal-800 border border-teal-100 px-2 py-0.5 font-semibold">
-                        {opp.currency} {opp.feeAmount}
-                      </span>
-                    )}
-                    {typeof opp.milestonesCount === "number" && opp.milestonesCount > 0 && (
-                      <span className="rounded bg-slate-100 px-2 py-0.5">
-                        {opp.milestonesCount} milestone{opp.milestonesCount === 1 ? "" : "s"}
-                      </span>
-                    )}
-                    <span className="rounded bg-slate-100 px-2 py-0.5">{opp.ipTerms}</span>
-                  </div>
-                  {opp.dueOn && (
-                    <p className="text-[11px] text-slate-400">
-                      Target Completion: <strong className="text-slate-600">{opp.dueOn}</strong>
-                    </p>
-                  )}
+                  <h3 className="text-base font-semibold leading-snug text-ink-900">{opp.title}</h3>
+                  {opp.description && <p className="line-clamp-3 text-sm text-ink-500">{opp.description}</p>}
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1 text-[13px]">
+                    <div className="flex items-center gap-1.5 text-ink-700"><Clock className="size-3.5 text-ink-400" aria-hidden /><dt className="sr-only">Time</dt><dd>{opp.weeklyHours} hrs/week</dd></div>
+                    <div className="flex items-center gap-1.5 text-ink-700"><CalendarDays className="size-3.5 text-ink-400" aria-hidden /><dt className="sr-only">Length</dt><dd>{opp.durationWeeks} week{opp.durationWeeks === 1 ? "" : "s"}</dd></div>
+                    {typeof places === "number" && <div className="flex items-center gap-1.5 text-ink-700"><Users className="size-3.5 text-ink-400" aria-hidden /><dt className="sr-only">Places</dt><dd>{places} place{places === 1 ? "" : "s"}</dd></div>}
+                    {opp.currency && opp.feeAmount ? (
+                      <div className="flex items-center gap-1.5 font-medium text-brand-700"><Banknote className="size-3.5" aria-hidden /><dt className="sr-only">Pay</dt><dd>{opp.currency} {opp.feeAmount}</dd></div>
+                    ) : null}
+                  </dl>
+                  {opp.dueOn && <p className="text-xs text-ink-500">Finish by {opp.dueOn}</p>}
                 </div>
-
-                {hasApplied && existingApp ? (
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`${basePath}/applications/${existingApp.id}`}
-                      className="w-full rounded-lg border border-teal-300 bg-teal-50/70 px-3 py-2 text-center text-xs font-bold text-teal-900 hover:bg-teal-100 transition"
-                    >
-                      View Submitted Application →
-                    </Link>
-                  </div>
+                {existingApp ? (
+                  <Button asChild variant="secondary" className="w-full"><Link href={`${basePath}/applications/${existingApp.id}`}>View your application</Link></Button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => onApply(projId)}
-                    className="w-full rounded-lg bg-teal-800 px-3 py-2 text-xs font-bold text-white hover:bg-teal-900 transition"
-                  >
-                    Apply for Project →
-                  </button>
+                  <Button className="w-full" onClick={() => onApply(projId)}>Apply</Button>
                 )}
-              </div>
+              </Card>
             );
           })}
         </div>

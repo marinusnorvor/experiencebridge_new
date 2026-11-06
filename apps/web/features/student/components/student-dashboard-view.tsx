@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
+import { BadgeCheck, Briefcase } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, EmptyState, NextStepHint, StatCard } from "@/components/ui/primitives";
+import { Pill, StatusBadge } from "@/components/ui/status-badge";
+import { ActionList, useActionItems } from "@/components/app/action-centre";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import {
   loadApplications,
@@ -40,6 +45,7 @@ export function StudentDashboardView() {
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
   const basePath = isDevPreview ? "/dev/student" : "/student";
   const { getApi, isSignedIn } = usePortalApi();
+  const { data: actionItems } = useActionItems("student");
 
   const preview = isDevPreview || isPortalPresentationMode();
   const [loadError, setLoadError] = useState("");
@@ -136,11 +142,6 @@ export function StudentDashboardView() {
 
   const currentData = preview && dashboardState === "active" ? activeData : emptyData;
   const displayedApplications = preview ? currentData.applications : applications;
-  const displayedParticipations = preview
-    ? dashboardState === "active"
-      ? currentData.activeProjects
-      : []
-    : participations;
   const displayedDecisions = preview ? currentData.recentDecisions : liveDecisions;
   const displayedPassportSummary = preview ? currentData.passportSummary : livePassportSummary;
 
@@ -161,9 +162,6 @@ export function StudentDashboardView() {
   const acceptedOffersCount = displayedApplications.filter(
     (a) => a.status === "accepted" || a.offerStatus === "accepted"
   ).length;
-  const activeParticipationsCount = displayedParticipations.filter(
-    (p) => p.status === "active" || p.status === "under_review"
-  ).length;
   const displayedPendingSubmissionsCount = preview
     ? dashboardState === "active"
       ? 1
@@ -182,549 +180,158 @@ export function StudentDashboardView() {
   const hasPendingOffer = pendingOffers.length > 0;
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
+    <div className="space-y-6">
       <StudentPortalHeader studentName={studentName} isSynthetic={preview} />
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
-        {loadError && (
-          <p role="alert" className="rounded-xl border border-red-300 bg-red-50 p-4">
-            {loadError}
-          </p>
-        )}
-        {!preview && (
-          <p className="text-sm text-slate-600">
-            Authenticated records: {applications.length} applications | {participations.length}{" "}
-            participations. Development evidence is synthetic; dashboard previews do not imply
-            verified outcomes.
-          </p>
-        )}
-        {/* Top Header & Fixture Toggle */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded border border-teal-200">
-                STU-01 · Overview
-              </span>
-              <span className="text-xs text-slate-500">D2 Student Dashboard</span>
-            </div>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              Welcome back, {studentName}
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500 max-w-2xl">
-              Monitor active project milestones, review pending offers, and track verified
-              competencies.
-            </p>
-          </div>
+      {loadError && (
+        <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-4 text-sm text-danger-text">
+          We couldn&apos;t load everything. Check your connection and refresh the page.
+        </p>
+      )}
 
-          <div className="flex items-center gap-2.5">
-            {/* Fixture State Switcher */}
-            {preview && (
-              <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-2xs text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDashboardState("active")}
-                  className={`rounded-md px-3 py-1 font-semibold transition ${
-                    dashboardState === "active"
-                      ? "bg-teal-800 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Active State
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDashboardState("empty")}
-                  className={`rounded-md px-3 py-1 font-semibold transition ${
-                    dashboardState === "empty"
-                      ? "bg-teal-800 text-white shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Empty State
-                </button>
+      {preview && (
+        <div className="inline-flex rounded-lg border border-line bg-surface p-0.5 text-xs">
+          {(["active", "empty"] as const).map((mode) => (
+            <button key={mode} type="button" onClick={() => setDashboardState(mode)}
+              className={`rounded-md px-3 py-1 font-semibold ${dashboardState === mode ? "bg-brand-600 text-white" : "text-ink-500"}`}>
+              {mode === "active" ? "Preview: active" : "Preview: empty"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <section aria-label="Your numbers" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Open projects" value={displayedAvailableProjectsCount} hint="Browse" href={`${basePath}/applications#opportunities`} />
+        <StatCard label="Applications" value={displayedApplications.length} hint={applicationsUnderReviewCount ? `${applicationsUnderReviewCount} in review` : undefined} />
+        <StatCard label="Offers" value={offersReceivedCount} hint={acceptedOffersCount ? `${acceptedOffersCount} accepted` : undefined} />
+        <StatCard label="Passport entries" value={displayedPassportSummary.completedProjectsCount} hint="Open Passport" href={`${basePath}/passport`} />
+      </section>
+
+      {hasPendingOffer && (
+        <NextStepHint tone="gold" waitingOn="You"
+          detail={`You have an offer for ${pendingOffers[0].projectTitle}${pendingOffers[0].offerDeadline ? ` · reply by ${pendingOffers[0].offerDeadline}` : ""}`}
+          action={<Button asChild size="sm"><Link href={`${basePath}/applications/${pendingOffers[0].id}`}>Review offer</Link></Button>} />
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-3 [&>*]:min-w-0">
+        <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader title="Needs your attention" description="What's waiting on you right now." />
+            {preview ? (
+              <p className="px-5 py-6 text-sm text-ink-500">Preview: live tasks appear here when you&apos;re signed in.</p>
+            ) : (
+              <ActionList items={actionItems ?? []} empty="You're all caught up. Find a new project to keep growing." />
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader title="Your current project" action={activeProject ? <StatusBadge status="active" /> : undefined} />
+            {activeProject ? (
+              <div className="space-y-4 p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[13px] text-ink-500">{activeProject.organizationName}</p>
+                    <h3 className="text-lg font-semibold text-ink-900">{activeProject.projectTitle}</h3>
+                    <p className="mt-0.5 text-[13px] text-ink-500">Mentor: <span className="font-medium text-ink-700">{activeProject.mentorName}</span></p>
+                  </div>
+                  <Button asChild size="sm"><Link href={`${basePath}/projects/${activeProject.participationId || "part-101"}`}>Open workspace</Link></Button>
+                </div>
+                <div className="rounded-xl border border-line bg-canvas p-3.5">
+                  <div className="flex items-center justify-between text-[13px] font-medium">
+                    <span className="text-ink-700">{activeProject.currentMilestone}</span>
+                    <span className="text-brand-700">{activeProject.progressPercent}% done</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-line">
+                    <div className="h-full rounded-full bg-brand-600 transition-all duration-500" style={{ width: `${activeProject.progressPercent}%` }} />
+                  </div>
+                  <p className="mt-2 text-xs text-ink-500">Next due: <span className="font-medium text-ink-700">{activeProject.nextMilestoneDue}</span>
+                    {displayedPendingSubmissionsCount > 0 && <> · {displayedPendingSubmissionsCount} submission{displayedPendingSubmissionsCount === 1 ? "" : "s"} waiting for review</>}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-5">
+                <EmptyState icon={Briefcase} title="You don't have an active project yet"
+                  description="Apply to an open project. When an organisation accepts you, your workspace opens here."
+                  action={<Button asChild><Link href={`${basePath}/applications#opportunities`}>Find projects</Link></Button>} />
               </div>
             )}
+          </Card>
 
-            <Link
-              href={`${basePath}/applications#opportunities`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition"
-            >
-              <span>Explore Projects</span>
-              <span aria-hidden="true">→</span>
-            </Link>
-          </div>
+          <Card>
+            <CardHeader title="Recent feedback" description="Reviews from your mentor and decisions from organisations." />
+            {displayedDecisions.length > 0 ? (
+              <ul className="divide-y divide-line">
+                {displayedDecisions.map((decision) => {
+                  const isMentor = decision.authorType === "mentor";
+                  return (
+                    <li key={decision.id} className="space-y-2 px-5 py-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Pill tone={isMentor ? "brand" : "info"}>{isMentor ? "Mentor review" : "Organisation decision"}</Pill>
+                          {!isMentor && <span className="text-[13px] font-medium text-ink-900">{decision.actionText.replace(/^Organisation decision: /, "")}</span>}
+                        </span>
+                        <span className="text-xs text-ink-500">{decision.createdAt}</span>
+                      </div>
+                      <p className="text-[13px] text-ink-500">{decision.projectTitle}</p>
+                      {decision.excerpt && <blockquote className="rounded-lg border-l-2 border-brand-600 bg-canvas px-3 py-2 text-sm text-ink-700">&ldquo;{decision.excerpt}&rdquo;</blockquote>}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="px-5 py-6 text-sm text-ink-500">No feedback yet. Once you submit work, your mentor&apos;s review appears here.</p>
+            )}
+          </Card>
         </div>
 
-        {/* DYNAMIC STUDENT DASHBOARD METRICS (§3) */}
-        <section
-          aria-label="Student dashboard summary metrics"
-          className="grid grid-cols-2 sm:grid-cols-5 gap-3"
-        >
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Published Projects
-            </span>
-            <span className="mt-1 text-lg font-bold text-slate-900 block">
-              {displayedAvailableProjectsCount}
-            </span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Applications Sent
-            </span>
-            <span className="mt-1 text-lg font-bold text-slate-900 block">
-              {displayedApplications.length}
-            </span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Under Review
-            </span>
-            <span className="mt-1 text-lg font-bold text-teal-800 block">
-              {applicationsUnderReviewCount}
-            </span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Offers (Received / Accepted)
-            </span>
-            <span className="mt-1 text-lg font-bold text-amber-800 block">
-              {offersReceivedCount} / {acceptedOffersCount}
-            </span>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Active / Completed
-            </span>
-            <span className="mt-1 text-lg font-bold text-emerald-800 block">
-              {activeParticipationsCount} / {displayedPassportSummary.completedProjectsCount}
-            </span>
-          </div>
-        </section>
-
-        {/* 1. ACTION REQUIRED ITEMS (§6.1 Outstanding Offer / Submissions / Revisions) */}
-        {((preview && dashboardState === "active") ||
-          (!preview && (hasPendingOffer || Boolean(activeProject)))) && (
-          <section aria-labelledby="action-required-heading" className="space-y-3">
-            <h2
-              id="action-required-heading"
-              className="text-xs font-bold uppercase tracking-wider text-slate-500"
-            >
-              Action Required Items
-            </h2>
-
-            <div className="grid gap-3.5 sm:grid-cols-2">
-              {/* Dynamic pending offer banner if present */}
-              {hasPendingOffer ? (
-                <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 shadow-2xs flex flex-col justify-between gap-3 animate-fade-in">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                        <span className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
-                        Project Offer Extended
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Your applications" action={<Link href={`${basePath}/applications`} className="text-[13px] font-medium text-brand-600 hover:underline">View all</Link>} />
+            {displayedApplications.length > 0 ? (
+              <ul className="divide-y divide-line">
+                {displayedApplications.slice(0, 5).map((app) => (
+                  <li key={app.id}>
+                    <Link href={`${basePath}/applications/${app.id}`} className="block space-y-1 px-5 py-3 hover:bg-canvas">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium text-ink-900">{app.projectTitle}</span>
+                        <StatusBadge status={app.status} />
                       </span>
-                      <span className="rounded bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                        {pendingOffers[0].offerDeadline || "Action Required"}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      {pendingOffers[0].projectTitle}
-                    </h3>
-                    <p className="text-xs text-amber-900">
-                      {pendingOffers[0].organizationName} extended an official project offer.
-                      Affirmative acceptance binds observed terms (§6.4).
-                    </p>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-end">
-                    <Link
-                      href={`${basePath}/applications/${pendingOffers[0].id}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-900 transition"
-                    >
-                      <span>Review Offer &amp; Terms</span>
-                      <span aria-hidden="true">→</span>
+                      <span className="block text-xs text-ink-500">Applied {String(app.appliedAt ?? "").slice(0, 10)}</span>
                     </Link>
-                  </div>
-                </div>
-              ) : (
-                preview && (
-                  /* Static fixture offer if no dynamic offer in preview mode */
-                  <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 shadow-2xs flex flex-col justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                          <span className="h-2 w-2 rounded-full bg-amber-600 animate-pulse" />
-                          Offer Extended
-                        </span>
-                        <span className="rounded bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900">
-                          Expires in 36 hours
-                        </span>
-                      </div>
-                      <h3 className="text-sm font-bold text-slate-900">
-                        Solar Microgrid Telemetry
-                      </h3>
-                      <p className="text-xs text-amber-900">
-                        SunPower Labs has reviewed your profile and extended an offer. Confirm
-                        terms acknowledgment within 36 hours.
-                      </p>
-                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="px-5 py-6 text-sm text-ink-500">
+                No applications yet. <Link href={`${basePath}/applications#opportunities`} className="font-medium text-brand-600 hover:underline">Browse open projects</Link>
+              </div>
+            )}
+          </Card>
 
-                    <div className="pt-2 flex items-center justify-end">
-                      <Link
-                        href={`${basePath}/applications/app-101`}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-900 transition"
-                      >
-                        <span>Review Offer Terms</span>
-                        <span aria-hidden="true">→</span>
-                      </Link>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* Next Milestone Deliverable Action */}
-              {activeProject && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs flex flex-col justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-teal-800">
-                        <span className="h-2 w-2 rounded-full bg-teal-600" />
-                        Milestone In Progress
-                      </span>
-                      <span className="rounded bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-semibold text-teal-800">
-                        Due {activeProject.nextMilestoneDue}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      {activeProject.projectTitle}
-                    </h3>
-                    <p className="text-xs text-slate-600">
-                      {activeProject.currentMilestone} is currently active ({displayedPendingSubmissionsCount}{" "}
-                      pending submission{displayedPendingSubmissionsCount === 1 ? "" : "s"}). Submit
-                      contribution statement and artifact evidence before the deadline.
-                    </p>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-end">
-                    <Link
-                      href={`${basePath}/projects/${activeProject.participationId || "part-101"}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                    >
-                      <span>Open Project Workspace</span>
-                      <span aria-hidden="true">→</span>
-                    </Link>
-                  </div>
-                </div>
-              )}
+          <Card className="overflow-hidden">
+            <div className="bg-ink-900 p-5 text-white">
+              <p className="flex items-center gap-2 text-[13px] font-medium text-gold-400"><BadgeCheck className="size-4" aria-hidden />Experience Passport</p>
+              <p className="mt-2 text-lg font-semibold text-white">Proof of what you&apos;ve done</p>
+              <p className="mt-1 text-[13px] text-white/70">Only work your mentor reviewed and the organisation accepted is added.</p>
             </div>
-          </section>
-        )}
-
-        {/* 2-COLUMN MAIN CONTENT: ACTIVE PROJECT & APPLICATIONS */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* LEFT 2 COLUMNS: ACTIVE PROJECT & RECENT AUDIT DECISIONS */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* ACTIVE PROJECT CARD (§6.1 / §6.5) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Active Project Workspace
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Your current assigned project and active deliverables.
-                  </p>
+            <div className="grid grid-cols-3 divide-x divide-line text-center">
+              {([
+                [displayedPassportSummary.completedProjectsCount, "Projects"],
+                [displayedPassportSummary.verifiedClaimsCount, "Skills shown"],
+                [displayedPassportSummary.mentorObservationsCount, "Reviews"],
+              ] as const).map(([value, label]) => (
+                <div key={label} className="px-2 py-4">
+                  <p className="text-xl font-semibold tabular-nums text-ink-900">{value}</p>
+                  <p className="text-xs text-ink-500">{label}</p>
                 </div>
-
-                {activeProject && (
-                  <span className="rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-[11px] font-semibold text-teal-800">
-                    ● Active Participation
-                  </span>
-                )}
-              </div>
-
-              {activeProject ? (
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div>
-                      <span className="text-xs font-bold text-slate-600">
-                        {activeProject.organizationName}
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {activeProject.projectTitle}
-                      </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Assigned Mentor:{" "}
-                        <strong className="text-slate-700">{activeProject.mentorName}</strong>
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`${basePath}/projects/${activeProject.participationId || "part-101"}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition shrink-0"
-                    >
-                      <span>Open Workspace</span>
-                      <span aria-hidden="true">→</span>
-                    </Link>
-                  </div>
-
-                  {/* Progress Meter */}
-                  <div className="space-y-1.5 rounded-xl bg-slate-50 p-3.5 border border-slate-100">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-slate-700">{activeProject.currentMilestone}</span>
-                      <span className="text-teal-800 font-bold">
-                        {activeProject.progressPercent}% Completed
-                      </span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-teal-800 transition-all duration-500"
-                        style={{ width: `${activeProject.progressPercent}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                      <span>
-                        Next Due: <strong>{activeProject.nextMilestoneDue}</strong>
-                      </span>
-                      <span>
-                        Weekly Commitment: <strong>{activeProject.weeklyHours || 15} hrs/week</strong>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* EMPTY STATE (Fulfilling UX-STU-01 Acceptance: "You don't have an active project yet...") */
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-8 text-center space-y-3">
-                  <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    You don&apos;t have an active project yet.
-                  </h3>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Browse approved organization opportunities to submit an application and get
-                    matched with a faculty mentor.
-                  </p>
-                  <div className="pt-1">
-                    <Link
-                      href={`${basePath}/applications#opportunities`}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-900 transition"
-                    >
-                      Browse Approved Opportunities
-                    </Link>
-                  </div>
-                </div>
-              )}
+              ))}
             </div>
-
-            {/* RECENT REVIEWS & DECISIONS AUDIT TRAIL (§6.1 Strict Provenance Separation) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">
-                    Recent Reviews &amp; Decisions
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Attributed review outcomes from assigned mentors and organization supervisors.
-                  </p>
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                  Strict Provenance
-                </span>
-              </div>
-
-              {displayedDecisions.length > 0 ? (
-                <div className="space-y-3">
-                  {displayedDecisions.map((decision) => {
-                    const isMentor = decision.authorType === "mentor";
-                    return (
-                      <div
-                        key={decision.id}
-                        className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2 hover:bg-white transition"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                                isMentor
-                                  ? "bg-teal-100 text-teal-950 border border-teal-200"
-                                  : "bg-blue-100 text-blue-950 border border-blue-200"
-                              }`}
-                            >
-                              {isMentor ? "Mentor Rubric Review" : "Organization Decision"}
-                            </span>
-                            <span className="text-xs font-bold text-slate-800">
-                              {decision.authorName}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-slate-400 shrink-0">
-                            {decision.createdAt}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-900">
-                            {decision.actionText} ·{" "}
-                            <span className="text-slate-500 font-normal">
-                              {decision.projectTitle}
-                            </span>
-                          </h4>
-                          <p className="mt-1 text-xs text-slate-600 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-100">
-                            &quot;{decision.excerpt}&quot;
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 text-center py-4">
-                  No review decisions recorded yet.
-                </p>
-              )}
+            <div className="border-t border-line p-4">
+              <Button asChild variant="secondary" className="w-full"><Link href={`${basePath}/passport`}>Open my Passport</Link></Button>
             </div>
-          </div>
-
-          {/* RIGHT COLUMN: APPLICATIONS SNAPSHOT & PASSPORT TEASER */}
-          <div className="space-y-6">
-            {/* APPLICATIONS SNAPSHOT (§6.1 / §6.3) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-sm font-bold text-slate-900">Applications Overview</h3>
-                <Link
-                  href={`${basePath}/applications`}
-                  className="text-xs font-semibold text-teal-800 hover:underline"
-                >
-                  View All ({displayedApplications.length}) →
-                </Link>
-              </div>
-
-              {displayedApplications.length > 0 ? (
-                <div className="space-y-2.5">
-                  {displayedApplications.map((app) => {
-                    const statusColor =
-                      app.status === "offered"
-                        ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-                        : app.status === "accepted" || app.status === "shortlisted"
-                          ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
-                          : "bg-slate-100 text-slate-700 border-slate-200";
-
-                    return (
-                      <Link
-                        key={app.id}
-                        href={`${basePath}/applications/${app.id}`}
-                        className="block rounded-xl border border-slate-100 p-3 hover:border-slate-300 hover:bg-slate-50/50 transition space-y-1"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-slate-500 truncate">
-                            {app.organizationName}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.2 text-[10px] border ${statusColor}`}
-                          >
-                            {app.status === "offered"
-                              ? "Offer Extended"
-                              : app.status === "accepted"
-                                ? "Accepted"
-                                : app.status === "shortlisted"
-                                  ? "Shortlisted"
-                                  : app.status === "rejected"
-                                    ? "Rejected"
-                                    : app.status === "withdrawn"
-                                      ? "Withdrawn"
-                                      : "Under Review"}
-                          </span>
-                        </div>
-                        <h4 className="text-xs font-bold text-slate-900 truncate">
-                          {app.projectTitle}
-                        </h4>
-                        <span className="text-[10px] text-slate-400 block">
-                          Applied: {app.appliedAt}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-6 space-y-2">
-                  <p className="text-xs text-slate-500">No applications on record.</p>
-                  <Link
-                    href={`${basePath}/applications#opportunities`}
-                    className="inline-block text-xs font-semibold text-teal-800 hover:underline"
-                  >
-                    Browse projects →
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* EXPERIENCE PASSPORT PREVIEW TEASER (§6.8) */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                    §6.8 Private Passport
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400">Preview</span>
-                </div>
-                <h3 className="text-sm font-bold text-slate-900 mt-2">Experience Passport</h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Combines student self-reported coursework with verifiable mentor reviews.
-                </p>
-              </div>
-
-              {/* Verified Count Metrics */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                  <span className="text-base font-bold text-teal-800 block">
-                    {displayedPassportSummary.verifiedClaimsCount}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-medium">Verified Skills</span>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                  <span className="text-base font-bold text-slate-800 block">
-                    {displayedPassportSummary.completedProjectsCount}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-medium">Projects Done</span>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                  <span className="text-base font-bold text-slate-800 block">
-                    {displayedPassportSummary.mentorObservationsCount}
-                  </span>
-                  <span className="text-[10px] text-slate-500 font-medium">Observations</span>
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-teal-50/40 border border-teal-100 p-3 text-xs text-teal-950 space-y-1">
-                <span className="font-bold text-[11px] block">
-                  Cryptographic Verification Guarantee
-                </span>
-                <p className="text-[11px] text-teal-900 leading-relaxed">
-                  Assertions require independent mentor sign-off before being credited to your
-                  permanent transcript.
-                </p>
-              </div>
-
-              <Link
-                href={`${basePath}/passport`}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition"
-              >
-                <span>Open Private Experience Passport</span>
-                <span aria-hidden="true">→</span>
-              </Link>
-            </div>
-          </div>
+          </Card>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

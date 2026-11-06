@@ -8,6 +8,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
 import { syntheticApplicationsList } from "../lib/mock-data";
+import { toast } from "sonner";
+import { BadgeCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { NextStepHint, PageSkeleton, StatusTimeline, type TimelineStep } from "@/components/ui/primitives";
+import { Pill, StatusBadge } from "@/components/ui/status-badge";
 import type { ApplicationStatus, StudentApplicationDetails } from "../lib/types";
 
 const APPLICATIONS_STORAGE_KEY = "experiencebridge_student_applications_list";
@@ -22,6 +27,30 @@ function generateEventId(prefix: string): string {
 
 interface StudentApplicationDetailViewProps {
   applicationId: string;
+}
+
+
+const STEP_ORDER = ["submitted", "under_review", "shortlisted", "offered", "accepted"] as const;
+const STEP_LABEL: Record<(typeof STEP_ORDER)[number], string> = { submitted: "Sent", under_review: "In review", shortlisted: "Shortlisted", offered: "Offer", accepted: "Accepted" };
+
+function applicationSteps(status: string): TimelineStep[] {
+  if (status === "rejected" || status === "withdrawn") {
+    return [
+      { label: "Sent", state: "done" },
+      { label: status === "rejected" ? "Not accepted" : "Withdrawn", state: "stopped" },
+    ];
+  }
+  const index = Math.max(0, STEP_ORDER.indexOf(status as (typeof STEP_ORDER)[number]));
+  return STEP_ORDER.map((step, i) => ({ label: STEP_LABEL[step], state: i < index || status === "accepted" ? "done" : i === index ? "current" : "upcoming" }));
+}
+
+function nextStep(status: string) {
+  if (status === "submitted" || status === "under_review") return <NextStepHint waitingOn="The organisation" detail="They read every application and reply with a shortlist, an offer or a decision." />;
+  if (status === "shortlisted") return <NextStepHint waitingOn="The organisation" detail="You're on the shortlist. They're deciding who to make offers to." />;
+  if (status === "offered") return <NextStepHint tone="gold" waitingOn="You" detail="Accept or decline the offer below." />;
+  if (status === "accepted") return <NextStepHint waitingOn="You" detail="Start your first milestone in your project workspace." />;
+  if (status === "rejected") return <p className="rounded-xl bg-canvas p-3 text-sm text-ink-700">This organisation chose other applicants this time. Keep applying — every application helps.</p>;
+  return null;
 }
 
 export function StudentApplicationDetailView({
@@ -79,7 +108,7 @@ export function StudentApplicationDetailView({
     }
   };
 
-  // Handle Offer Acceptance (§6.4 Affirmative Offer Acceptance)
+  // Handle Offer Acceptance (§6.4 Accept this offer?)
   const handleAcceptOffer = async () => {
     if (!preview) {
       if (acting.current || !live.data?.offer) return;
@@ -90,7 +119,7 @@ export function StudentApplicationDetailView({
         const api = await live.getApi();
         requireData(await api.acceptOffer(offer.id, offer.row_version, offer.terms_version_id, offer.terms_hash));
         await live.reload(); setIsAcceptModalOpen(false);
-        setActionSuccessMessage("Offer acceptance and participation confirmed by the API. Mentor acceptance remains separate.");
+        toast.success("Offer accepted. Welcome to the project!", { description: "Your workspace is open. Your mentor will be assigned by the organisation." });
       } catch (e) { setActionError(e instanceof Error ? e.message : "Acceptance could not be confirmed. Refresh before retrying."); }
       finally { acting.current = false; setBusy(false); }
       return;
@@ -173,7 +202,7 @@ export function StudentApplicationDetailView({
         } else {
           requireData(await api.withdrawApplication(applicationId, live.data.record.row_version, withdrawReason.trim() || "Withdrawn by the student."));
         }
-        await live.reload(); setIsWithdrawModalOpen(false); setActionSuccessMessage(decliningOffer ? "Offer declined." : "Application withdrawn.");
+        await live.reload(); setIsWithdrawModalOpen(false); toast(decliningOffer ? "Offer declined" : "Application withdrawn");
       } catch (e) { setActionError(e instanceof Error ? e.message : "Withdrawal failed."); }
       finally { acting.current = false; setBusy(false); }
       return;
@@ -206,73 +235,46 @@ export function StudentApplicationDetailView({
     setActionSuccessMessage("Application has been successfully withdrawn.");
   };
 
-  if (!preview && (live.loading || live.error)) return <main className="mx-auto max-w-5xl p-6"><p role={live.error ? "alert" : "status"}>{live.error || "Loading application..."}</p><button onClick={() => void live.reload().catch(() => {})}>Refresh records</button></main>;
+  if (!preview && live.loading && !live.data) return <PageSkeleton />;
+  if (!preview && live.error) return <div role="alert" className="mx-auto max-w-md py-16 text-center"><p className="text-lg font-semibold text-ink-900">We couldn&apos;t load this application</p><p className="mt-2 text-sm text-ink-500">Check your connection and try again.</p><Button className="mt-6" onClick={() => void live.reload().catch(() => {})}>Try again</Button></div>;
   if (!currentApp) {
     return (
-      <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-        <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
-        <main className="mx-auto max-w-4xl px-4 sm:px-6 pt-12 text-center space-y-4">
+      <div className="space-y-6">
+        {preview && <StudentPortalHeader studentName="Stella Appiok" isSynthetic />}
+        <div className="mx-auto max-w-4xl pt-12 text-center space-y-4">
           <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Application Not Found</h2>
+          <h2 className="text-xl font-bold text-ink-900">We can&apos;t find this application</h2>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            We could not find application with ID &quot;{applicationId}&quot;. It may have been reset or removed.
+            It may have been removed. Go back to see all your applications.
           </p>
           <div className="pt-2">
             <Link
               href={`${basePath}/applications`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-900 transition"
             >
-              ← Back to My Applications
+              ← Back to your applications
             </Link>
           </div>
-        </main>
+        </div>
       </div>
     );
   }
 
-  const statusBadgeColor =
-    currentApp.status === "offered"
-      ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-      : currentApp.status === "accepted"
-      ? "bg-emerald-100 text-emerald-950 border-emerald-300 font-bold"
-      : currentApp.status === "shortlisted"
-      ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
-      : currentApp.status === "under_review"
-      ? "bg-blue-50 text-blue-900 border-blue-200"
-      : currentApp.status === "rejected"
-      ? "bg-red-50 text-red-900 border-red-200 font-semibold"
-      : currentApp.status === "withdrawn"
-      ? "bg-slate-100 text-slate-600 border-slate-200"
-      : "bg-slate-100 text-slate-800 border-slate-200";
 
-  const statusLabel =
-    currentApp.status === "offered"
-      ? (currentApp.offerStatus && currentApp.offerStatus !== "offered" ? `Offer ${currentApp.offerStatus}` : "Offer Extended • Action Required")
-      : currentApp.status === "accepted"
-      ? "Offer Accepted • Active Project"
-      : currentApp.status === "shortlisted"
-      ? "Shortlisted for Final Placement"
-      : currentApp.status === "under_review"
-      ? "Under Technical Review"
-      : currentApp.status === "rejected"
-      ? "Not Selected"
-      : currentApp.status === "withdrawn"
-      ? "Withdrawn"
-      : "Submitted • In Review Queue";
 
   const canWithdraw = ["submitted", "under_review", "shortlisted", "offered"].includes(currentApp.status);
   const participationLink = currentApp.participationId ? `${basePath}/projects/${currentApp.participationId}` : `${basePath}/projects`;
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={true} />
+    <div className="space-y-6">
+      {preview && <StudentPortalHeader studentName="Stella Appiok" isSynthetic />}
 
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-6 space-y-6">
-        {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
+      <div className="space-y-6">
+        {actionError && <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-3 text-sm text-danger-text">{actionError}</p>}
         {/* Navigation Breadcrumb */}
         <div className="flex items-center justify-between">
           <Link
@@ -280,12 +282,10 @@ export function StudentApplicationDetailView({
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 hover:text-teal-950 transition"
           >
             <span aria-hidden="true">←</span>
-            <span>Back to My Applications</span>
+            <span>Back to your applications</span>
           </Link>
 
-          <span className="text-[10px] font-mono text-slate-400">
-            ID: {currentApp.id}
-          </span>
+
         </div>
 
         {/* Action Success Alert */}
@@ -313,24 +313,16 @@ export function StudentApplicationDetailView({
                 <span className="text-xs font-bold text-slate-700">
                   {currentApp.organizationName}
                 </span>
-                {currentApp.organizationVerified && (
-                  <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-800 border border-teal-200">
-                    ✓ Verified Organization
-                  </span>
-                )}
-                <span className={`rounded-full px-2.5 py-0.5 text-[11px] border ${statusBadgeColor}`}>
-                  {statusLabel}
-                </span>
+                {currentApp.organizationVerified && <Pill tone="gold"><BadgeCheck className="size-3.5" aria-hidden />Verified organisation</Pill>}
+                <StatusBadge status={currentApp.status} />
               </div>
 
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink-900">
                 {currentApp.projectTitle}
               </h1>
 
               <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
-                <span>Applied on: <strong className="text-slate-800">{currentApp.appliedAt}</strong></span>
-                <span>•</span>
-                <span>Observed Terms: <strong className="font-mono text-slate-800">{currentApp.observedTermsSnapshot.termsVersionId}</strong></span>
+                <span>Applied {String(currentApp.appliedAt ?? "").slice(0, 10)}</span>
               </div>
             </div>
 
@@ -340,7 +332,7 @@ export function StudentApplicationDetailView({
                   href={participationLink}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition"
                 >
-                  <span>Open Project Workspace</span>
+                  <span>Open workspace</span>
                   <span aria-hidden="true">→</span>
                 </Link>
               )}
@@ -351,13 +343,16 @@ export function StudentApplicationDetailView({
                   onClick={() => { setDecliningOffer(false); setActionError(""); setIsWithdrawModalOpen(true); }}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition shadow-2xs"
                 >
-                  <span>Withdraw Application</span>
+                  <span>Withdraw application</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* URGENT OFFER ACCEPTANCE CALLOUT BANNER (§6.4) */}
+          <StatusTimeline steps={applicationSteps(currentApp.status)} className="pt-1" />
+          {nextStep(currentApp.status)}
+
+          {/* Offer callout */}
           {currentApp.status === "offered" && (preview || live.data?.offer?.status === "offered") && (
             <div className="rounded-xl border border-amber-300 bg-amber-50/70 p-5 space-y-3.5 shadow-xs">
               <div className="flex items-start justify-between gap-3">
@@ -365,12 +360,12 @@ export function StudentApplicationDetailView({
                   <div className="flex items-center gap-2">
                     <span className="flex h-2.5 w-2.5 rounded-full bg-amber-600 animate-pulse" />
                     <h3 className="text-sm font-bold text-amber-950">
-                      Official Project Offer Received
+                      You have an offer
                     </h3>
                   </div>
                   <p className="text-xs text-amber-900 leading-relaxed max-w-2xl">
-                    {currentApp.organizationName} has reviewed your application and extended an official offer to collaborate on this project.
-                    Under ExperienceBridge governance (§6.4), affirmative acceptance binds the agreed terms snapshot and provisions your project workspace.
+                    The organisation reviewed your application and would like you to join this project.
+                    Accepting means you agree to the project terms on this page, and your project workspace opens straight away.
                   </p>
                 </div>
 
@@ -390,7 +385,7 @@ export function StudentApplicationDetailView({
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Accept Offer &amp; Begin Project</span>
+                  <span>Accept offer</span>
                 </button>
 
                 <button
@@ -398,13 +393,13 @@ export function StudentApplicationDetailView({
                   onClick={() => { setDecliningOffer(true); setActionError(""); setIsWithdrawModalOpen(true); }}
                   className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                 >
-                  Decline Offer
+                  Decline offer
                 </button>
               </div>
             </div>
           )}
 
-          {!preview && currentApp.offerStatus && currentApp.offerStatus !== "offered" && currentApp.offerStatus !== "accepted" && <p role="status">Offer {currentApp.offerStatus}. You can check back for a new offer.</p>}
+          {!preview && currentApp.offerStatus && currentApp.offerStatus !== "offered" && currentApp.offerStatus !== "accepted" && <p role="status" className="rounded-xl bg-canvas p-3 text-sm text-ink-700">This offer is {currentApp.offerStatus}. The organisation may send a new one.</p>}
           {/* ACCEPTED BANNER */}
           {currentApp.status === "accepted" && (
             <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs">
@@ -412,11 +407,11 @@ export function StudentApplicationDetailView({
                 <div className="flex items-center gap-2">
                   <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
                   <span className="text-xs font-bold text-emerald-950">
-                    Offer Accepted — Project Workspace Activated
+                    You&apos;re on this project
                   </span>
                 </div>
                 <p className="text-xs text-emerald-900">
-                  You are actively enrolled in this project. Access deliverables, milestone reviews, and mentor communications in your workspace.
+                  Your workspace has your milestones, submissions and feedback.
                 </p>
               </div>
 
@@ -424,7 +419,7 @@ export function StudentApplicationDetailView({
                 href={participationLink}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 transition shrink-0"
               >
-                <span>Go to Workspace</span>
+                <span>Go to workspace</span>
                 <span aria-hidden="true">→</span>
               </Link>
             </div>
@@ -433,7 +428,7 @@ export function StudentApplicationDetailView({
           {/* WITHDRAWN BANNER */}
           {currentApp.status === "withdrawn" && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-1 text-xs text-slate-600">
-              <span className="font-bold text-slate-800">Application Withdrawn</span>
+              <span className="font-bold text-ink-900">You withdrew this application</span>
               <p>{currentApp.withdrawalReason || "This application was withdrawn."}</p>
             </div>
           )}
@@ -573,44 +568,44 @@ export function StudentApplicationDetailView({
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                    §5.4 Terms Snapshot
+                    Terms
                   </span>
                   <span className="text-[10px] font-mono text-slate-500">
-                    Immutable
+                    Fixed
                   </span>
                 </div>
                 <h3 className="text-sm font-bold text-slate-900 mt-2">
-                  Observed Project Terms
+                  Project terms you saw
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Snapshot recorded at the exact moment of application submission.
+                  The terms shown when you applied.
                 </p>
               </div>
 
               <div className="space-y-3.5 text-xs">
                 <div>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Terms Version ID</span>
+                  <span className="text-[10px] text-slate-500 font-semibold uppercase">Terms version</span>
                   <p className="font-mono text-xs font-bold text-slate-800">
                     {currentApp.observedTermsSnapshot.termsVersionId}
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Weekly Commitment</span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Hours per week</span>
                   <p className="font-semibold text-slate-800">
                     {currentApp.observedTermsSnapshot.weeklyHours} hours per week
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Project Duration</span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Length</span>
                   <p className="font-semibold text-slate-800">
                     {currentApp.observedTermsSnapshot.durationWeeks} weeks
                   </p>
                 </div>
 
                 <div>
-                  <span className="text-[10px] text-slate-400 font-semibold uppercase">IP &amp; Attribution</span>
+                  <span className="text-[10px] text-slate-400 font-semibold uppercase">Who owns the work</span>
                   <p className="text-slate-600 mt-0.5 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
                     {currentApp.observedTermsSnapshot.ipConditions}
                   </p>
@@ -635,29 +630,29 @@ export function StudentApplicationDetailView({
                   <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  <span>Print / Download Terms Snapshot</span>
+                  <span>Print terms</span>
                 </button>
               </div>
             </div>
 
             {/* Support / Inquiries Info */}
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-2 text-xs">
-              <span className="font-bold text-slate-800">Need to make adjustments?</span>
+              <span className="font-bold text-slate-800">Plans changed?</span>
               <p className="text-slate-500 leading-relaxed">
-                Applications undergo independent screening. If your availability has changed, you may voluntarily withdraw before an offer is extended.
+                If you can no longer take part, you can withdraw your application at any time before you accept an offer.
               </p>
               <div className="pt-2">
                 <Link
                   href={`${basePath}/projects`}
                   className="font-semibold text-teal-800 hover:underline"
                 >
-                  Explore Active Project Workspace →
+                  Open your workspace →
                 </Link>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* WITHDRAW APPLICATION MODAL */}
       {isWithdrawModalOpen && (
@@ -726,11 +721,11 @@ export function StudentApplicationDetailView({
                     Affirmative Offer Acceptance
                   </h3>
                   <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                    §6.4 Consent Contract
+                    Your agreement
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Review terms snapshot confirmation before activating project participation.
+                  Check the terms one last time. Accepting opens your project workspace.
                 </p>
               </div>
               <button
@@ -756,7 +751,7 @@ export function StudentApplicationDetailView({
                 over <strong>{currentApp.observedTermsSnapshot.durationWeeks} weeks</strong>.
               </p>
               <p className="text-[11px] text-slate-500 pt-1 border-t border-teal-100">
-                You can report concerns or request a formal review if terms change during the project lifecycle.
+                If the terms change later, the organisation must ask you again.
               </p>
             </div>
 

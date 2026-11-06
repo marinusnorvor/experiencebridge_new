@@ -89,3 +89,45 @@ def test_direct_backend_cannot_spoof_proxy_or_bypass_csrf(staging_workflow):
         assert client.post("/api/v1/organizations", json=organization, headers={"Origin": ORIGIN, "Idempotency-Key": "synthetic-proxy-test"}).status_code == 403
         session_csrf = client.get("/api/v1/auth/csrf").json()["csrf_token"]
         assert client.post("/api/v1/organizations", json=organization, headers={"Origin": "https://evil.example.invalid", "X-CSRF-Token": session_csrf, "Idempotency-Key": "synthetic-proxy-test"}).status_code == 403
+
+
+def test_per_ip_limits_are_configurable_but_per_email_is_not(monkeypatch):
+    config = AuthConfig("development", "http://localhost:3000", "https://id.example.invalid", "s" * 32, None, None, None)
+    class DB:
+        def commit(self): pass
+    counts = {"email": 0, "ip": 0}
+    def fake_increment(db, **kw):
+        key = "email" if kw["scope"].endswith(":email") else "ip"
+        return counts[key]
+    monkeypatch.setattr(auth_router, "increment_rate_limit", fake_increment)
+    request = Request({"type": "http", "method": "POST", "path": "/api/v1/auth/login", "headers": [], "client": ("127.0.0.1", 1)})
+    monkeypatch.delenv("AUTH_LOGIN_PER_IP_PER_15MIN", raising=False)
+    monkeypatch.delenv("AUTH_REGISTER_PER_IP_PER_HOUR", raising=False)
+    # Defaults unchanged: 31st login attempt from one IP is limited.
+    counts.update(ip=31, email=1)
+    with pytest.raises(AppError) as error:
+        auth_router._limit(DB(), request, config, email="a@example.invalid", scope="login")
+    assert error.value.status_code == 429
+    # Raised for a shared network.
+    monkeypatch.setenv("AUTH_LOGIN_PER_IP_PER_15MIN", "300")
+    assert auth_router._limit(DB(), request, config, email="a@example.invalid", scope="login")
+    counts.update(ip=301)
+    with pytest.raises(AppError):
+        auth_router._limit(DB(), request, config, email="a@example.invalid", scope="login")
+    # Per-email login limit (5) is not affected by the override.
+    counts.update(ip=1, email=6)
+    with pytest.raises(AppError):
+        auth_router._limit(DB(), request, config, email="a@example.invalid", scope="login")
+    # Register: default 20/hour, override applies; invalid values fall back to the default.
+    counts.update(ip=21, email=1)
+    with pytest.raises(AppError):
+        auth_router._limit(DB(), request, config, email="b@example.invalid", scope="register")
+    monkeypatch.setenv("AUTH_REGISTER_PER_IP_PER_HOUR", "300")
+    assert auth_router._limit(DB(), request, config, email="b@example.invalid", scope="register")
+    monkeypatch.setenv("AUTH_REGISTER_PER_IP_PER_HOUR", "not-a-number")
+    with pytest.raises(AppError):
+        auth_router._limit(DB(), request, config, email="b@example.invalid", scope="register")
+    # Other scopes (forgot password) keep their fixed limit even when overrides are set.
+    counts.update(ip=21, email=1)
+    with pytest.raises(AppError):
+        auth_router._limit(DB(), request, config, email="b@example.invalid", scope="reset_password")

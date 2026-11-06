@@ -6,6 +6,10 @@ import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { isPortalPresentationMode } from "@/lib/auth/portal-presentation";
 import { emptyWorkspace, loadWorkspace, saveEvidence } from "../lib/api-records";
 import Link from "next/link";
+import { BadgeCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { NextStepHint, PageSkeleton } from "@/components/ui/primitives";
+import { Pill, StatusBadge } from "@/components/ui/status-badge";
 import { usePathname } from "next/navigation";
 import { StudentParticipationActions } from "./student-participation-actions";
 import { StudentPortalHeader } from "./student-portal-header";
@@ -87,6 +91,30 @@ function getInitialWorkspace(participationId: string): ParticipationWorkspaceDet
   };
 }
 
+
+const REPORT_NOT_CONNECTED = "Reporting isn't connected yet. If you're worried about your safety or a project, contact your university's career office.";
+
+/** What's waiting on whom for the latest submission (live mode). */
+function WorkspaceNextStep({ submissions, onRevise }: { submissions: MilestoneSubmission[]; onRevise: () => void }) {
+  const latest = [...submissions].filter((x) => x.status !== "draft" && x.status !== "withdrawn").sort((a, b) => b.revisionNumber - a.revisionNumber)[0];
+  if (!latest) return <NextStepHint waitingOn="You" detail="Submit your first milestone when it's ready. Your mentor reviews it next." />;
+  const needsRevision = latest.status === "revision_requested" || latest.mentorReview?.status === "revision_requested" || latest.organizationDecision?.status === "revisions_requested";
+  if (needsRevision) {
+    const feedback = latest.organizationDecision?.status === "revisions_requested" ? latest.organizationDecision.feedback : latest.mentorReview?.feedback;
+    return (
+      <div role="status" className="space-y-3 rounded-[var(--radius-card)] border border-warning/30 bg-warning-bg p-4">
+        <p className="text-sm font-semibold text-warning-text">Revision requested on {latest.milestoneTitle}</p>
+        {feedback && <blockquote className="rounded-lg border-l-2 border-warning bg-surface px-3 py-2 text-sm text-ink-700">&ldquo;{feedback}&rdquo;</blockquote>}
+        <Button size="sm" onClick={onRevise}>Revise and resubmit</Button>
+      </div>
+    );
+  }
+  if (latest.organizationDecision?.status === "accepted") return <NextStepHint tone="gold" waitingOn="You" detail={`${latest.milestoneTitle} was accepted. Carry on with the next milestone, or tell the organisation you're done.`} />;
+  if (latest.status === "submitted" && !latest.mentorReview) return <NextStepHint waitingOn="Your mentor's review" detail={`${latest.milestoneTitle} · you'll see their feedback here`} />;
+  if (latest.status === "submitted" || latest.mentorReview) return <NextStepHint waitingOn="The organisation's review" detail="Your mentor has reviewed it. The organisation decides next." />;
+  return null;
+}
+
 export function StudentParticipationWorkspaceView({ participationId }: WorkspaceProps) {
   const pathname = usePathname();
   const isDevPreview = Boolean(pathname?.startsWith("/dev/student"));
@@ -138,7 +166,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
     }
     const fresh = syntheticParticipationDetails[participationId] ?? getInitialWorkspace(participationId);
     setWorkspace(fresh);
-    setSubmissionSuccessFeedback("Workspace reset to default synthetic preview fixtures.");
+    setSubmissionSuccessFeedback("Preview reset.");
     setTimeout(() => setSubmissionSuccessFeedback(null), 3000);
   };
 
@@ -298,23 +326,22 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
   // Submit Confidential Report (STU-12)
   const handleSubmitReport = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!preview) { setActionError("Reporting is not connected to a backend endpoint. No report was sent or recorded."); return; }
+    if (!preview) { setActionError(REPORT_NOT_CONNECTED); return; }
     const ticketId = `REP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     setActiveReportTicket(ticketId);
     setIsReportModalOpen(false);
     setReportDetails("");
   };
 
-  if (!preview && (live.loading || live.error)) return <main className="mx-auto max-w-6xl p-6"><p role={live.error ? "alert" : "status"}>{live.error || "Loading workspace records..."}</p><button onClick={() => void live.reload().catch(() => {})}>Refresh records</button></main>;
+  if (!preview && live.loading && !live.data) return <PageSkeleton />;
+  if (!preview && live.error) return <div role="alert" className="mx-auto max-w-md py-16 text-center"><p className="text-lg font-semibold text-ink-900">We couldn&apos;t load your workspace</p><p className="mt-2 text-sm text-ink-500">Check your connection and try again.</p><Button className="mt-6" onClick={() => void live.reload().catch(() => {})}>Try again</Button></div>;
 
   const currentMilestone = workspace.milestones.find((m) => m.id === workspace.currentMilestoneId);
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
-
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
-        {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
+    <div className="space-y-6">
+      {preview && <StudentPortalHeader studentName="Stella Appiok" isSynthetic />}
+        {actionError && <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-3 text-sm text-danger-text">{actionError}</p>}
         {/* Breadcrumb & Navigation Back */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
@@ -324,21 +351,15 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            <span>Back to My Projects</span>
+            <span>Back to your projects</span>
           </Link>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleResetWorkspace}
-              className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
-              title="Reset state to default synthetic fixtures"
-            >
-              Reset Workspace
-            </button>
-            <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-              Workspace ID: {workspace.participationId}
-            </span>
+            {preview && (
+              <button type="button" onClick={handleResetWorkspace} className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline">
+                Reset preview
+              </button>
+            )}
           </div>
         </div>
 
@@ -386,15 +407,11 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <span className="text-xs font-bold text-slate-600">
                   {workspace.organizationName}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-800 border border-teal-200">
-                  {workspace.organizationVerificationStatus}
-                </span>
-                <span className="rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold">
-                  Live Active Workspace
-                </span>
+                <Pill tone="gold"><BadgeCheck className="size-3.5" aria-hidden />Verified organisation</Pill>
+                <StatusBadge status="active" />
               </div>
 
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink-900">
                 {workspace.projectTitle}
               </h1>
 
@@ -415,7 +432,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                <span>Submit Milestone Evidence</span>
+                <span>Submit work</span>
               </button>
 
               <Link
@@ -436,7 +453,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Agreed Terms</span>
+                <span>Terms</span>
               </button>
             </div>
           </div>
@@ -445,10 +462,10 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
           <div className="pt-2 space-y-1.5">
             <div className="flex items-center justify-between text-xs font-medium">
               <span className="text-slate-700">
-                Milestone Progress: <strong>{workspace.progressPercent}%</strong>
+                Progress: <strong>{workspace.progressPercent}%</strong>
               </span>
               <span className="text-slate-500">
-                {workspace.milestones.filter((m) => m.status === "completed").length} of {workspace.milestones.length} milestones verified
+                {workspace.milestones.filter((m) => m.status === "completed").length} of {workspace.milestones.length} milestones accepted
               </span>
             </div>
             <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
@@ -460,15 +477,17 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
           </div>
         </div>
 
-        {/* Tab Navigation (STU-07 Specification) */}
+        {!preview && <WorkspaceNextStep submissions={workspace.submissions} onRevise={() => setIsSubmitModalOpen(true)} />}
+
+        {/* Tabs */}
         <div className="flex items-center gap-1 sm:gap-2 border-b border-slate-200 overflow-x-auto pb-px">
           {(
             [
-              { id: "overview", label: "Overview & Contacts" },
+              { id: "overview", label: "Overview" },
               { id: "milestones", label: `Milestones (${workspace.milestones.length})` },
-              { id: "submissions", label: `Submissions & Reviews (${workspace.submissions.length})` },
-              { id: "terms", label: "Agreed Terms" },
-              { id: "support", label: "Support & Reporting" },
+              { id: "submissions", label: `Submissions (${workspace.submissions.length})` },
+              { id: "terms", label: "Terms" },
+              { id: "support", label: "Help" },
             ] as const
           ).map((tab) => {
             const isActive = activeTab === tab.id;
@@ -532,7 +551,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                     onClick={() => setActiveTab("milestones")}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 bg-white px-3 py-2 text-xs font-semibold text-teal-900 hover:bg-teal-50 transition"
                   >
-                    View Deliverables Checklist
+                    View checklist
                   </button>
                 </div>
               </div>
@@ -581,14 +600,14 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                   )}
                 </div>
 
-                {/* Organization Representative */}
+                {/* Organisation contact */}
                 <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                      Organization Representative
+                      Organisation contact
                     </span>
                     <span className="text-[10px] font-semibold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                      Project Sponsor
+                      Organisation
                     </span>
                   </div>
                   <div className="text-sm font-bold text-slate-900">{workspace.organizationContact}</div>
@@ -599,7 +618,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               {/* Scoped Project Resources */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-4">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 border-b border-slate-100 pb-2">
-                  Authorized Scoped Resources
+                  Project links
                 </h3>
 
                 <div className="space-y-3">
@@ -673,9 +692,9 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
           <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Project Milestones &amp; Deliverables</h3>
+                <h3 className="text-base font-bold text-slate-900">Milestones</h3>
                 <p className="text-xs text-slate-500">
-                  Each milestone requires evidence submission followed by independent mentor review and organization sign-off.
+                  Submit your work for each milestone. Your mentor reviews it, then the organisation accepts it.
                 </p>
               </div>
 
@@ -748,7 +767,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                       {/* Deliverables */}
                       <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                          Required Deliverables
+                          What to deliver
                         </span>
                         <ul className="space-y-1.5 text-slate-600">
                           {m.deliverables.map((d, idx) => (
@@ -760,10 +779,10 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                         </ul>
                       </div>
 
-                      {/* Acceptance Criteria */}
+                      {/* How it&apos;s judged */}
                       <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-700">
-                          Acceptance Criteria
+                          How it&apos;s judged
                         </span>
                         <ul className="space-y-1.5 text-slate-600">
                           {m.acceptanceCriteria.map((c, idx) => (
@@ -819,11 +838,11 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                     Evidence Submissions &amp; Review Decisions
                   </h3>
                   <span className="text-[10px] font-bold uppercase text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                    STU-07 Provenance
+                    Separate reviews
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Mentor technical assessments and Organization decisions are recorded on independent verifiable review cards.
+                  Your mentor and the organisation each review your work separately.
                 </p>
               </div>
 
@@ -846,7 +865,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 onClick={() => setIsSubmitModalOpen(true)}
                   className="text-xs font-semibold text-teal-800 underline"
                 >
-                  Submit your first milestone evidence
+                  Submit your first milestone
                 </button>
               </div>
             ) : (
@@ -885,14 +904,14 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                     {/* Summary and Contribution Statement */}
                     <div className="space-y-3 text-xs">
                       <div>
-                        <span className="font-bold text-slate-800">Work Accomplished:</span>
+                        <span className="font-bold text-slate-800">What you did:</span>
                         <p className="mt-1 text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
                           {sub.summary}
                         </p>
                       </div>
 
                       <div>
-                        <span className="font-bold text-slate-800">Personal Contribution Statement:</span>
+                        <span className="font-bold text-slate-800">Your part:</span>
                         <p className="mt-1 text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
                           {sub.contributionStatement}
                         </p>
@@ -901,7 +920,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                       {/* Links */}
                       {sub.links.length > 0 && (
                         <div>
-                          <span className="font-bold text-slate-800">Submitted Links &amp; Evidence:</span>
+                          <span className="font-bold text-slate-800">Links:</span>
                           <div className="mt-1 flex flex-wrap gap-2">
                             {sub.links.map((link, idx) => (
                               <a
@@ -984,10 +1003,10 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    Immutable Agreed Project Terms
+                    Terms you agreed to
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Locked at affirmative offer acceptance pursuant to API-OFFER-02 and ADR-002.
+                    These were fixed when you accepted the offer.
                   </p>
                 </div>
 
@@ -999,7 +1018,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Terms Version ID
+                    Terms version
                   </span>
                   <div className="text-xs font-mono font-bold text-slate-900">
                     {workspace.agreedTerms.termsVersionId}
@@ -1009,7 +1028,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      Terms Content SHA256 Hash
+                      Terms fingerprint
                     </span>
                     <button
                       type="button"
@@ -1026,7 +1045,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Expected Work Commitment
+                    Hours per week
                   </span>
                   <div className="text-xs font-bold text-slate-900">
                     {workspace.agreedTerms.weeklyHours ? `${workspace.agreedTerms.weeklyHours} hours/week` : "Not supplied"}
@@ -1035,7 +1054,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    Project Timeframe
+                    Dates
                   </span>
                   <div className="text-xs font-bold text-slate-900">
                     {workspace.agreedTerms.durationWeeks} weeks total duration
@@ -1066,7 +1085,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
               <div className="pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
                 <span>Consent recorded on: {workspace.agreedTerms.acceptedAt}</span>
-                <span>Web Confirmation Hash Verified</span>
+                <span>Terms confirmed</span>
               </div>
             </div>
           </div>
@@ -1078,20 +1097,20 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs space-y-5">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Support, Safety &amp; Dispute Resolution
+                  Help and safety
                 </h3>
                 <p className="text-xs text-slate-500">
-                  ExperienceBridge guarantees safe, fair, and documented student participation environments.
+                  Who to talk to if you have questions or concerns.
                 </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 p-4 space-y-2">
                   <h4 className="text-xs font-bold text-slate-900">
-                    Project Supervisor Contact
+                    Organisation contact
                   </h4>
                   <p className="text-xs text-slate-600">
-                    For questions regarding milestone scope, design requirements, or repo access:
+                    Questions about the scope, requirements or access:
                   </p>
                   <div className="text-xs font-semibold text-teal-800">
                     {workspace.organizationContact}
@@ -1100,13 +1119,13 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
                 <div className="rounded-xl border border-slate-200 p-4 space-y-2">
                   <h4 className="text-xs font-bold text-slate-900">
-                    Faculty / Mentor Escalation
+                    Your mentor
                   </h4>
                   <p className="text-xs text-slate-600">
-                    For independent academic guidance or rubric evaluation assistance:
+                    Guidance on your work and feedback:
                   </p>
                   <div className="text-xs font-semibold text-teal-800">
-                    {workspace.mentor.name} ({workspace.mentor.email})
+                    {workspace.mentor.name}{workspace.mentor.email ? ` (${workspace.mentor.email})` : ""}
                   </div>
                 </div>
               </div>
@@ -1118,26 +1137,26 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <h4 className="text-xs font-bold text-rose-950">
-                    Confidential Issue or Safety Report (STU-12)
+                    Worried about something?
                   </h4>
                 </div>
                 <p className="text-xs text-rose-900 leading-relaxed">
-                  If you encounter unexpected non-disclosure demands, unsafe working conditions, or inappropriate behavior, you can submit a confidential report directly to platform administrators. Reports are never disclosed to project sponsors without your affirmative permission.
+                  {preview ? "If you face unsafe conditions, inappropriate behaviour or unfair demands, report it." : REPORT_NOT_CONNECTED}
                 </p>
-                <div className="pt-1">
+                {preview && <div className="pt-1">
                   <button
                     type="button"
                     onClick={() => setIsReportModalOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-800 hover:bg-rose-50 transition"
                   >
-                    <span>File Confidential Report</span>
+                    <span>Report a concern</span>
                   </button>
-                </div>
+                </div>}
               </div>
             </div>
           </div>
         )}
-      </main>
+
 
       {/* EVIDENCE SUBMISSION MODAL (STU-08) */}
       {isSubmitModalOpen && (
@@ -1148,14 +1167,14 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900">
-                    Submit Milestone Evidence
+                    Submit your work
                   </h3>
                   <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                    STU-08 Evidence Submission
+                    For mentor review
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Provide verifiable deliverables and your personal contribution statement for mentor rubric assessment.
+                  Describe what you did and add links. Your mentor reviews it, then the organisation.
                 </p>
               </div>
 
@@ -1174,7 +1193,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                 <svg className="h-4 w-4 text-amber-700 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
-                <span>Privacy &amp; Security Requirement</span>
+                <span>Keep it safe</span>
               </div>
               <p className="leading-relaxed">
                 Do not include passwords, production credentials, sensitive customer records, or information you don&apos;t have permission to share.
@@ -1186,7 +1205,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               {actionError && <p role="alert" className="text-red-700">{actionError}</p>}
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
-                  Assigned Milestone *
+                  Milestone *
                 </label>
                 <select
                   value={selectedMilestoneId || workspace.currentMilestoneId}
@@ -1203,7 +1222,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
-                  Work Accomplished Summary *
+                  What you did *
                 </label>
                 <textarea
                   rows={3}
@@ -1217,7 +1236,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
-                  Personal Contribution Statement *
+                  Your part in it *
                 </label>
                 <textarea
                   rows={2}
@@ -1232,7 +1251,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700">
-                    GitHub PR / Commit Link
+                    Code link (optional)
                   </label>
                   <input
                     type="url"
@@ -1245,7 +1264,7 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700">
-                    Live Demo or Artifact URL
+                    Demo or file link (optional)
                   </label>
                   <input
                     type="url"
@@ -1278,10 +1297,10 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                       </svg>
-                      <span>Submitting evidence live...</span>
+                      <span>Submitting…</span>
                     </>
                   ) : (
-                    <span>Submit Milestone Evidence</span>
+                    <span>Submit for review</span>
                   )}
                 </button>
               </div>
@@ -1297,10 +1316,10 @@ export function StudentParticipationWorkspaceView({ participationId }: Workspace
             <div className="flex items-start justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  File Confidential Safety / Issue Report
+                  Report a concern
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Handled under strict confidentiality by platform ombudspersons.
+                  Preview only. Reporting isn&apos;t connected yet.
                 </p>
               </div>
               <button

@@ -94,30 +94,17 @@ function MentorDashboardContent({ data, onChanged }: { data: MentorDashboardData
     data.reviewCapacity.expectedReviewsThisWeek > data.reviewCapacity.weeklyReviewCapacity;
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
-      <header className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-teal-800">
-          Mentor workspace · MEN-01
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">
-          Mentor dashboard
-        </h1>
-        <p className="mt-3 max-w-2xl leading-7 text-slate-600">
-          Review assignment requests, track accepted assignments, and see work awaiting your
-          assessment.
+    <main className="w-full">
+      <header className="mb-6">
+        <h2 className="text-lg font-semibold tracking-tight text-ink-900">
+          Assignments and reviews
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm text-ink-500">
+          Invitations to mentor, the students you&rsquo;re guiding, and work waiting for your review.
         </p>
       </header>
 
-      <aside
-        aria-label="Sample data notice"
-        className="mb-8 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"
-      >
-        <p className="font-semibold">Development workspace</p>
-        <p>
-          This development workspace uses synthetic records. Recorded assessments and
-          organization acceptance are separate decisions.
-        </p>
-      </aside>
+
 
       {isOverCapacity && (
         <section
@@ -363,10 +350,6 @@ function MentorDashboardContent({ data, onChanged }: { data: MentorDashboardData
         </section>
       </div>
 
-      <p className="mt-8 text-sm leading-6 text-slate-500">
-        Assignments and assessments are loaded from the API in authenticated mode.
-        Presentation mode uses separate synthetic fixtures.
-      </p>
     </main>
   );
 }

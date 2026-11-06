@@ -6,7 +6,11 @@ import { usePortalResource } from "@/lib/api/use-portal-resource";
 import { loadApplications } from "../lib/api-records";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { StudentPortalHeader } from "./student-portal-header";
+import { toast } from "sonner";
+import { BadgeCheck, FileText, RefreshCw, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, EmptyState, NextStepHint, PageHeader, Skeleton } from "@/components/ui/primitives";
+import { Pill, StatusBadge } from "@/components/ui/status-badge";
 import { StudentOpportunities } from "./student-opportunities";
 import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { ApplyModal } from "./apply-modal";
@@ -46,7 +50,6 @@ export function StudentApplicationsView() {
   const [filter, setFilter] = useState<"all" | ApplicationStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Reset defaults handler
   const handleResetDefaults = () => {
@@ -59,13 +62,12 @@ export function StudentApplicationsView() {
       }
     }
     setApplications(syntheticApplicationsList ?? []);
-    setFeedbackMessage("Applications reset to default synthetic fixtures.");
-    setTimeout(() => setFeedbackMessage(null), 3000);
+    toast("Preview data reset.");
   };
 
   // Add new application from ApplyModal
   const handleApplicationCreated = (newApp: StudentApplicationDetails) => {
-    if (!preview) { setFeedbackMessage("Application saved by the API."); void live.reload().catch(() => {}); return; }
+    if (!preview) { toast.success("Application sent", { description: "The organisation will review it. We'll show updates here." }); void live.reload().catch(() => {}); return; }
     const updated = [newApp, ...applications];
     setApplications(updated);
     try {
@@ -73,8 +75,7 @@ export function StudentApplicationsView() {
     } catch (err) {
       console.error("Failed to save application to localStorage:", err);
     }
-    setFeedbackMessage(`Application for "${newApp.projectTitle}" submitted successfully!`);
-    setTimeout(() => setFeedbackMessage(null), 4000);
+    toast.success("Application sent", { description: newApp.projectTitle });
   };
 
   const applicationsList = applications ?? [];
@@ -96,348 +97,94 @@ export function StudentApplicationsView() {
   const submittedCount = applicationsList.filter((a) => a.status === "submitted").length;
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
+    <div className="space-y-8">
+      <PageHeader eyebrow="Student" title="Find projects"
+        description="Real, short projects from verified organisations. Apply to the ones that fit your skills."
+        actions={<>
+          <Button variant="secondary" size="sm" onClick={handleResetDefaults}><RefreshCw aria-hidden />{preview ? "Reset preview" : "Refresh"}</Button>
+          <Button size="sm" onClick={() => { setSelectedProjectId(undefined); setIsApplyModalOpen(true); }}>Apply to a project</Button>
+        </>} />
 
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
-        {!preview && live.loading && <p role="status">Loading database records...</p>}
-        {!preview && live.error && <p role="alert" className="text-red-700">{live.error}</p>}
-        {/* Page Title & Context */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {!preview && live.error && (
+        <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-4 text-sm text-danger-text">
+          We couldn&apos;t load your applications. <button type="button" className="font-medium underline" onClick={() => void live.reload().catch(() => {})}>Try again</button>
+        </p>
+      )}
+
+      {!preview && <StudentOpportunities applications={applicationsList} basePath={basePath} onApply={id => { setSelectedProjectId(id); setIsApplyModalOpen(true); }} />}
+
+      <section aria-labelledby="my-applications" className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded">
-                STU-03 · My Applications
-              </span>
-              <span className="text-xs text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                ● Live Status Tracking
-              </span>
-            </div>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              Project Applications &amp; Offers
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500 max-w-2xl">
-              Track submitted applications across review stages, inspect snapshots of observed terms versions, and review project offers.
-            </p>
+            <h2 id="my-applications" className="text-lg font-semibold text-ink-900">Your applications</h2>
+            <p className="text-sm text-ink-500">{offeredCount > 0 ? `You have ${offeredCount} offer${offeredCount === 1 ? "" : "s"} waiting for your reply.` : "Track each application from sent to offer."}</p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              href={`${basePath}/passport`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
-            >
-              <svg className="h-3.5 w-3.5 text-teal-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              <span>Experience Passport</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleResetDefaults}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 transition"
-              title="Reset state to initial synthetic fixtures"
-            >
-              <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{preview ? "Reset Defaults" : "Refresh records"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setSelectedProjectId(undefined); setIsApplyModalOpen(true); }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs hover:bg-teal-900 transition focus-visible:outline-2 focus-visible:outline-teal-800"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>+ Apply for Project</span>
-            </button>
-          </div>
-        </div>
-
-        {!preview && <StudentOpportunities applications={applicationsList} basePath={basePath} onApply={id => { setSelectedProjectId(id); setIsApplyModalOpen(true); }} />}
-
-        {/* Feedback Alert Banner */}
-        {feedbackMessage && (
-          <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-xs font-semibold text-emerald-900 flex items-center justify-between shadow-2xs animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-600" />
-              <span>{feedbackMessage}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFeedbackMessage(null)}
-              className="text-emerald-700 hover:text-emerald-950 text-sm font-bold"
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {/* Top Summary Metrics */}
-        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-            <span className="text-xs font-medium text-slate-500">Total Applications</span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900">{applicationsList.length}</span>
-              <span className="text-[11px] text-slate-500 font-medium">All time</span>
-            </div>
-          </div>
-
-          <div className={`rounded-xl border p-4 shadow-2xs transition ${offeredCount > 0 ? "border-amber-300 bg-amber-50/50 ring-1 ring-amber-200" : "border-slate-200 bg-white"}`}>
-            <span className="text-xs font-medium text-amber-900">Offers Extended</span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-amber-700">{offeredCount}</span>
-              <span className="text-[11px] text-amber-800 font-semibold">Action Required</span>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-            <span className="text-xs font-medium text-slate-500">Shortlisted</span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-teal-800">{shortlistedCount}</span>
-              <span className="text-[11px] text-teal-700 font-medium">Final selection</span>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
-            <span className="text-xs font-medium text-slate-500">Under Review</span>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-700">{underReviewCount + submittedCount}</span>
-              <span className="text-[11px] text-slate-500 font-medium">Active screening</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-3">
-          {/* Status Filter Pills */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(
-              [
-                { label: `All (${applicationsList.length})`, value: "all" },
-                { label: `Offered (${offeredCount})`, value: "offered" },
-                { label: `Shortlisted (${shortlistedCount})`, value: "shortlisted" },
-                { label: `Under Review (${underReviewCount})`, value: "under_review" },
-                { label: `Submitted (${submittedCount})`, value: "submitted" },
-              ] as const
-            ).map((tab) => {
-              const isSelected = filter === tab.value;
-              return (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setFilter(tab.value)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition shadow-2xs ${
-                    isSelected
-                      ? "bg-teal-800 text-white"
-                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search Input */}
           <div className="relative sm:w-64">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search applications or skills..."
-              className="w-full rounded-lg border border-slate-300 bg-white pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-teal-800 focus:ring-1 focus:ring-teal-800"
-            />
-            <svg
-              className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            )}
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" aria-hidden />
+            <input type="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search your applications"
+              aria-label="Search your applications" className="h-10 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface pl-9 pr-3 text-[16px] text-ink-900 placeholder:text-ink-400 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-100 sm:text-sm" />
           </div>
         </div>
 
-        {/* Applications List */}
-        {filteredApps.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
-            <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <h3 className="text-sm font-bold text-slate-900">No applications found</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {searchQuery
-                ? `No applications matched "${searchQuery}". Clear your search or adjust status filter.`
-                : "You don't have any applications matching the selected filter."}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setFilter("all");
-                setSearchQuery("");
-              }}
-              className="inline-flex text-xs font-semibold text-teal-800 hover:underline pt-1"
-            >
-              Reset filters
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {([
+            { label: `All (${applicationsList.length})`, value: "all" },
+            { label: `Offers (${offeredCount})`, value: "offered" },
+            { label: `Shortlisted (${shortlistedCount})`, value: "shortlisted" },
+            { label: `Under review (${underReviewCount})`, value: "under_review" },
+            { label: `Sent (${submittedCount})`, value: "submitted" },
+          ] as const).map((tab) => (
+            <button key={tab.value} type="button" onClick={() => setFilter(tab.value)} aria-pressed={filter === tab.value}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium transition ${filter === tab.value ? "bg-ink-900 text-white" : "border border-line bg-surface text-ink-700 hover:border-ink-400"}`}>
+              {tab.label}
             </button>
-          </div>
+          ))}
+        </div>
+
+        {!preview && live.loading && !live.data ? (
+          <div className="space-y-3">{[0, 1].map((i) => <Skeleton key={i} className="h-32" />)}</div>
+        ) : filteredApps.length === 0 ? (
+          <EmptyState icon={FileText}
+            title={applicationsList.length ? "No applications match" : "You haven't applied yet"}
+            description={applicationsList.length ? "Clear the search or pick another filter." : "Pick a project above and send a short application. It takes about five minutes."}
+            action={applicationsList.length ? <Button variant="secondary" onClick={() => { setFilter("all"); setSearchQuery(""); }}>Clear filters</Button> : undefined} />
         ) : (
-          <div className="grid gap-5">
+          <div className="grid gap-4">
             {filteredApps.map((app) => {
               const detailHref = `${basePath}/applications/${app.id}`;
-
-              const statusBadgeColor =
-                app.status === "offered"
-                  ? "bg-amber-100 text-amber-950 border-amber-300 font-bold"
-                  : app.status === "accepted"
-                  ? "bg-emerald-50 text-emerald-900 border-emerald-300 font-bold"
-                  : app.status === "shortlisted"
-                  ? "bg-teal-50 text-teal-900 border-teal-200 font-semibold"
-                  : app.status === "under_review"
-                  ? "bg-blue-50 text-blue-900 border-blue-200"
-                  : app.status === "rejected"
-                  ? "bg-red-50 text-red-900 border-red-200 font-semibold"
-                  : app.status === "withdrawn"
-                  ? "bg-slate-100 text-slate-600 border-slate-200"
-                  : "bg-slate-100 text-slate-800 border-slate-200";
-
-              const statusLabel =
-                app.status === "offered"
-                  ? "Offer Extended • Action Required"
-                  : app.status === "accepted"
-                  ? "Offer Accepted • Active Placement"
-                  : app.status === "shortlisted"
-                  ? "Shortlisted for Final Placement"
-                  : app.status === "under_review"
-                  ? "Under Technical Review"
-                  : app.status === "rejected"
-                  ? "Not Selected"
-                  : app.status === "withdrawn"
-                  ? "Withdrawn"
-                  : "Submitted • In Queue";
-
               return (
-                <div
-                  key={app.id}
-                  className={`rounded-2xl border bg-white p-5 sm:p-6 shadow-xs hover:border-slate-300 transition space-y-4 ${
-                    app.status === "offered"
-                      ? "border-amber-300 ring-1 ring-amber-200"
-                      : "border-slate-200"
-                  }`}
-                >
-                  {/* Card Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 border-b border-slate-100 pb-3">
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold text-slate-600">
-                          {app.organizationName}
-                        </span>
-                        {app.organizationVerified && (
-                          <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">
-                            ✓ Verified Org
-                          </span>
-                        )}
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] border ${statusBadgeColor}`}>
-                          {statusLabel}
-                        </span>
-                      </div>
-
-                      <h3 className="text-lg font-bold tracking-tight text-slate-900">
-                        <Link href={detailHref} className="hover:text-teal-800 transition">
-                          {app.projectTitle}
-                        </Link>
-                      </h3>
-                    </div>
-
-                    <div className="shrink-0 flex items-center gap-2">
-                      <Link
-                        href={detailHref}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 transition"
-                      >
-                        <span>View Details</span>
-                        <span aria-hidden="true">→</span>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* URGENT OFFER BANNER (If offered) */}
-                  {app.status === "offered" && (
-                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-2xs animate-fade-in">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-2.5 w-2.5 rounded-full bg-amber-600 animate-pulse" />
-                          <span className="text-xs font-bold text-amber-950">
-                            Official Project Offer Ready for Acceptance
-                          </span>
+                <Card key={app.id} className={app.status === "offered" ? "border-gold-500/40 ring-4 ring-gold-100" : undefined}>
+                  <div className="space-y-4 p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge status={app.status} />
+                          {app.organizationVerified && <Pill tone="gold"><BadgeCheck className="size-3.5" aria-hidden />Verified organisation</Pill>}
                         </div>
-                        <p className="text-xs text-amber-900">
-                          {app.offerDeadline ?? "Review terms within 48 hours to confirm participation."}
-                        </p>
+                        <h3 className="text-base font-semibold text-ink-900"><Link href={detailHref} className="hover:text-brand-700">{app.projectTitle}</Link></h3>
+                        <p className="text-[13px] text-ink-500">Applied {String(app.appliedAt ?? "").slice(0, 10)}</p>
                       </div>
-
-                      <Link
-                        href={detailHref}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-900 transition shrink-0"
-                      >
-                        <span>Review Offer &amp; Accept</span>
-                        <span aria-hidden="true">→</span>
-                      </Link>
+                      <Button asChild variant={app.status === "offered" ? "primary" : "secondary"} size="sm">
+                        <Link href={detailHref}>{app.status === "offered" ? "Review offer" : "View details"}</Link>
+                      </Button>
                     </div>
-                  )}
-
-                  {/* Motivation Snippet */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Statement of Fit / Motivation
-                    </span>
-                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50/70 p-3 rounded-lg border border-slate-100">
-                      {app.motivationStatement}
-                    </p>
+                    {app.status === "offered" && (
+                      <NextStepHint tone="gold" waitingOn="You" detail={app.offerDeadline ? `Reply to the offer · ${app.offerDeadline}` : "Accept or decline the offer"} />
+                    )}
+                    {app.motivationStatement && <p className="line-clamp-3 text-sm text-ink-700">{app.motivationStatement}</p>}
+                    {app.declaredSkills.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {app.declaredSkills.map((skill, idx) => <Pill key={idx} tone="brand">{skill}</Pill>)}
+                      </div>
+                    )}
                   </div>
-
-                  {/* Declared Skills */}
-                  {app.declaredSkills.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                      <span className="text-[10px] text-slate-400 font-semibold mr-1">Skills Highlighted:</span>
-                      {app.declaredSkills.map((skill, idx) => (
-                        <span
-                          key={idx}
-                          className="rounded bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-900 border border-teal-100"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Footer Metadata */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-slate-400 border-t border-slate-100">
-                    <span>Applied on: <strong className="text-slate-700">{app.appliedAt}</strong></span>
-                    <span>Observed Terms: <strong className="font-mono text-slate-700">{app.observedTermsSnapshot.termsVersionId}</strong></span>
-                  </div>
-                </div>
+                </Card>
               );
             })}
           </div>
         )}
-      </main>
+      </section>
 
-      {/* Apply Modal */}
       <ApplyModal key={selectedProjectId ?? "all-projects"} initialProjectId={selectedProjectId} preview={preview}
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}

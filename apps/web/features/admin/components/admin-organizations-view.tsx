@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { usePortalApi } from "@/lib/api/portal-api";
 import type { OrganizationRead } from "@experiencebridge/api-client";
+import { toast } from "sonner";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/primitives";
 
 export function AdminOrganizationsView() {
   const { getApi, isSignedIn } = usePortalApi();
@@ -29,11 +32,11 @@ export function AdminOrganizationsView() {
         if (!active) return;
         if (pendingRes.data) setPendingOrgs(pendingRes.data);
         if (allRes.data) setAllOrgs(allRes.data);
-      } catch (e) {
+      } catch {
         if (!active) return;
         setNotification({
           type: "error",
-          message: e instanceof Error ? e.message : "Failed to load organizations.",
+          message: "We couldn't load organisations. Check your connection and refresh the page.",
         });
       } finally {
         if (active) setLoading(false);
@@ -51,7 +54,7 @@ export function AdminOrganizationsView() {
   ) => {
     const reason = decisionReasons[org.id]?.trim() ?? "";
     if (reason.length < 10) {
-      setNotification({ type: "error", message: "A rationale of at least 10 characters is required for moderation." });
+      setNotification({ type: "error", message: "Write a short reason (at least 10 characters). The organisation sees it." });
       return;
     }
 
@@ -63,15 +66,12 @@ export function AdminOrganizationsView() {
       if (res.error) {
         setNotification({ type: "error", message: res.error });
       } else {
-        setNotification({
-          type: "success",
-          message: `Organization "${org.display_name}" decision recorded: ${decision}.`,
-        });
+        toast.success(decision === "verify" ? `${org.display_name} verified` : decision === "request_changes" ? `Changes requested from ${org.display_name}` : `${org.display_name} rejected`);
         setDecisionReasons((prev) => ({ ...prev, [org.id]: "" }));
         setRefreshTrigger((prev) => prev + 1);
       }
-    } catch (e) {
-      setNotification({ type: "error", message: e instanceof Error ? e.message : "Decision operation failed." });
+    } catch {
+      setNotification({ type: "error", message: "That decision didn't save. Check your connection and try again." });
     } finally {
       setActionBusy(false);
     }
@@ -86,19 +86,14 @@ export function AdminOrganizationsView() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-lg font-bold text-white tracking-tight">Organization Governance & Vetting</h2>
-        <p className="text-xs text-slate-400">
-          Verify partner organizations before they can publish projects or engage student participants.
-        </p>
-      </div>
+      <PageHeader eyebrow="Admin" title="Organisations" description="Verify organisations before they can publish projects to students." />
 
       {notification && (
         <div
-          className={`rounded-xl border p-4 text-xs ${
+          role="alert" className={`rounded-xl border p-4 text-sm ${
             notification.type === "success"
-              ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-200"
-              : "border-red-500/30 bg-red-950/20 text-red-200"
+              ? "border-success/25 bg-success-bg text-success-text"
+              : "border-danger/25 bg-danger-bg text-danger-text"
           }`}
         >
           {notification.message}
@@ -106,46 +101,44 @@ export function AdminOrganizationsView() {
       )}
 
       {/* Moderation Queue Section */}
-      <section aria-labelledby="verification-queue-title" className="rounded-2xl border border-slate-800 bg-slate-950 p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-850 pb-4">
+      <section aria-labelledby="verification-queue-title" className="rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card sm:p-6 space-y-4">
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <div>
-            <h3 id="verification-queue-title" className="text-sm font-bold text-white">
-              Organizations Awaiting Verification
+            <h3 id="verification-queue-title" className="text-sm font-bold text-ink-900">
+              Awaiting verification
             </h3>
-            <p className="text-xs text-slate-400">Action items submitted for independent platform verification</p>
+            <p className="text-xs text-ink-500">Check each organisation, then verify, ask for changes or reject.</p>
           </div>
-          <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold">
-            {pendingOrgs.length} pending
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-warning-bg text-warning-text border border-warning/30 px-2.5 py-0.5 text-xs font-semibold">
+            {pendingOrgs.length} waiting
           </span>
         </div>
 
         {loading ? (
-          <p className="py-8 text-center text-xs text-slate-400">Loading moderation queue...</p>
+          <p className="py-8 text-center text-xs text-ink-500">Loading…</p>
         ) : pendingOrgs.length === 0 ? (
-          <p className="py-8 text-center text-xs text-slate-400">
-            No organizations currently awaiting verification.
+          <p className="py-8 text-center text-xs text-ink-500">
+            Nothing waiting. New submissions appear here.
           </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {pendingOrgs.map((org) => (
-              <div key={org.id} className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+              <div key={org.id} className="rounded-xl border border-line bg-canvas p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h4 className="font-semibold text-white text-sm">{org.display_name}</h4>
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">{org.description}</p>
+                    <h4 className="font-semibold text-ink-900 text-sm">{org.display_name}</h4>
+                    <p className="text-xs text-ink-500 mt-1 line-clamp-2">{org.description}</p>
                   </div>
-                  <span className="rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-mono px-2 py-0.5">
-                    submitted
-                  </span>
+                  <StatusBadge status="submitted" />
                 </div>
 
-                <div className="text-[11px] font-mono text-slate-400">
-                  Owner: {org.created_by_user_id}
+                <div className="text-[11px] text-ink-500">
+                  Registered {new Date(org.created_at).toLocaleDateString()}
                 </div>
 
-                <div className="space-y-1.5 pt-2 border-t border-slate-800">
-                  <label htmlFor={`rationale-${org.id}`} className="block text-[11px] font-medium text-slate-300">
-                    Decision Rationale (min 10 characters):
+                <div className="space-y-1.5 pt-2 border-t border-line">
+                  <label htmlFor={`rationale-${org.id}`} className="block text-[11px] font-medium text-ink-700">
+                    Reason for your decision
                   </label>
                   <textarea
                     id={`rationale-${org.id}`}
@@ -154,9 +147,10 @@ export function AdminOrganizationsView() {
                     onChange={(e) =>
                       setDecisionReasons((prev) => ({ ...prev, [org.id]: e.target.value }))
                     }
-                    placeholder="Document independent verification checks and rationale..."
-                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+                    placeholder="What you checked, or what needs to change (shared with the organisation)"
+                    className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-600 focus:outline-none"
                   />
+                  {(decisionReasons[org.id]?.trim().length ?? 0) < 10 && <p className="text-[11px] text-ink-500">At least 10 characters to enable the buttons.</p>}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -164,23 +158,23 @@ export function AdminOrganizationsView() {
                     type="button"
                     disabled={actionBusy || (decisionReasons[org.id]?.trim().length ?? 0) < 10}
                     onClick={() => handleDecision(org, "verify")}
-                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition"
+                    className="rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold text-white transition"
                   >
-                    Verify Organization
+                    Verify
                   </button>
                   <button
                     type="button"
                     disabled={actionBusy || (decisionReasons[org.id]?.trim().length ?? 0) < 10}
                     onClick={() => handleDecision(org, "request_changes")}
-                    className="rounded-lg border border-amber-600/40 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
+                    className="rounded-lg border border-warning/30 bg-warning-bg text-warning-text hover:bg-warning-bg disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
                   >
-                    Request Changes
+                    Request changes
                   </button>
                   <button
                     type="button"
                     disabled={actionBusy || (decisionReasons[org.id]?.trim().length ?? 0) < 10}
                     onClick={() => handleDecision(org, "reject")}
-                    className="rounded-lg border border-red-600/40 bg-red-950/30 text-red-300 hover:bg-red-900/40 disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
+                    className="rounded-lg border border-danger/25 bg-danger-bg text-danger-text hover:bg-danger-bg disabled:opacity-50 px-3 py-1.5 text-xs font-semibold transition"
                   >
                     Reject
                   </button>
@@ -192,13 +186,13 @@ export function AdminOrganizationsView() {
       </section>
 
       {/* Full Organizations Directory */}
-      <section aria-labelledby="org-directory-title" className="rounded-2xl border border-slate-800 bg-slate-950 p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-4">
+      <section aria-labelledby="org-directory-title" className="rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-line pb-4">
           <div>
-            <h3 id="org-directory-title" className="text-sm font-bold text-white">
-              All Partner Organizations Directory
+            <h3 id="org-directory-title" className="text-sm font-bold text-ink-900">
+              All organisations
             </h3>
-            <p className="text-xs text-slate-400">Complete registry across all verification lifecycles</p>
+            <p className="text-xs text-ink-500">Search and filter every organisation on the platform.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -207,17 +201,17 @@ export function AdminOrganizationsView() {
               placeholder="Search by name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none"
+              className="rounded-lg border border-line bg-canvas px-3 py-1.5 text-xs text-ink-900 placeholder-ink-400 focus:border-brand-600/30 focus:outline-none"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+              className="rounded-lg border border-line bg-canvas px-3 py-1.5 text-xs text-ink-900 focus:border-brand-600/30 focus:outline-none"
             >
-              <option value="all">All Statuses</option>
+              <option value="all">All statuses</option>
               <option value="submitted">Submitted</option>
               <option value="verified">Verified</option>
-              <option value="changes_requested">Changes Requested</option>
+              <option value="changes_requested">Changes requested</option>
               <option value="rejected">Rejected</option>
               <option value="draft">Draft</option>
             </select>
@@ -225,49 +219,31 @@ export function AdminOrganizationsView() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-slate-800 text-slate-400">
+          <table className="w-full min-w-[480px] text-left text-xs">
+            <thead className="border-b border-line text-ink-500">
               <tr>
-                <th className="py-2.5 px-3">Organization Name</th>
+                <th className="py-2.5 px-3">Name</th>
                 <th className="py-2.5 px-3">Status</th>
-                <th className="py-2.5 px-3">Registered Date</th>
-                <th className="py-2.5 px-3">Origin</th>
-                <th className="py-2.5 px-3">Entity ID</th>
+                <th className="py-2.5 px-3">Registered</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850 text-slate-300">
+            <tbody className="divide-y divide-line text-ink-700">
               {filteredOrgs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    No organizations match the selected criteria.
+                  <td colSpan={3} className="py-8 text-center text-ink-500">
+                    No organisations match this search.
                   </td>
                 </tr>
               ) : (
                 filteredOrgs.map((org) => (
-                  <tr key={org.id} className="hover:bg-slate-900/50">
-                    <td className="py-2.5 px-3 font-medium text-white">{org.display_name}</td>
+                  <tr key={org.id} className="hover:bg-canvas">
+                    <td className="py-2.5 px-3 font-medium text-ink-900">{org.display_name}</td>
                     <td className="py-2.5 px-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                          org.verification_status === "verified"
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                            : org.verification_status === "submitted"
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                            : org.verification_status === "changes_requested"
-                            ? "border-sky-500/30 bg-sky-500/10 text-sky-300"
-                            : org.verification_status === "rejected"
-                            ? "border-red-500/30 bg-red-500/10 text-red-300"
-                            : "border-slate-700 bg-slate-800 text-slate-400"
-                        }`}
-                      >
-                        {org.verification_status}
-                      </span>
+                      <StatusBadge status={org.verification_status} />
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400">
+                    <td className="py-2.5 px-3 text-ink-500">
                       {new Date(org.created_at).toLocaleDateString()}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-400">{org.data_origin}</td>
-                    <td className="py-2.5 px-3 font-mono text-[10px] text-slate-400">{org.id.slice(0, 8)}...</td>
                   </tr>
                 ))
               )}

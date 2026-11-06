@@ -171,10 +171,24 @@ def _trusted_client_ip(request: Request, config: AuthConfig) -> str:
     return client_ip
 
 
+def _env_limit(name: str, default: int) -> int:
+    """Optional per-IP override (e.g. testers sharing campus Wi-Fi). Invalid values keep the default."""
+    try:
+        value = int(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return value if 1 <= value <= 10000 else default
+
+
 def _limit(db: Session, request: Request, config: AuthConfig, *, email: str, scope: str) -> bool:
     """Persist limits even if later validation or authentication fails."""
     normalized = normalize_email(email)
     interval, per_email, per_ip = (900, 5, 30) if scope == "login" else (3600, 3, 20)
+    # Only the per-IP ceilings are configurable; per-email limits never change.
+    if scope == "login":
+        per_ip = _env_limit("AUTH_LOGIN_PER_IP_PER_15MIN", per_ip)
+    elif scope == "register":
+        per_ip = _env_limit("AUTH_REGISTER_PER_IP_PER_HOUR", per_ip)
     ip = _trusted_client_ip(request, config)
     email_count = increment_rate_limit(db, secret=config.rate_limit_secret, scope=f"{scope}:email", identity=normalized, window_seconds=interval)
     ip_count = increment_rate_limit(db, secret=config.rate_limit_secret, scope=f"{scope}:ip", identity=ip, window_seconds=interval)
