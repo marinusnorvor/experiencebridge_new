@@ -17,7 +17,14 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
 
 ## Needs Marinus
 
-- (none yet)
+1. **Speed (important for 11:00):** Vercel → Project → Settings → Functions → **Function Region = London (lhr1)**,
+   then redeploy. Neon is in `eu-west-2` (London). Measured tonight: one DB round trip ≈ 106 ms from Ghana, and one
+   `/me` request makes ~25 of them (≈ 3 s). If the API runs in Vercel's default US region every request pays the
+   transatlantic hop ≈ 2 s; in London it's a few ms. No code change needed.
+2. (B1) `ADMIN_PATH_SECRET` — add to Vercel Production (server-only, NOT `NEXT_PUBLIC_`), 24+ random letters/digits.
+   Generate: `-join ((48..57)+(65..90)+(97..122) | Get-Random -Count 32 | % {[char]$_})`. Admin URL becomes
+   `https://experiencebridgenew.vercel.app/<secret>/dashboard`; `/admin` then returns 404. Bookmark it.
+   Without the variable, `/admin` keeps working as today.
 
 ## Notes for test day
 
