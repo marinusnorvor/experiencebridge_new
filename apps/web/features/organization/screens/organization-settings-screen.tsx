@@ -1,4 +1,6 @@
 "use client";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { NextStepHint } from "@/components/ui/primitives";
 import { usePortalApi } from "@/lib/api/portal-api";
 import { useState } from "react";
 import { useOrganizationDemo } from "../hooks/organization-demo-context";
@@ -42,24 +44,30 @@ function LiveSettings() {
         ? await api.submitOrganizationVerification(organization.id, organization.row_version)
         : await api.createOrganization({ display_name: name, description });
       if (!result.data) throw new Error(result.error ?? "Organization operation failed.");
-      announce(`${result.data.display_name}: ${result.data.verification_status}. API record ${result.data.id}.`);
+      announce(verification ? "Sent for verification." : "Organisation created.");
       await refetch();
     } catch (e) { setError(e instanceof Error ? e.message : "API request failed."); }
     finally { setBusy(false); }
   }
-  return <PortalPage title="Organization profile" description="Development database records. Use fictional information for the supervisor demonstration.">
+  return <PortalPage title="Organisation profile" description="This is how students see your organisation on every project you post.">
     {error && <p role="alert" className={s.feedback}>{error}</p>}
     <section className={s.card}>{organization ? <>
       <h2>{organization.display_name}</h2><p>{organization.description}</p>
-      <p>API ID: {organization.id}</p><Badge>{organization.verification_status}</Badge>
-      <p className={s.muted}>An independent Admin must verify this organization before projects can be submitted for publication review.</p>
-      <Button disabled={busy || !["draft", "changes_requested"].includes(organization.verification_status)} onClick={() => void save(true)}>Request organization verification</Button>
-      <Button disabled={busy} onClick={() => void refetch().catch(() => {})}>Refresh status</Button>
+      <p className="my-3"><StatusBadge status={organization.verification_status} /></p>
+      {organization.verification_status === "draft" && <NextStepHint waitingOn="You" detail="Submit your organisation for verification. You can draft projects meanwhile, but only verified organisations can publish them." />}
+      {organization.verification_status === "submitted" && <NextStepHint waitingOn="ExperienceBridge review" detail="usually within 48 hours. You can draft projects while you wait." />}
+      {organization.verification_status === "changes_requested" && <NextStepHint tone="warning" waitingOn="You" detail="An admin asked for changes. Update your details, then submit again." />}
+      {organization.verification_status === "verified" && <NextStepHint tone="gold" waitingOn="Nothing" detail="Your organisation is verified. Projects you submit go to review, then live." />}
+      {organization.verification_status === "rejected" && <NextStepHint tone="warning" waitingOn="ExperienceBridge" detail="Verification wasn't approved. Contact the team if you think this is a mistake." />}
+      <div className={s.cardFooter}>
+        {["draft", "changes_requested"].includes(organization.verification_status) && <Button primary disabled={busy} onClick={() => void save(true)}>{busy ? "Submitting…" : "Submit for verification"}</Button>}
+        <Button disabled={busy} onClick={() => void refetch().catch(() => {})}>Refresh status</Button>
+      </div>
     </> : <form onSubmit={e => { e.preventDefault(); void save(false); }} className={s.stack}>
-      <h2>Create your organization</h2>
-      <Field label="Organization name">{props => <input {...props} required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} />}</Field>
+      <h2>Create your organisation</h2>
+      <Field label="Organisation name">{props => <input {...props} required minLength={2} maxLength={160} value={name} onChange={e => setName(e.target.value)} />}</Field>
       <Field label="Description">{props => <textarea {...props} required minLength={10} maxLength={5000} value={description} onChange={e => setDescription(e.target.value)} />}</Field>
-      <Button primary type="submit" disabled={busy}>{busy ? "Saving..." : "Create organization"}</Button>
+      <Button primary type="submit" disabled={busy}>{busy ? "Saving..." : "Create organisation"}</Button>
     </form>}</section>
   </PortalPage>;
 }

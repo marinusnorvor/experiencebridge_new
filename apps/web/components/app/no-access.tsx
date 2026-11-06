@@ -15,7 +15,7 @@ export function NoAccess({ portal }: { portal: Portal }) {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center py-16 text-center">
       <span className="grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-600"><Icon className="size-6" aria-hidden /></span>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">{copy.title}</h1>
+      <h1 className="mt-6 text-2xl font-semibold tracking-tight text-ink-900">{copy.title}</h1>
       <p className="mt-2 text-[15px] text-ink-500">{copy.body}</p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild><Link href={copy.cta.href}>{copy.cta.label}</Link></Button>
@@ -29,7 +29,7 @@ export function ServiceUnavailable({ onRetry }: { onRetry: () => void }) {
   return (
     <div role="alert" className="mx-auto flex max-w-md flex-col items-center py-24 text-center">
       <span className="grid size-14 place-items-center rounded-2xl bg-warning-bg text-warning-text"><RefreshCw className="size-6" aria-hidden /></span>
-      <h1 className="mt-6 text-2xl font-semibold tracking-tight">We can&rsquo;t reach ExperienceBridge right now</h1>
+      <h1 className="mt-6 text-2xl font-semibold tracking-tight text-ink-900">We can&rsquo;t reach ExperienceBridge right now</h1>
       <p className="mt-2 text-[15px] text-ink-500">Check your connection and try again. Your work is saved.</p>
       <Button className="mt-8" onClick={onRetry}>Try again</Button>
     </div>

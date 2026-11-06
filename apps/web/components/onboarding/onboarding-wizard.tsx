@@ -47,7 +47,7 @@ function Frame({ step, total, title, subtitle, children, onBack }: { step: numbe
       <main className="mx-auto max-w-xl px-4 py-10 sm:px-6 sm:py-14">
         {onBack && <button type="button" onClick={onBack} className="mb-6 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900"><ArrowLeft className="size-3.5" aria-hidden />Back</button>}
         <motion.div key={step} initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink-900">{title}</h1>
           {subtitle && <p className="mt-2 text-[15px] text-ink-500">{subtitle}</p>}
           <div className="mt-8 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-card sm:p-7">{children}</div>
         </motion.div>
@@ -65,7 +65,7 @@ function Celebrate({ title, body, cta, href, tone = "brand" }: { title: string; 
           className={cn("mx-auto grid size-20 place-items-center rounded-full", tone === "gold" ? "bg-gold-50 text-gold-500 ring-8 ring-gold-100" : "bg-brand-50 text-brand-600 ring-8 ring-brand-100")}>
           {tone === "gold" ? <BadgeCheck className="size-9" /> : <PartyPopper className="size-9" />}
         </motion.span>
-        <h1 className="mt-8 text-[28px] font-semibold tracking-[-0.02em]">{title}</h1>
+        <h1 className="mt-8 text-[28px] font-semibold tracking-[-0.02em] text-ink-900">{title}</h1>
         <p className="mt-2 text-[15px] text-ink-500">{body}</p>
         <Button asChild size="lg" className="mt-8"><a href={href}>{cta}</a></Button>
       </div>

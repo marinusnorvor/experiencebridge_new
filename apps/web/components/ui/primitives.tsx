@@ -10,7 +10,7 @@ export function CardHeader({ title, description, action, className }: { title: R
   return (
     <div className={cn("flex items-start justify-between gap-4 border-b border-line px-5 py-4", className)}>
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold">{title}</h2>
+        <h2 className="text-[15px] font-semibold text-ink-900">{title}</h2>
         {description && <p className="mt-0.5 text-[13px] text-ink-500">{description}</p>}
       </div>
       {action}
@@ -23,7 +23,7 @@ export function PageHeader({ eyebrow, title, description, actions, className }: 
     <header className={cn("flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between", className)}>
       <div className="min-w-0">
         {eyebrow && <p className="mb-1.5 text-[13px] font-medium text-brand-600">{eyebrow}</p>}
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[28px]">{title}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink-900 sm:text-[28px]">{title}</h1>
         {description && <p className="mt-1.5 max-w-2xl text-[15px] text-ink-500">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

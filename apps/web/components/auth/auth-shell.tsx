@@ -23,7 +23,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: ReactN
       <div className="flex flex-col px-5 py-6 sm:px-10 lg:px-16">
         <Link href="/" aria-label="ExperienceBridge home" className="self-start"><Logo /></Link>
         <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center py-10">
-          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] sm:text-[32px]">{title}</h1>
+          <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink-900 sm:text-[32px]">{title}</h1>
           {subtitle && <p className="mt-2 text-[15px] text-ink-500">{subtitle}</p>}
           <div className="mt-8">{children}</div>
           {footer && <div className="mt-8 text-sm text-ink-500">{footer}</div>}
