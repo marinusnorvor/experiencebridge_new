@@ -213,7 +213,7 @@ export function StudentDashboardView() {
           action={<Button asChild size="sm"><Link href={`${basePath}/applications/${pendingOffers[0].id}`}>Review offer</Link></Button>} />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 [&>*]:min-w-0">
         <div className="space-y-6 lg:col-span-2">
           <Card>
             <CardHeader title="Needs your attention" description="What's waiting on you right now." />

@@ -145,3 +145,9 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Absolutely positioned children (e.g. .sr-only labels in table headers) must not escape horizontal
+   scroll containers and widen the page on phones. */
+@layer base {
+  .overflow-x-auto { position: relative; }
+}

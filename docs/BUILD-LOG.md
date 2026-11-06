@@ -4,6 +4,28 @@ Read this first (2 minutes). Newest entries at the top of each section.
 Plan: `docs/PRODUCT-PLAN.md` + `docs/TONIGHT-SPRINT.md` (sprint wins on conflicts).
 Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
 
+## 8:30 checkpoint — read this first
+
+**Checks (last run):** backend `pytest -k "not live_neon"` 74 passed / 0 failed (+32 accepted staging-DB errors) ·
+lint 0 errors (3 old warnings) · typecheck PASS · production build PASS · **Playwright full journey PASS**
+(`npm run test:e2e --workspace apps/web`, needs `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` = the dev super admin).
+
+**Test it in 10 minutes (local, web :3002, API :8001):**
+1. `/` → "Post a project" → sign up as Organisation → onboarding → "Submit for verification" → org home.
+2. Second browser (incognito): sign in as super admin → `/app` → Admin overview shows the org in the queue → verify it.
+3. Org: New project → fill the wizard → submit. Admin: Projects → approve.
+4. Third browser: `/` → "Find a project" → sign up as Student → onboarding → Find projects → apply.
+5. Org: Applications → shortlist → offer. Student: accept (celebration toast). Bell icon shows each handoff.
+6. Fourth browser: sign up as Mentor → onboarding; Admin: Mentors → approve; Org: project Team → invite mentor;
+   Mentor: accept → open the participation → after the student submits, score the rubric → Send review.
+7. Org: Reviews → accept → student "I've finished" → org finalise → Student `/student/passport` shows a Verified entry.
+Every page also works at phone width; "Give feedback" appears once `NEXT_PUBLIC_FEEDBACK_URL` is set.
+
+**Before merging:** decide on the rate-limit commit (Needs Marinus #2). Merge `feat/overnight-v1` → `main`
+(open the PR at https://github.com/marinusnorvor/experiencebridge_new/compare/main...feat/overnight-v1 — the agent's
+`gh` CLI isn't logged in). Then Vercel env vars: #1 region, #2 limits, #3 feedback URL, #4 admin path (optional).
+No database migrations are needed for this branch (no schema changes).
+
 ## Status by block
 
 | Block | Status | Notes |
@@ -12,8 +34,8 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
 | B1 shell + components | DONE | AppShell (sidebar + mobile bottom tabs), account menu + workspace switcher, no-access page, unlisted admin URL, `/app` redirect, Action Centre v1 (pulled forward from B4) |
 | B2 marketing + auth + onboarding | DONE | `/`, `/about`, `/how-it-works`; new sign-up/sign-in/forgot/reset; `/onboarding` for all 3 paths. **Verified in a real browser:** landing → sign up → onboarding → home for student (375px), organisation and mentor |
 | B3 org + admin journeys | DONE | Org: loading/error inside shell, first-load bug fixed, verification hints, copy. Admin: light brand, queues first, 3 bugs fixed |
-| B4 student + mentor + Action Centre + feedback + rate limit | MOSTLY DONE | Passport redesign, mentor rubric review, mentor home, feedback button, rate-limit (awaiting approval). Student screens polish in progress (subagent) |
-| B5 Playwright + mobile + jargon + final checks | IN PROGRESS | e2e full journey PASSES locally (3.2 min, 4 browser contexts) |
+| B4 student + mentor + Action Centre + feedback + rate limit | DONE | Passport redesign, student screens, mentor rubric review + home, feedback button, rate limit (awaiting approval) |
+| B5 Playwright + mobile + jargon + final checks | DONE | e2e full journey PASSES (run twice, ~3 min); 27 screens checked at 375 px, no horizontal scroll; jargon sweep; all checks green |
 
 ## Needs Marinus
 
@@ -44,6 +66,14 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
   (or have them create a new account).
 
 ## Log
+
+### B5 (≈05:30)
+- Playwright: `apps/web/playwright.config.ts`, `apps/web/e2e/full-journey.spec.ts` — 4 browser contexts; UI for sign-up,
+  onboarding, finding the project, the mentor rubric review and the Passport check; API (same browser sessions) for the
+  other handoffs; asserts a non-admin gets 403 on admin endpoints and can't open the admin page. Passed twice.
+- Mobile: 27 screens (public, student, org, mentor, admin) at 375 px — fixed 4 overflows (a `.sr-only` label escaping
+  table scroll containers; a grid column without `min-w-0`; a non-wrapping button row).
+- Jargon sweep across live code paths (preview-only branches keep plain "Preview" labels).
 
 ### B4 (≈04:30)
 - **Passport** (`components/passport/experience-passport.tsx`): passport-document hero, verified entries only when the org
