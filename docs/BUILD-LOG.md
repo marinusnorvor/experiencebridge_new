@@ -8,9 +8,9 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
 
 | Block | Status | Notes |
 |---|---|---|
-| B0 setup | IN PROGRESS | tag pushed, branch created, stack installed, tokens + Geist fonts, Vercel Analytics |
-| B1 shell + components | TODO | |
-| B2 marketing + auth + onboarding | TODO | |
+| B0 setup | DONE | tag pushed, branch, stack, tokens + Geist, Vercel Analytics, `docs/GAP-ANALYSIS.md` |
+| B1 shell + components | DONE | AppShell (sidebar + mobile bottom tabs), account menu + workspace switcher, no-access page, unlisted admin URL, `/app` redirect, Action Centre v1 (pulled forward from B4) |
+| B2 marketing + auth + onboarding | DONE | `/`, `/about`, `/how-it-works`; new sign-up/sign-in/forgot/reset; `/onboarding` for all 3 paths. **Verified in a real browser:** landing → sign up → onboarding → home for student (375px), organisation and mentor |
 | B3 org + admin journeys | TODO | |
 | B4 student + mentor + Action Centre + feedback + rate limit | TODO | |
 | B5 Playwright + mobile + jargon + final checks | TODO | |
@@ -33,6 +33,28 @@ Rollback point: tag `v0.1-build-live` (= `main` at d1be39f, the live deploy).
   (or have them create a new account).
 
 ## Log
+
+### B2 (≈02:40)
+- Marketing site built by a parallel subagent on the same branch (files: `app/(public)/page.tsx`, `about/`, `how-it-works/`,
+  `components/marketing/*`, `components/layouts/site-header.tsx`). Only sourced stats (GSS 2025; Van Iddekinge 2019),
+  no fake logos/numbers/testimonials, team section says "Full team bios coming soon" (decision §12.3 pending), no contact email.
+- Auth: `components/layouts/auth-form.tsx` rewritten on the same `authClient` calls; `components/auth/auth-shell.tsx`.
+  Register → login → `/onboarding?path=…` (register doesn't sign in by itself). Sign-in → `?next=` (same-site only) or `/app`.
+- Onboarding (`app/onboarding`, `components/onboarding/*`) solves gap G1: creates the org / mentor profile from outside the
+  gated portals, then `refresh()` so the new workspace appears. Only real API fields are used.
+- Browser-tested with Playwright (scratchpad script): 3 roles × sign-up → onboarding → home all pass.
+- Known: signed-out pages log one browser "401" line for the `/me` check — expected, not a JS error.
+
+### B1 (≈01:45)
+- `components/app/*`: AppShell, portal nav config, account menu (workspace switcher shows only usable portals,
+  "Set up an organisation" / "Become a mentor"), NoAccess, ServiceUnavailable, Action Centre (bell + panel,
+  React Query, polls on focus and every 45 s), admin badges.
+- `PortalBoundary` now wraps every portal in the AppShell, redirects signed-out users to `/sign-in?next=…`.
+  The old `AdminShell` / `OrganizationPortalShell` are no longer rendered (files kept, not deleted).
+- Unlisted admin URL: `proxy.ts` + `ADMIN_PATH_SECRET` (server-only) + admin layout reads the base from a proxy header.
+- `/app` route handler: server-side `/me` → admin (secret path) / organisation / mentor / student home.
+- Local dev note: Next runs on **:3002** and the API on **:8001** because an older checkout still holds :3000/:8000.
+  Local API uses `DB_POOL_MODE=queue` (existing setting) — see "Needs Marinus" #1 for the real latency fix.
 
 ### B0
 - Moved `EXPERIENCEBRIDGE-PRODUCT-PLAN.md` / `TONIGHT-SPRINT.md` from the repo root to `docs/PRODUCT-PLAN.md` / `docs/TONIGHT-SPRINT.md` (paths the plan refers to).
