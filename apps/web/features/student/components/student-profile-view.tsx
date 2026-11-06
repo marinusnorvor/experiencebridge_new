@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader, PageSkeleton } from "@/components/ui/primitives";
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -49,7 +50,7 @@ function getInitialTimestamp(): string | null {
 const EMPTY_LIVE_PROFILE: StudentProfileDetails = {
   id: "",
   displayName: "Student",
-  headline: "Authenticated ExperienceBridge Student",
+  headline: "",
   bio: "",
   institution: "",
   programOfStudy: "",
@@ -159,7 +160,7 @@ export function StudentProfileView() {
           id: dto?.user_id || passport.student.id,
           displayName: dto?.display_name || passport.student.displayName || "Student",
           email: dto?.email ?? passport.student.email ?? "",
-          headline: dto?.headline || "Authenticated ExperienceBridge Student",
+          headline: dto?.headline || "",
           bio: dto?.bio ?? "",
           institution: dto?.institution ?? "",
           programOfStudy: dto?.program_of_study ?? "",
@@ -477,35 +478,23 @@ export function StudentProfileView() {
 
   if (!profile || !profile.displayName) {
     return (
-      <div className="min-h-[calc(100vh-65px)] bg-slate-50 flex items-center justify-center p-6 text-sm text-slate-500">
-        Loading profile...
-      </div>
+      <PageSkeleton />
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      {/* Sub-navigation & Header */}
-      {!preview && (
-        <p role="status" className="mx-auto max-w-6xl p-4 text-xs text-slate-600">
-          Authenticated student identity, editable profile attributes, mentor-assessed competencies,
-          and project assertions synchronized with the API.
-        </p>
-      )}
-      {unavailable && <p role="alert" className="mx-auto max-w-6xl p-4 text-red-700">{unavailable}</p>}
-      <StudentPortalHeader
-        studentName={profile?.displayName}
-        isSynthetic={preview}
-      />
-
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-6 space-y-6">
+    <div className="space-y-6">
+      {unavailable && <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-3 text-sm text-danger-text">{unavailable}</p>}
+      {preview && <StudentPortalHeader studentName={profile?.displayName} isSynthetic />}
+      <PageHeader eyebrow="Student" title="Your profile" description="Organisations see this when you apply. Skills your mentor confirms appear separately from the ones you add." />
+      <ProfileCompleteness profile={profile} />
         {/* Update Notification Banner */}
         {isSavedFeedback && (
           <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-xs font-semibold text-emerald-900 flex items-center justify-between shadow-2xs animate-fade-in">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-600" />
               <span>
-                <strong>Profile updated successfully!</strong> Here is how organizations see your profile.
+                <strong>Profile saved.</strong> This is how organisations see it.
               </span>
             </div>
             {lastSavedTime && (
@@ -528,7 +517,7 @@ export function StudentProfileView() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-slate-900">
-                  Edit Profile Information
+                  Edit your profile
                 </h2>
                 <p className="text-xs text-slate-500">
                   Make updates to your bio, photo, banner, and skills.
@@ -539,7 +528,7 @@ export function StudentProfileView() {
                 onClick={() => setViewMode("view")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition"
               >
-                ← Back to Profile View
+                ← Back to profile
               </button>
             </div>
 
@@ -549,15 +538,13 @@ export function StudentProfileView() {
                 <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                   <div>
                     <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                      1. Profile Visuals &amp; Personal Info
+                      1. About you
                     </h3>
                     <p className="text-xs text-slate-500">
                       Your photo, cover banner, display name, and academic institution.
                     </p>
                   </div>
-                  <span className="text-xs text-teal-800 font-semibold bg-teal-50 px-2 py-0.5 rounded">
-                    Editable (API-ID-02)
-                  </span>
+
                 </div>
 
                 {/* Profile Photo and Cover Banner Row */}
@@ -735,15 +722,13 @@ export function StudentProfileView() {
                 <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                      2. Capability &amp; Skill Inventory
+                      2. Skills
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      Self-reported claims are explicitly distinguished from verified skills assessed by mentors.
+                      Skills you add are shown separately from skills your mentor has confirmed.
                     </p>
                   </div>
-                  <span className="text-xs text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded font-medium border border-amber-200 w-fit">
-                    STU-02 Invariant: Provenance Separation
-                  </span>
+
                 </div>
 
                 {/* Subsection A: Assessed Skills (Immutable, from mentors) */}
@@ -758,7 +743,7 @@ export function StudentProfileView() {
                       </h4>
                     </div>
                     <span className="text-[11px] font-semibold text-teal-800 bg-white px-2 py-0.5 rounded border border-teal-200">
-                      Evidence-Backed · Immutable
+                      Confirmed by your mentor
                     </span>
                   </div>
 
@@ -811,7 +796,7 @@ export function StudentProfileView() {
                         <h5 className="text-xs font-bold text-slate-900">
                           Add New Self-Reported Skill
                         </h5>
-                        <span className="text-[10px] text-teal-800 font-medium">STU-02 Self-Declaration</span>
+                        <span className="text-[10px] text-teal-800 font-medium">Added by you</span>
                       </div>
 
                       <div className="grid gap-3 sm:grid-cols-3">
@@ -1357,7 +1342,7 @@ export function StudentProfileView() {
             </form>
           </div>
         )}
-      </main>
+
 
       {/* Profile Photo Cropper Modal */}
       <ProfilePhotoCropper
@@ -1374,6 +1359,33 @@ export function StudentProfileView() {
         onApplyCover={handleCoverApply}
         currentCoverUrl={profile.coverUrl}
       />
+    </div>
+  );
+}
+
+
+/** Small "how complete is my profile" meter (fields that matter to organisations). */
+function ProfileCompleteness({ profile }: { profile: StudentProfileDetails }) {
+  const checks = [
+    { done: Boolean(profile.headline?.trim()), label: "headline" },
+    { done: Boolean(profile.bio?.trim()), label: "bio" },
+    { done: Boolean(profile.institution?.trim()), label: "school" },
+    { done: Boolean(profile.programOfStudy?.trim()), label: "programme" },
+    { done: (profile.selfReportedSkills?.length ?? 0) > 0, label: "skills" },
+    { done: (profile.preferredDomains?.length ?? 0) > 0, label: "interests" },
+    { done: Boolean(profile.linkedinUrl || profile.githubUrl || profile.portfolioUrl), label: "a link" },
+  ];
+  const percent = Math.round((checks.filter((c) => c.done).length / checks.length) * 100);
+  const missing = checks.filter((c) => !c.done).map((c) => c.label);
+  return (
+    <div className="rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label="Profile completeness">
+          <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${percent}%` }} />
+        </div>
+        <span className="text-[13px] font-medium tabular-nums text-ink-700">{percent}% complete</span>
+      </div>
+      {missing.length > 0 && <p className="mt-2 text-[13px] text-ink-500">Add your {missing.slice(0, 3).join(", ")} to stand out to organisations.</p>}
     </div>
   );
 }

@@ -39,7 +39,8 @@ export function mapApplication(record: ApplicationDetail, offer?: OfferDetail | 
     id: record.id,
     projectId: record.project_id,
     projectTitle: snapshot.title,
-    organizationName: "Verified Host Organization",
+    organizationName: "Organisation",
+    // A project can't be published unless its organisation is verified.
     organizationVerified: true,
     status: record.latest_offer?.status === "accepted" ? "accepted" : record.status,
     offerStatus: record.latest_offer?.status,
@@ -88,9 +89,10 @@ export function mapParticipation(part: ParticipationDetail): StudentParticipatio
     participationId: part.id,
     projectId: part.project_id,
     projectTitle: snapshot.title,
-    organizationName: "Verified Host Organization",
+    organizationName: "Organisation",
+    // A project can't be published unless its organisation is verified.
     organizationVerified: true,
-    mentorName: "See assignment details",
+    mentorName: "Not assigned yet",
     mentorStatus: "pending",
     status: part.status,
     currentMilestone: "See workspace",
@@ -234,16 +236,16 @@ export async function loadWorkspace(
     canSubmit: part.status === "active" && Boolean(part.started_at),
     mentor: assignment
       ? {
-          name: `Mentor ${assignment.mentor_user_id.slice(0, 8)}`,
+          name: "Your mentor",
           title: "Assigned mentor",
           status: assignment.status === "accepted" ? "accepted" : "proposed",
         }
       : { name: "No current mentor assignment", title: "", status: "pending" },
     projectId: part.project_id,
     projectTitle: snapshot.title,
-    organizationName: "Verified Host Organization",
+    organizationName: "Organisation",
     organizationContact: "Authorized Project Sponsor",
-    organizationVerificationStatus: "Verified Host Organization",
+    organizationVerificationStatus: "Verified",
     status: part.status,
     startedAt: part.started_at ?? "Not started",
     targetCompletionDate: snapshot.scope.due_on,
@@ -346,7 +348,7 @@ export async function loadOpportunities(api: PortalApi) {
         project,
         terms,
         title: project.title,
-        org: `Organization ${project.organization_id.slice(0, 8)}`,
+        org: "Organisation",
         termsVersion: terms.id,
         weeklyHours,
         durationWeeks,
@@ -609,7 +611,7 @@ export async function loadStudentPassportAndDecisions(api: PortalApi): Promise<{
               id: `${mr.id}-${criterionName}`,
               name: criterionName,
               level,
-              assessedByMentor: `Mentor ${mr.author_user_id.slice(0, 8)}`,
+              assessedByMentor: "Your mentor",
               projectOrigin: snapshot.title,
               assessedAt: mr.created_at.slice(0, 10),
             });
@@ -619,19 +621,19 @@ export async function loadStudentPassportAndDecisions(api: PortalApi): Promise<{
         recentDecisions.push({
           id: mr.id,
           authorType: "mentor",
-          authorName: `Mentor ${mr.author_user_id.slice(0, 8)}`,
+          authorName: "Your mentor",
           projectTitle: snapshot.title,
           actionText:
             mr.decision === "reviewed"
-              ? "Rubric evaluation recorded"
+              ? "Mentor review"
               : `Mentor review: ${mr.decision}`,
           excerpt: mentorFeedback,
           createdAt: mr.created_at.slice(0, 10),
         });
         if (!latestMentorReview) {
           latestMentorReview = {
-            reviewerName: `Mentor ${mr.author_user_id.slice(0, 8)}`,
-            reviewerTitle: "Assigned Mentor",
+            reviewerName: "Your mentor",
+            reviewerTitle: "Mentor",
             reviewedAt: mr.created_at.slice(0, 10),
             feedbackExcerpt: mentorFeedback,
             rubricCriteriaObserved: obs.map((o) => {
@@ -650,18 +652,18 @@ export async function loadStudentPassportAndDecisions(api: PortalApi): Promise<{
         recentDecisions.push({
           id: or.id,
           authorType: "organization",
-          authorName: `Reviewer ${or.reviewer_user_id.slice(0, 8)}`,
+          authorName: "The organisation",
           projectTitle: snapshot.title,
           actionText:
             or.decision === "accepted"
               ? "Deliverable accepted"
-              : `Organization decision: ${or.decision}`,
+              : `Organisation decision: ${or.decision.replaceAll("_", " ")}`,
           excerpt: or.explanation,
           createdAt: or.created_at.slice(0, 10),
         });
         if (!latestOrgDecision) {
           latestOrgDecision = {
-            reviewerName: `Reviewer ${or.reviewer_user_id.slice(0, 8)}`,
+            reviewerName: "The organisation",
             decision: or.decision === "accepted" ? "accepted" : "revision_requested",
             decidedAt: or.created_at.slice(0, 10),
             formalStatement: or.explanation,
@@ -684,7 +686,8 @@ export async function loadStudentPassportAndDecisions(api: PortalApi): Promise<{
       projectId: part.project_id,
       participationId: part.id,
       projectTitle: snapshot.title,
-      organizationName: "Verified Host Organization",
+      organizationName: "Organisation",
+      // A project can't be published unless its organisation is verified.
       organizationVerified: true,
       timeframe: `${snapshot.scope.start_on} – ${snapshot.scope.due_on}`,
       contributionStatement:

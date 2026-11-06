@@ -6,6 +6,7 @@ import { usePortalResource } from "@/lib/api/use-portal-resource";
 import { useVisibleRefresh } from "@/lib/api/use-visible-refresh";
 import { loadParticipations } from "../lib/api-records";
 import Link from "next/link";
+import { PageSkeleton } from "@/components/ui/primitives";
 import { usePathname } from "next/navigation";
 import { StudentPortalHeader } from "./student-portal-header";
 import { syntheticParticipationsList } from "../lib/mock-data";
@@ -77,28 +78,19 @@ export function StudentProjectsView() {
     .reduce((sum, p) => sum + (p.weeklyHours || 0), 0);
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-slate-50 pb-16">
-      <StudentPortalHeader studentName={preview ? "Stella Appiok" : "Student"} isSynthetic={preview} />
-
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 pt-6 space-y-6">
-        {!preview && live.loading && <p role="status">Loading database records...</p>}
-        {!preview && live.error && <p role="alert" className="text-red-700">{live.error}</p>}
+    <div className="space-y-6">
+      {preview && <StudentPortalHeader studentName="Stella Appiok" isSynthetic />}
+        {!preview && live.loading && !live.data && <PageSkeleton />}
+        {!preview && live.error && <p role="alert" className="rounded-[var(--radius-card)] border border-danger/20 bg-danger-bg p-3 text-sm text-danger-text">We couldn&apos;t load your projects. Check your connection and try again.</p>}
         {/* Page Title & Context */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded">
-                STU-06 · Assigned Projects
-              </span>
-              <span className="text-xs text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                ● Live Interactive State
-              </span>
-            </div>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              My Project Workspaces
-            </h2>
+            <p className="text-[13px] font-medium text-brand-600">Student</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink-900 sm:text-[28px]">
+              My projects
+            </h1>
             <p className="mt-0.5 text-xs text-slate-500 max-w-2xl">
-              Track progress, coordinate with assigned mentors, review milestone deliverables, and submit evidence for genuine organization projects.
+              Projects you&apos;ve joined. Open one to see milestones, submit work and read feedback.
             </p>
           </div>
 
@@ -107,12 +99,11 @@ export function StudentProjectsView() {
               type="button"
               onClick={handleResetDefaults}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 transition"
-              title="Reset state to initial synthetic fixtures"
             >
               <svg className="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>{preview ? "Reset Defaults" : "Refresh records"}</span>
+              <span>{preview ? "Reset preview" : "Refresh"}</span>
             </button>
 
             <Link
@@ -122,7 +113,7 @@ export function StudentProjectsView() {
               <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span>My Applications</span>
+              <span>Applications</span>
             </Link>
 
             <Link
@@ -142,7 +133,7 @@ export function StudentProjectsView() {
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <span>Explore More Projects</span>
+              <span>Find projects</span>
             </Link>
           </div>
         </div>
@@ -169,7 +160,7 @@ export function StudentProjectsView() {
             <span className="text-xs font-medium text-slate-500">Completed Projects</span>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-2xl font-bold text-emerald-700">{completedCount}</span>
-              <span className="text-[11px] text-emerald-800 font-medium">Passport Verified</span>
+              <span className="text-[11px] text-emerald-800 font-medium">In your Passport</span>
             </div>
           </div>
 
@@ -281,7 +272,7 @@ export function StudentProjectsView() {
                   ? "Active • Milestone in progress"
                   : item.status === "under_review"
                   ? "Under Review • Pending feedback"
-                  : "Completed • Verified";
+                  : "Completed";
 
               const workspaceHref = `${basePath}/projects/${item.participationId}`;
 
@@ -299,7 +290,7 @@ export function StudentProjectsView() {
                         </span>
                         {item.organizationVerified && (
                           <span className="inline-flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">
-                            ✓ Verified Org
+                            ✓ Verified organisation
                           </span>
                         )}
                         <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${statusBadge}`}>
@@ -374,7 +365,7 @@ export function StudentProjectsView() {
                           .replace("Prof. ", "")[0] ?? "M"}
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-400">Assigned Faculty Mentor</div>
+                        <div className="text-[10px] text-slate-500">Mentor</div>
                         <div className="font-semibold text-slate-800 truncate">{item.mentorName}</div>
                       </div>
                     </div>
@@ -399,7 +390,7 @@ export function StudentProjectsView() {
               Ready for your next real-world project?
             </h3>
             <p className="text-xs text-teal-100 max-w-xl leading-relaxed">
-              Partner organizations post approved, scoped technical opportunities with confirmed mentor supervision and verifiable project deliverables.
+              Verified organisations post short, real projects. Each one comes with a mentor and adds to your Passport.
             </p>
           </div>
 
@@ -410,7 +401,7 @@ export function StudentProjectsView() {
             Explore Open Projects
           </Link>
         </div>
-      </main>
+
     </div>
   );
 }

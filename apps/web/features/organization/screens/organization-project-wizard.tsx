@@ -40,7 +40,7 @@ export function OrganizationProjectWizard({ id }: { id?: string }) {
       const raw = sessionStorage.getItem(storageKey);
       const restored = raw ? parseSavedBrief(raw, emptyBrief) : null;
       if (!restored) throw new Error("No valid saved draft was found in this browser tab.");
-      setBrief(restored); setDirty(true); setErrors({}); setError(""); announce("Saved synthetic draft restored. Review it before submitting.");
+      setBrief(restored); setDirty(true); setErrors({}); setError(""); announce("Your saved draft is back. Check it before submitting.");
     } catch (error) { setError(error instanceof Error ? error.message : "Browser storage is unavailable."); }
   }
   async function save(submit: boolean) {

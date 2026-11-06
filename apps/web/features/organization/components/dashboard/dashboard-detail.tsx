@@ -56,7 +56,7 @@ export function DashboardDetail({ snapshot, view, recordId, emptyPreview }: { sn
         if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
       }}>
       <div className={styles.dialogHeader}>
-        <div><span className={styles.eyebrow}>Dashboard preview</span><h2 ref={heading} tabIndex={-1} id="dashboard-detail-title">{title}</h2><p id="dashboard-detail-disclosure" className={styles.muted}>Synthetic records · read-only · no real verification</p></div>
+        <div><span className={styles.eyebrow}>Dashboard preview</span><h2 ref={heading} tabIndex={-1} id="dashboard-detail-title">{title}</h2><p id="dashboard-detail-disclosure" className={styles.muted}>Read-only view</p></div>
         <OrganizationButton aria-label="Close dashboard preview" onClick={close}><OrganizationIcon name="close" /></OrganizationButton>
       </div>
       <div className={styles.dialogBody}>

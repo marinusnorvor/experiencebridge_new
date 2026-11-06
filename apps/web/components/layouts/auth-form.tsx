@@ -76,7 +76,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
     fragment.current = value;
     window.history.replaceState(null, "", window.location.pathname);
     // The token lives only in the URL fragment and is removed before the form is usable.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToken(value);
   }, [mode]);
 

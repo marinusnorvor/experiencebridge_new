@@ -8,6 +8,7 @@ import { usePortalApi } from "@/lib/api/portal-api";
 import { cn } from "@/lib/utils/cn";
 import { adminHref, useAdminBase } from "./admin-base";
 import type { Portal } from "./portal-nav";
+import { termsSnapshot } from "@/features/student/lib/api-records";
 
 export type ActionItem = { id: string; title: string; detail?: string; href: string; tone: "action" | "info" | "celebrate" };
 type Api = Awaited<ReturnType<ReturnType<typeof usePortalApi>["getApi"]>>;
@@ -33,16 +34,24 @@ async function loadItems(api: Api, portal: Portal, adminBase: string): Promise<A
     for (const app of (applications.data ?? []).filter((a) => a.status === "shortlisted")) {
       items.push({ id: `short-${app.id}`, tone: "info", title: `You're shortlisted for ${await title(app.project_id)}`, detail: "The organisation is deciding on offers", href: `/student/applications/${app.id}` });
     }
+    // Participations carry their own agreed-terms snapshot; completed projects aren't readable via /projects/{id}.
+    const partTitle = async (partId: string, projectId: string) => {
+      if (!titles.has(projectId)) {
+        const detail = (await api.getParticipation(partId)).data;
+        titles.set(projectId, detail ? termsSnapshot(detail.agreed_terms).title : "your project");
+      }
+      return titles.get(projectId)!;
+    };
     for (const part of (participations.data ?? []).filter((p) => p.status === "active")) {
       const subs = (await api.getSubmissions(part.id)).data ?? [];
       if (subs.some((s) => s.status === "revision_requested")) {
-        items.push({ id: `rev-${part.id}`, tone: "action", title: `Revision requested on ${await title(part.project_id)}`, detail: "Read the feedback and resubmit", href: `/student/projects/${part.id}` });
+        items.push({ id: `rev-${part.id}`, tone: "action", title: `Revision requested on ${await partTitle(part.id, part.project_id)}`, detail: "Read the feedback and resubmit", href: `/student/projects/${part.id}` });
       } else if (!subs.some((s) => s.status === "submitted")) {
-        items.push({ id: `work-${part.id}`, tone: "action", title: `Submit your work for ${await title(part.project_id)}`, detail: "Your mentor reviews it next", href: `/student/projects/${part.id}` });
+        items.push({ id: `work-${part.id}`, tone: "action", title: `Submit your work for ${await partTitle(part.id, part.project_id)}`, detail: "Your mentor reviews it next", href: `/student/projects/${part.id}` });
       }
     }
     for (const part of (participations.data ?? []).filter((p) => p.status === "completed" || p.status === "partially_completed")) {
-      items.push({ id: `pass-${part.id}`, tone: "celebrate", title: `${await title(part.project_id)} is in your Passport`, detail: "Verified by the organisation", href: "/student/passport" });
+      items.push({ id: `pass-${part.id}`, tone: "celebrate", title: `${await partTitle(part.id, part.project_id)} is in your Passport`, detail: "Verified by the organisation", href: "/student/passport" });
     }
   }
   if (portal === "organization") {
